@@ -131,6 +131,12 @@ func try_confirm_targeting_target(target: Node) -> bool:
 
 func _raycast_interaction_target(required_domain: StringName = &"") -> InteractionTargetScript:
 	var mouse_position := get_viewport().get_mouse_position()
+	return _raycast_interaction_target_at(mouse_position, required_domain)
+
+func _raycast_interaction_target_at(
+	mouse_position: Vector2,
+	required_domain: StringName = &""
+) -> InteractionTargetScript:
 	var ray_origin := _camera.project_ray_origin(mouse_position)
 	var ray_end := ray_origin + (_camera.project_ray_normal(mouse_position) * max_ray_distance_m)
 	var excluded: Array[RID] = []
@@ -168,7 +174,7 @@ func _apply_raycast_position(target: InteractionTargetScript, result: Dictionary
 	if data == null or not (hit_position is Vector3):
 		return
 
-	data.position = Vector3(hit_position.x, 0.0, hit_position.z)
+	data.position = hit_position
 
 func _find_interaction_target(collider: Object) -> InteractionTargetScript:
 	var node := collider as Node

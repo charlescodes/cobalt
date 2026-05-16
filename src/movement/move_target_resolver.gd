@@ -79,6 +79,10 @@ static func navigation_path(
 	return path
 
 static func get_navigation_map(source: Node, destination: Node = null) -> RID:
+	var actor_map := _navigation_map_for_actor_node(get_actor_node(source))
+	if actor_map.is_valid():
+		return actor_map
+
 	var source_map := _navigation_map_for_node(source)
 	if source_map.is_valid():
 		return source_map
@@ -131,3 +135,19 @@ static func _navigation_map_for_node(node: Node) -> RID:
 			return viewport.get_world_3d().navigation_map
 
 	return RID()
+
+static func _navigation_map_for_actor_node(actor: Node) -> RID:
+	if actor == null:
+		return RID()
+
+	var agent: NavigationAgent3D
+	if actor.has_method("get_navigation_agent"):
+		agent = actor.call("get_navigation_agent") as NavigationAgent3D
+	else:
+		agent = actor.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
+
+	if agent == null:
+		return RID()
+
+	var navigation_map := agent.get_navigation_map()
+	return navigation_map if navigation_map.is_valid() else RID()

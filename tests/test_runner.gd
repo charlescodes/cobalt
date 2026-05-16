@@ -19,7 +19,14 @@ const WallVisualResolverScript := preload("res://src/walls/wall_visual_resolver.
 
 var _move_requested_count: int = 0
 var _move_requested_actor: Node
+var _move_requested_actor_data: Resource
 var _move_requested_destination: Resource
+var _hover_changed_count: int = 0
+var _hover_changed_target: Node
+var _examined_count: int = 0
+var _examined_target_domain: StringName = &""
+var _examined_target_data: Resource
+var _examined_output: Dictionary = {}
 var _movement_started_count: int = 0
 var _movement_started_path: PackedVector3Array
 var _movement_completed_count: int = 0
@@ -54,6 +61,8 @@ func _run_smoke_checks() -> bool:
 	if not _check_hover_and_ui(root_event_bus):
 		return false
 	if not _check_main_scene(root_event_bus):
+		return false
+	if not await _check_main_scene_interaction_raycast(root_event_bus):
 		return false
 
 	var camera_distance: float = CameraRigScript.camera_distance_for_height(7.0, deg_to_rad(-55.0))
@@ -252,6 +261,7 @@ func _check_targeting_and_controller(root_event_bus: Node) -> bool:
 
 	_move_requested_count = 0
 	_move_requested_actor = null
+	_move_requested_actor_data = null
 	_move_requested_destination = null
 	var move_requested_callable := Callable(self, "_record_move_requested")
 	if root_event_bus != null:
@@ -591,6 +601,263 @@ func _check_main_scene(root_event_bus: Node) -> bool:
 	main.free()
 	return true
 
+func _check_main_scene_interaction_raycast(root_event_bus: Node) -> bool:
+	if root_event_bus == null:
+		return _fail("Main scene interaction raycast check requires EventBus.")
+
+	var main_scene := load("res://scenes/main.tscn") as PackedScene
+	if main_scene == null:
+		return _fail("Main scene did not load for interaction raycast check.")
+
+	var original_root_size := get_root().size
+	get_root().size = Vector2i(1280, 720)
+	var main := main_scene.instantiate() as Node3D
+	get_root().add_child(main)
+	await process_frame
+	await physics_frame
+
+	var camera := main.get_node_or_null("CameraRig/PitchPivot/Camera3D") as Camera3D
+	var interaction_controller := main.get_node_or_null("InteractionController") as InteractionControllerScript
+	var interaction_ui := main.get_node_or_null("InteractionUI") as CanvasLayer
+	var interaction_menu := interaction_ui.get_node_or_null("InteractionMenu") as InteractionMenuScript
+	var interaction_log_panel := interaction_ui.get_node_or_null("InteractionLogPanel") as InteractionLogPanelScript
+	var main_pc := main.get_node_or_null("PlayerCharacter") as BlockoutObjectViewScript
+	var main_npc := main.get_node_or_null("NPC") as BlockoutObjectViewScript
+	var navigation_region := main.get_node_or_null("NavigationRegion3D") as NavigationRegion3D
+	if (
+		camera == null
+		or interaction_controller == null
+		or interaction_menu == null
+		or interaction_log_panel == null
+		or main_pc == null
+		or main_npc == null
+		or navigation_region == null
+	):
+		main.free()
+		return _fail("Main scene interaction raycast check is missing required nodes.")
+
+	interaction_controller._ready()
+	interaction_menu._ready()
+	interaction_log_panel._ready()
+
+	var pc_target := main_pc.get_node_or_null("InteractionTarget") as InteractionTargetScript
+	var npc_target := main_npc.get_node_or_null("InteractionTarget") as InteractionTargetScript
+	var floor_target := navigation_region.get_node_or_null("Floor/FloorMoveTarget") as InteractionTargetScript
+	if pc_target == null or npc_target == null or floor_target == null:
+		main.free()
+		return _fail("Main scene interaction raycast check is missing interaction targets.")
+	if not pc_target.input_ray_pickable or not npc_target.input_ray_pickable or not floor_target.input_ray_pickable:
+		main.free()
+		return _fail("Main scene interaction targets are not ray-pickable.")
+	if pc_target.target_data != main_pc.object_data or npc_target.target_data != main_npc.object_data:
+		main.free()
+		return _fail("World-object interaction targets do not carry their object data.")
+
+	var nav := _create_square_nav_map()
+	var navigation_map: RID = nav["map"]
+	var navigation_region_rid: RID = nav["region"]
+	main_pc.get_navigation_agent().set_navigation_map(navigation_map)
+	await _wait_for_navigation_map(navigation_map)
+
+	var hover_callable := Callable(self, "_record_hover_target_changed")
+	var move_requested_callable := Callable(self, "_record_move_requested")
+	var examined_callable := Callable(self, "_record_examined_output")
+	if not root_event_bus.is_connected(&"hover_target_changed", hover_callable):
+		root_event_bus.connect(&"hover_target_changed", hover_callable)
+	if not root_event_bus.is_connected(&"move_requested", move_requested_callable):
+		root_event_bus.connect(&"move_requested", move_requested_callable)
+	if not root_event_bus.is_connected(&"examined_output", examined_callable):
+		root_event_bus.connect(&"examined_output", examined_callable)
+
+	_hover_changed_count = 0
+	_hover_changed_target = null
+	var pc_hover_position := main_pc.global_position + BlockoutObjectViewScript.body_center_offset(main_pc.object_data.size_m)
+	var pc_screen_position := _warp_mouse_to_world(camera, pc_hover_position)
+	await process_frame
+	await physics_frame
+	_drive_interaction_hover_at_screen(interaction_controller, pc_screen_position)
+	if _hover_changed_target != pc_target:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("CameraRig raycast did not hover the player character InteractionTarget.")
+	if main_pc.get_node_or_null("Body/HoverShell") == null:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Player hover did not apply a highlight shell.")
+
+	var hover_count_before_capture := _hover_changed_count
+	interaction_controller._handle_interaction_pointer_capture_changed(true)
+	var npc_hover_position := main_npc.global_position + BlockoutObjectViewScript.body_center_offset(main_npc.object_data.size_m)
+	_warp_mouse_to_world(camera, npc_hover_position)
+	await process_frame
+	await physics_frame
+	interaction_controller._physics_process(0.016)
+	if _hover_changed_count != hover_count_before_capture or _hover_changed_target != pc_target:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("InteractionController changed hover while pointer capture was active.")
+	interaction_controller._handle_interaction_pointer_capture_changed(false)
+
+	_warp_mouse_to_world(camera, npc_hover_position)
+	await process_frame
+	await physics_frame
+	_drive_interaction_hover_at_screen(interaction_controller, camera.unproject_position(npc_hover_position))
+	if _hover_changed_target != npc_target:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("CameraRig raycast did not hover the NPC InteractionTarget.")
+	if main_pc.get_node_or_null("Body/HoverShell") != null:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Player hover highlight was not cleared after hovering the NPC.")
+	if main_npc.get_node_or_null("Body/HoverShell") == null:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("NPC hover did not apply a highlight shell.")
+
+	_warp_mouse_to_world(camera, pc_hover_position)
+	await process_frame
+	await physics_frame
+	_drive_interaction_hover_at_screen(interaction_controller, pc_screen_position)
+	interaction_controller._request_menu_for_current_target(pc_screen_position)
+	await process_frame
+	await process_frame
+	if not interaction_menu.visible:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("InteractionMenu did not open from the hovered player target.")
+	if not interaction_controller.is_interaction_pointer_captured():
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("InteractionMenu did not capture the interaction pointer.")
+	if not _control_inside_viewport(interaction_menu):
+		var menu_rect := Rect2(interaction_menu.position, interaction_menu.size)
+		var viewport_size := interaction_menu.get_viewport_rect().size
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail(
+			"InteractionMenu was not clamped inside the viewport. rect=%s viewport=%s."
+			% [menu_rect, viewport_size]
+		)
+	root_event_bus.emit_signal(&"interaction_ui_cancel_requested")
+	if interaction_menu.visible or interaction_controller.is_interaction_pointer_captured():
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("InteractionMenu did not close from a cancel request.")
+
+	interaction_controller._request_menu_for_current_target(pc_screen_position)
+	await process_frame
+	await process_frame
+	root_event_bus.emit_signal(&"hover_target_changed", npc_target)
+	if interaction_menu.visible:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("InteractionMenu did not close when hover changed targets.")
+
+	_examined_count = 0
+	_examined_target_domain = &""
+	_examined_target_data = null
+	_examined_output = {}
+	root_event_bus.emit_signal(&"interaction_action_requested", npc_target, InteractionActionResolverScript.ACTION_EXAMINE)
+	if _examined_count != 1:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Examine action did not emit examined_output.")
+	if _examined_target_domain != InteractionActionResolverScript.DOMAIN_WORLD_OBJECT:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Examine output carried the wrong target domain.")
+	if _examined_target_data != main_npc.object_data:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Examine output carried the wrong target data.")
+	if _examined_output.get("object_id") != main_npc.object_data.object_id:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Examine output did not include the NPC object id.")
+	var log_label := interaction_log_panel.get_node_or_null("Content") as Label
+	if log_label == null or not log_label.text.contains("npc_001"):
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("InteractionLogPanel did not render the examined NPC data.")
+
+	if interaction_controller.start_targeting(npc_target, InteractionActionResolverScript.ACTION_MOVE):
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("NPC target started move targeting.")
+	if not interaction_controller.start_targeting(pc_target, InteractionActionResolverScript.ACTION_MOVE):
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("PC target did not start move targeting.")
+
+	_warp_mouse_to_world(camera, pc_hover_position)
+	await process_frame
+	await physics_frame
+	_drive_interaction_hover_at_screen(
+		interaction_controller,
+		pc_screen_position,
+		InteractionActionResolverScript.DOMAIN_MOVE_TARGET
+	)
+	if _hover_changed_target == pc_target:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Move targeting raycast did not filter out world-object targets.")
+
+	var floor_click_position := Vector3(2.0, 0.0, 0.0)
+	var floor_screen_position := _warp_mouse_to_world(camera, floor_click_position)
+	await process_frame
+	await physics_frame
+	var expected_floor_hit := _raycast_first_area_hit(camera, floor_screen_position)
+	if expected_floor_hit.is_empty() or expected_floor_hit.get("collider") != floor_target:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("CameraRig raycast did not hit the floor move target.")
+	_drive_interaction_hover_at_screen(
+		interaction_controller,
+		floor_screen_position,
+		InteractionActionResolverScript.DOMAIN_MOVE_TARGET
+	)
+	if _hover_changed_target != floor_target:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Move targeting did not hover the floor move target.")
+	var expected_floor_position: Vector3 = expected_floor_hit.get("position", Vector3.ZERO)
+	var floor_data := floor_target.target_data as MoveTargetDataScript
+	if floor_data == null or floor_data.position.distance_to(expected_floor_position) > 0.001:
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Floor MoveTargetData did not preserve the exact raycast hit position.")
+
+	_move_requested_count = 0
+	_move_requested_actor = null
+	_move_requested_actor_data = null
+	_move_requested_destination = null
+	if not interaction_controller.try_confirm_targeting_target(floor_target):
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Move targeting did not confirm a reachable floor target.")
+	if (
+		_move_requested_count != 1
+		or _move_requested_actor != main_pc
+		or _move_requested_actor_data != main_pc.object_data
+		or _move_requested_destination != floor_data
+	):
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Move targeting emitted the wrong move_requested payload.")
+	if interaction_controller.is_targeting_interaction():
+		_free_nav_map(navigation_map, navigation_region_rid)
+		main.free()
+		return _fail("Move targeting stayed active after confirmation.")
+
+	root_event_bus.disconnect(&"hover_target_changed", hover_callable)
+	root_event_bus.disconnect(&"move_requested", move_requested_callable)
+	root_event_bus.disconnect(&"examined_output", examined_callable)
+	_free_nav_map(navigation_map, navigation_region_rid)
+	main.free()
+	get_root().size = original_root_size
+	return true
+
 func _create_square_nav_map() -> Dictionary:
 	var navigation_map := NavigationServer3D.map_create()
 	NavigationServer3D.map_set_active(navigation_map, true)
@@ -639,6 +906,38 @@ func _make_interaction_target(target_domain: StringName, target_data: Resource) 
 	target.target_data = target_data
 	return target
 
+func _warp_mouse_to_world(camera: Camera3D, world_position: Vector3) -> Vector2:
+	var screen_position := camera.unproject_position(world_position)
+	get_root().warp_mouse(screen_position)
+	return screen_position
+
+func _raycast_first_area_hit(camera: Camera3D, screen_position: Vector2) -> Dictionary:
+	var ray_origin := camera.project_ray_origin(screen_position)
+	var ray_end := ray_origin + (camera.project_ray_normal(screen_position) * 100.0)
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, 1)
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	return camera.get_world_3d().direct_space_state.intersect_ray(query)
+
+func _drive_interaction_hover_at_screen(
+	interaction_controller: InteractionControllerScript,
+	screen_position: Vector2,
+	required_domain: StringName = &""
+) -> InteractionTargetScript:
+	var target := interaction_controller._raycast_interaction_target_at(screen_position, required_domain)
+	interaction_controller._set_hover_target(target)
+	return target
+
+func _control_inside_viewport(control: Control) -> bool:
+	var viewport_rect := control.get_viewport_rect()
+	var control_rect := Rect2(control.position, control.size)
+	return (
+		control_rect.position.x >= 0.0
+		and control_rect.position.y >= 0.0
+		and control_rect.end.x <= viewport_rect.size.x
+		and control_rect.end.y <= viewport_rect.size.y
+	)
+
 func _has_action(actions: Array[Dictionary], action_id: StringName) -> bool:
 	for action in actions:
 		if action.get("id") == action_id:
@@ -646,10 +945,21 @@ func _has_action(actions: Array[Dictionary], action_id: StringName) -> bool:
 
 	return false
 
-func _record_move_requested(actor: Node, _actor_data: Resource, destination_data: Resource) -> void:
+func _record_move_requested(actor: Node, actor_data: Resource, destination_data: Resource) -> void:
 	_move_requested_count += 1
 	_move_requested_actor = actor
+	_move_requested_actor_data = actor_data
 	_move_requested_destination = destination_data
+
+func _record_hover_target_changed(target: Node) -> void:
+	_hover_changed_count += 1
+	_hover_changed_target = target
+
+func _record_examined_output(target_domain: StringName, target_data: Resource, output: Dictionary) -> void:
+	_examined_count += 1
+	_examined_target_domain = target_domain
+	_examined_target_data = target_data
+	_examined_output = output
 
 func _record_movement_started(_actor: Node, path: PackedVector3Array) -> void:
 	_movement_started_count += 1
