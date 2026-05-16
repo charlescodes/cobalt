@@ -1,7 +1,11 @@
 class_name MovementController
 extends Node
 
+const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
+const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
+
+const ARRIVAL_TOLERANCE_M: float = 0.05
 
 @export_range(0.1, 10.0, 0.1) var movement_speed_mps: float = 1.4
 
@@ -20,7 +24,8 @@ func _ready() -> void:
 
 func request_move(actor: Node, actor_data: Resource, destination_data: Resource) -> bool:
 	var world_object_data := actor_data as WorldObjectDataScript
-	if actor == null or world_object_data == null or destination_data == null:
+	var move_target_data := destination_data as MoveTargetDataScript
+	if actor == null or world_object_data == null or move_target_data == null:
 		_emit_movement_failed(actor, destination_data, &"invalid_request")
 		return false
 
@@ -28,7 +33,21 @@ func request_move(actor: Node, actor_data: Resource, destination_data: Resource)
 		_emit_movement_failed(actor, destination_data, &"actor_busy")
 		return false
 
-	_emit_movement_failed(actor, destination_data, &"navigation_unavailable")
+	if world_object_data.position.distance_to(move_target_data.position) <= ARRIVAL_TOLERANCE_M:
+		_emit_movement_failed(actor, destination_data, &"already_at_destination")
+		return false
+
+	var navigation_map := _navigation_map_for_actor(actor)
+	var path := MoveTargetResolverScript.navigation_path(
+		navigation_map,
+		world_object_data.position,
+		move_target_data.position
+	)
+	if path.is_empty():
+		_emit_movement_failed(actor, destination_data, &"no_path")
+		return false
+
+	_emit_movement_failed(actor, destination_data, &"movement_driver_unavailable")
 	return false
 
 func is_actor_busy(actor: Node) -> bool:
@@ -66,3 +85,10 @@ func _get_event_bus() -> Node:
 		return null
 
 	return tree.root.get_node_or_null("EventBus")
+
+func _navigation_map_for_actor(actor: Node) -> RID:
+	var actor3d := actor as Node3D
+	if actor3d != null and actor3d.is_inside_tree() and actor3d.get_world_3d() != null:
+		return actor3d.get_world_3d().navigation_map
+
+	return RID()

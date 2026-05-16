@@ -3,6 +3,7 @@ extends Node
 
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const InteractionActionResolverScript := preload("res://src/interaction/interaction_action_resolver.gd")
+const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 
 @export var camera_path: NodePath = ^"../CameraRig/PitchPivot/Camera3D"
@@ -147,6 +148,7 @@ func _raycast_interaction_target(required_domain: StringName = &"") -> Interacti
 		var collider := result.get("collider") as Object
 		var target := _find_interaction_target(collider)
 		if target != null and (required_domain == &"" or target.target_domain == required_domain):
+			_apply_raycast_position(target, result)
 			return target
 
 		var collision_object := collider as CollisionObject3D
@@ -156,6 +158,17 @@ func _raycast_interaction_target(required_domain: StringName = &"") -> Interacti
 		excluded.append(collision_object.get_rid())
 
 	return null
+
+func _apply_raycast_position(target: InteractionTargetScript, result: Dictionary) -> void:
+	if target.target_domain != InteractionActionResolverScript.DOMAIN_MOVE_TARGET:
+		return
+
+	var data := target.target_data as MoveTargetDataScript
+	var hit_position: Variant = result.get("position")
+	if data == null or not (hit_position is Vector3):
+		return
+
+	data.position = Vector3(hit_position.x, 0.0, hit_position.z)
 
 func _find_interaction_target(collider: Object) -> InteractionTargetScript:
 	var node := collider as Node
