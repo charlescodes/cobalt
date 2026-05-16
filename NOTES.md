@@ -95,6 +95,10 @@ Current expected validation commands:
 
 Both commands should run the same headless smoke/integration coverage as of Phase 4.
 
+The test harness is modular: `tests/test_runner.gd` is a small headless
+orchestrator, `tests/support/test_context.gd` owns shared fixtures/helpers, and
+subsystem suites live under `tests/suites/`.
+
 Covered by tests:
 
 - deleted grid/pathfinder/animator scripts stay deleted;
