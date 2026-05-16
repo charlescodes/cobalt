@@ -63,7 +63,7 @@ func _physics_process(_delta: float) -> void:
 			clear_hover()
 			return
 
-	var required_domain := InteractionActionResolverScript.DOMAIN_HEX if is_targeting_interaction() else &""
+	var required_domain := InteractionActionResolverScript.DOMAIN_MOVE_TARGET if is_targeting_interaction() else &""
 	_set_hover_target(_raycast_interaction_target(required_domain))
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -1,6 +1,5 @@
-[gd_scene load_steps=15 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=14 format=3 uid="uid://62ol1vkaq7c7"]
 
-[ext_resource type="Script" uid="uid://dg4bbajxhymap" path="res://src/grid/hex_grid_manager.gd" id="1_63or0"]
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
 [ext_resource type="Script" uid="uid://w1550dfv7lwr" path="res://src/objects/world_object_data.gd" id="4_g8al5"]
@@ -15,9 +14,7 @@
 script = ExtResource("4_g8al5")
 object_id = &"pc_001"
 object_kind = &"player_character"
-q = 0
-r = 0
-s = 0
+position = Vector3(0, 0, 0)
 size_m = Vector3(0.5, 1.83, 0.5)
 color = Color(0.1, 0.25, 1, 1)
 is_hoverable = true
@@ -26,9 +23,7 @@ is_hoverable = true
 script = ExtResource("4_g8al5")
 object_id = &"npc_001"
 object_kind = &"non_player_character"
-q = 1
-r = 0
-s = -1
+position = Vector3(1.5, 0, 0.75)
 size_m = Vector3(0.5, 1.83, 0.5)
 color = Color(0.45, 0.45, 0.45, 1)
 is_hoverable = true
@@ -56,9 +51,6 @@ thickness_m = 0.18
 color = Color(0.29, 0.3, 0.31, 1)
 
 [node name="Main" type="Node3D"]
-
-[node name="HexGridManager" type="Node3D" parent="."]
-script = ExtResource("1_63or0")
 
 [node name="WallLayout" type="Node3D" parent="."]
 script = ExtResource("9_mjm1e")

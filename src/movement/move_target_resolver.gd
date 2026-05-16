@@ -1,7 +1,6 @@
 class_name MoveTargetResolver
 extends RefCounted
 
-const HexDataScript := preload("res://src/grid/hex_data.gd")
 const InteractionActionResolverScript := preload("res://src/interaction/interaction_action_resolver.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
@@ -17,13 +16,7 @@ static func can_start_move(source: Node) -> bool:
 	)
 
 static func can_select_destination(destination: Node) -> bool:
-	var data := get_target_data(destination) as HexDataScript
-	return (
-		_is_enabled_target(destination)
-		and get_target_domain(destination) == InteractionActionResolverScript.DOMAIN_HEX
-		and data != null
-		and data.is_walkable
-	)
+	return false
 
 static func can_move(source: Node, destination: Node) -> bool:
 	return can_start_move(source) and can_select_destination(destination)

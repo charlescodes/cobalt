@@ -3,7 +3,7 @@ extends RefCounted
 
 const ACTION_EXAMINE: StringName = &"examine"
 const ACTION_MOVE: StringName = &"move"
-const DOMAIN_HEX: StringName = &"hex"
+const DOMAIN_MOVE_TARGET: StringName = &"move_target"
 const DOMAIN_WORLD_OBJECT: StringName = &"world_object"
 const PLAYER_CHARACTER_KIND: StringName = &"player_character"
 

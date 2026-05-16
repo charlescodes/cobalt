@@ -2,10 +2,8 @@ class_name BlockoutObjectView
 extends Node3D
 
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
-const HexViewScript := preload("res://src/grid/hex_view.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const HoverHighlighterScript := preload("res://src/interaction/hover_highlighter.gd")
-const GridMovementAnimatorScript := preload("res://src/movement/grid_movement_animator.gd")
 
 @export var object_data: WorldObjectDataScript:
 	set(value):
@@ -19,23 +17,12 @@ func apply_data() -> void:
 	if object_data == null:
 		return
 
-	position = grid_to_world(object_data)
+	position = object_data.position
 	_configure_body()
 	_configure_interaction_target()
-	_configure_movement_animator()
-
-static func grid_to_world(data: WorldObjectDataScript) -> Vector3:
-	if data == null:
-		return Vector3.ZERO
-
-	return HexViewScript.axial_to_world(data.q, data.r, 0.0)
 
 static func body_center_offset(size_m: Vector3) -> Vector3:
 	return Vector3(0.0, size_m.y * 0.5, 0.0)
-
-func move_along_hex_path(path: Array, speed_mps: float) -> bool:
-	var animator := _get_or_create_movement_animator()
-	return animator.move_along_hex_path(path, speed_mps)
 
 func _configure_body() -> void:
 	var body := get_node_or_null("Body") as MeshInstance3D
@@ -99,16 +86,3 @@ func _configure_interaction_target() -> void:
 		target.add_child(highlighter)
 
 	highlighter.root_path = ^"../.."
-
-func _configure_movement_animator() -> void:
-	_get_or_create_movement_animator()
-
-func _get_or_create_movement_animator() -> GridMovementAnimatorScript:
-	var animator := get_node_or_null("GridMovementAnimator") as GridMovementAnimatorScript
-	if animator != null:
-		return animator
-
-	animator = GridMovementAnimatorScript.new()
-	animator.name = "GridMovementAnimator"
-	add_child(animator)
-	return animator
