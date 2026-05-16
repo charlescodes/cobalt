@@ -78,7 +78,6 @@ These are intentional gaps, not regressions from the refactor:
 
 ## Watch Items
 
-- `docs/PROJECT_OVERVIEW.md` is stale and still describes the Blightroot hex-grid prototype. Do not use it as current architecture documentation until it is rewritten.
 - Keep all new movement rules in stateless processors or data resources. Do not reintroduce grid, hex, square-cell, or discrete-cell math.
 - `MovementController` may keep transient busy-move records, but tactical rule state should not migrate into it.
 - Move target confirmation depends on a valid native navigation map. Tests often inject a deterministic square nav map into the actor agent.
@@ -107,4 +106,3 @@ Covered by tests:
 - wall layout creates primitive visuals and static collision;
 - main scene loads with nav region, floor target, wall layout, actors, controllers, UI, camera, and light;
 - interaction raycasts still support hover, menu, examine, target filtering, exact floor-hit destination capture, and `move_requested` payloads.
-
