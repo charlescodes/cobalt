@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=22 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
@@ -7,14 +7,46 @@
 [ext_resource type="Script" uid="uid://bs3mf3ml2nv3c" path="res://src/ui/interaction_menu.gd" id="6_vvgt8"]
 [ext_resource type="Script" uid="uid://nffvpt370fl2" path="res://src/ui/interaction_log_panel.gd" id="7_f8j3g"]
 [ext_resource type="Script" uid="uid://cb7pmkcrcai4t" path="res://src/movement/movement_controller.gd" id="8_0kq8v"]
-[ext_resource type="Script" path="res://src/walls/wall_layout_view.gd" id="9_mjm1e"]
-[ext_resource type="Script" path="res://src/walls/wall_segment_data.gd" id="10_s27cq"]
-[ext_resource type="Script" path="res://src/movement/move_target_data.gd" id="11_gw8hx"]
+[ext_resource type="Script" uid="uid://y86f8lvwvnby" path="res://src/walls/wall_layout_view.gd" id="9_mjm1e"]
+[ext_resource type="Script" uid="uid://cb2qjnc52nup" path="res://src/walls/wall_segment_data.gd" id="10_s27cq"]
+[ext_resource type="Script" uid="uid://qr66shk5fioh" path="res://src/movement/move_target_data.gd" id="11_gw8hx"]
 [ext_resource type="Script" uid="uid://clbwbnfp3ut22" path="res://src/interaction/interaction_target.gd" id="12_ngjud"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_main"]
 geometry_parsed_geometry_type = 1
 geometry_collision_mask = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.19, 0.22, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(12, 0.1, 12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(12, 0.1, 12)
+
+[sub_resource type="Resource" id="Resource_floor_move_target_data"]
+script = ExtResource("11_gw8hx")
+position = Vector3(0, 0, 0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_move_target"]
+size = Vector3(12, 0.1, 12)
+
+[sub_resource type="Resource" id="Resource_wall_corner_segment"]
+script = ExtResource("10_s27cq")
+start_position = Vector3(-2.5, 0, 2)
+end_position = Vector3(1.5, 0, 2)
+height_m = 2.2
+thickness_m = 0.18
+color = Color(0.34, 0.33, 0.31, 1)
+
+[sub_resource type="Resource" id="Resource_wall_side_segment"]
+script = ExtResource("10_s27cq")
+start_position = Vector3(3, 0, -1)
+end_position = Vector3(3, 0, 3)
+height_m = 2.2
+thickness_m = 0.18
+color = Color(0.29, 0.3, 0.31, 1)
 
 [sub_resource type="Resource" id="Resource_player_character_data"]
 script = ExtResource("4_g8al5")
@@ -34,38 +66,6 @@ size_m = Vector3(0.5, 1.83, 0.5)
 color = Color(0.45, 0.45, 0.45, 1)
 is_hoverable = true
 
-[sub_resource type="Resource" id="Resource_wall_corner_segment"]
-script = ExtResource("10_s27cq")
-start_position = Vector3(-2.5, 0, 2)
-end_position = Vector3(1.5, 0, 2)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.34, 0.33, 0.31, 1)
-
-[sub_resource type="Resource" id="Resource_wall_side_segment"]
-script = ExtResource("10_s27cq")
-start_position = Vector3(3, 0, -1)
-end_position = Vector3(3, 0, 3)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.29, 0.3, 0.31, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_floor"]
-size = Vector3(12, 0.1, 12)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.19, 0.22, 0.2, 1)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
-size = Vector3(12, 0.1, 12)
-
-[sub_resource type="Resource" id="Resource_floor_move_target_data"]
-script = ExtResource("11_gw8hx")
-position = Vector3(0, 0, 0)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_move_target"]
-size = Vector3(12, 0.1, 12)
-
 [node name="Main" type="Node3D"]
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
@@ -73,25 +73,20 @@ navigation_mesh = SubResource("NavigationMesh_main")
 
 [node name="Floor" type="StaticBody3D" parent="NavigationRegion3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
-collision_layer = 1
-collision_mask = 1
 
 [node name="Mesh" type="MeshInstance3D" parent="NavigationRegion3D/Floor"]
-mesh = SubResource("BoxMesh_floor")
 material_override = SubResource("StandardMaterial3D_floor")
+mesh = SubResource("BoxMesh_floor")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/Floor"]
 shape = SubResource("BoxShape3D_floor")
 
 [node name="FloorMoveTarget" type="Area3D" parent="NavigationRegion3D/Floor"]
+collision_mask = 0
 script = ExtResource("12_ngjud")
 target_domain = &"move_target"
 target_data = SubResource("Resource_floor_move_target_data")
 can_highlight = false
-interaction_enabled = true
-collision_layer = 1
-collision_mask = 0
-input_ray_pickable = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/Floor/FloorMoveTarget"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
@@ -99,7 +94,7 @@ shape = SubResource("BoxShape3D_move_target")
 
 [node name="WallLayout" type="Node3D" parent="NavigationRegion3D"]
 script = ExtResource("9_mjm1e")
-wall_segments = Array[Resource]([SubResource("Resource_wall_corner_segment"), SubResource("Resource_wall_side_segment")])
+wall_segments = Array[ExtResource("10_s27cq")]([SubResource("Resource_wall_corner_segment"), SubResource("Resource_wall_side_segment")])
 
 [node name="PlayerCharacter" type="Node3D" parent="."]
 script = ExtResource("5_gsyx3")
