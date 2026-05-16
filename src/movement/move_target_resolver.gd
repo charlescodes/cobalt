@@ -10,20 +10,25 @@ const NAV_SNAP_TOLERANCE_M: float = 0.35
 const PATH_ENDPOINT_TOLERANCE_M: float = 0.05
 
 static func can_start_move(source: Node) -> bool:
-	var data := get_target_data(source) as WorldObjectDataScript
 	return (
 		_is_enabled_target(source)
 		and get_target_domain(source) == InteractionActionResolverScript.DOMAIN_WORLD_OBJECT
-		and data != null
-		and data.object_kind == PLAYER_CHARACTER_KIND
+		and can_start_move_data(get_target_data(source))
 	)
 
 static func can_select_destination(destination: Node) -> bool:
 	return (
 		_is_enabled_target(destination)
 		and get_target_domain(destination) == InteractionActionResolverScript.DOMAIN_MOVE_TARGET
-		and get_target_data(destination) is MoveTargetDataScript
+		and can_select_destination_data(get_target_data(destination))
 	)
+
+static func can_start_move_data(actor_data: Resource) -> bool:
+	var data := actor_data as WorldObjectDataScript
+	return data != null and data.object_kind == PLAYER_CHARACTER_KIND
+
+static func can_select_destination_data(destination_data: Resource) -> bool:
+	return destination_data is MoveTargetDataScript
 
 static func can_move(source: Node, destination: Node, navigation_map: RID = RID()) -> bool:
 	if not can_start_move(source) or not can_select_destination(destination):

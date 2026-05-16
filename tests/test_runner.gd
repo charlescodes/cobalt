@@ -20,6 +20,9 @@ const WallVisualResolverScript := preload("res://src/walls/wall_visual_resolver.
 var _move_requested_count: int = 0
 var _move_requested_actor: Node
 var _move_requested_destination: Resource
+var _movement_started_count: int = 0
+var _movement_started_path: PackedVector3Array
+var _movement_completed_count: int = 0
 var _movement_failed_count: int = 0
 var _movement_failed_reason: StringName = &""
 
@@ -44,7 +47,7 @@ func _run_smoke_checks() -> bool:
 		return false
 	if not await _check_native_navigation_resolver():
 		return false
-	if not _check_targeting_and_controller(root_event_bus):
+	if not await _check_targeting_and_controller(root_event_bus):
 		return false
 	if not _check_walls():
 		return false
@@ -88,6 +91,8 @@ func _check_project_basics() -> bool:
 		return _fail("HexPathfinder script should be deleted.")
 	if ResourceLoader.exists("res://src/walls/wall_cell_resolver.gd"):
 		return _fail("WallCellResolver script should be deleted.")
+	if ResourceLoader.exists("res://src/movement/grid_movement_animator.gd"):
+		return _fail("GridMovementAnimator script should be deleted.")
 
 	return true
 
@@ -114,6 +119,13 @@ func _check_world_objects_and_interaction() -> bool:
 		return _fail("BlockoutObjectView did not use WorldObjectData.position.")
 	if pc_view.get_node_or_null("GridMovementAnimator") != null:
 		return _fail("BlockoutObjectView should not create grid movement components.")
+	var pc_agent := pc_view.get_node_or_null("NavigationAgent3D") as NavigationAgent3D
+	if pc_agent == null:
+		return _fail("BlockoutObjectView did not create a NavigationAgent3D.")
+	if pc_view.get_navigation_agent() != pc_agent:
+		return _fail("BlockoutObjectView did not expose its NavigationAgent3D helper.")
+	if not is_equal_approx(pc_agent.target_desired_distance, 0.1):
+		return _fail("NavigationAgent3D target distance is not configured.")
 
 	var pc_body := pc_view.get_node_or_null("Body") as MeshInstance3D
 	if pc_body == null:
@@ -260,17 +272,83 @@ func _check_targeting_and_controller(root_event_bus: Node) -> bool:
 	targeting_controller.free()
 	move_target_parent.free()
 
+	var nav := _create_square_nav_map()
+	var navigation_map: RID = nav["map"]
+	var navigation_region: RID = nav["region"]
+	pc_view.get_navigation_agent().set_navigation_map(navigation_map)
+	await _wait_for_navigation_map(navigation_map)
+	var setup_path := MoveTargetResolverScript.navigation_path(
+		navigation_map,
+		pc_data.position,
+		Vector3(2.0, 0.0, 0.0)
+	)
+	if setup_path.is_empty():
+		var start_snap := NavigationServer3D.map_get_closest_point(navigation_map, pc_data.position)
+		var target_snap := NavigationServer3D.map_get_closest_point(navigation_map, Vector3(2.0, 0.0, 0.0))
+		_free_nav_map(navigation_map, navigation_region)
+		return _fail(
+			"Test native navigation map did not produce a path. Iteration=%d start_snap=%s target_snap=%s."
+			% [
+				NavigationServer3D.map_get_iteration_id(navigation_map),
+				start_snap,
+				target_snap,
+			]
+		)
+
 	var movement_controller := MovementControllerScript.new()
+	movement_controller.movement_speed_mps = 10.0
 	get_root().add_child(movement_controller)
 	movement_controller._ready()
 	var movement_controller_has_event_bus := movement_controller._get_event_bus() != null
+	var movement_started_callable := Callable(self, "_record_movement_started")
+	var movement_completed_callable := Callable(self, "_record_movement_completed")
 	var movement_failed_callable := Callable(self, "_record_movement_failed")
 	if root_event_bus != null and movement_controller_has_event_bus:
+		root_event_bus.connect(&"movement_started", movement_started_callable)
+		root_event_bus.connect(&"movement_completed", movement_completed_callable)
 		root_event_bus.connect(&"movement_failed", movement_failed_callable)
+
+	_movement_started_count = 0
+	_movement_started_path = PackedVector3Array()
+	_movement_completed_count = 0
+	_movement_failed_count = 0
+	_movement_failed_reason = &""
+	var valid_destination := MoveTargetDataScript.new(Vector3(2.0, 0.0, 0.0))
+	if not movement_controller.request_move(pc_view, pc_data, valid_destination):
+		return _fail("MovementController rejected a valid nav-backed movement: %s." % _movement_failed_reason)
+	if not movement_controller.is_actor_busy(pc_view):
+		return _fail("MovementController did not mark the actor busy after movement start.")
+	if root_event_bus != null and movement_controller_has_event_bus:
+		if _movement_started_count != 1 or _movement_started_path.is_empty():
+			return _fail("MovementController did not emit movement_started with a native path.")
 
 	_movement_failed_count = 0
 	_movement_failed_reason = &""
-	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(Vector3.ZERO)):
+	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(Vector3(1.0, 0.0, 0.0))):
+		return _fail("MovementController accepted a second move while the actor was busy.")
+	if root_event_bus != null and movement_controller_has_event_bus:
+		if _movement_failed_count != 1 or _movement_failed_reason != &"actor_busy":
+			return _fail("MovementController did not emit actor_busy for a repeated request.")
+
+	for _index in range(40):
+		await physics_frame
+		movement_controller._physics_process(0.1)
+		if not movement_controller.is_actor_busy(pc_view):
+			break
+
+	if movement_controller.is_actor_busy(pc_view):
+		return _fail("MovementController did not complete movement within the expected ticks.")
+	if pc_view.position.distance_to(valid_destination.position) > 0.001:
+		return _fail("MovementController did not snap the actor to the target position.")
+	if pc_data.position.distance_to(valid_destination.position) > 0.001:
+		return _fail("MovementController did not update WorldObjectData.position on completion.")
+	if root_event_bus != null and movement_controller_has_event_bus:
+		if _movement_completed_count != 1:
+			return _fail("MovementController did not emit movement_completed.")
+
+	_movement_failed_count = 0
+	_movement_failed_reason = &""
+	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(valid_destination.position)):
 		return _fail("MovementController accepted already-at-destination movement.")
 	if movement_controller.is_actor_busy(pc_view):
 		return _fail("MovementController marked an actor busy for a rejected movement.")
@@ -280,14 +358,45 @@ func _check_targeting_and_controller(root_event_bus: Node) -> bool:
 
 	_movement_failed_count = 0
 	_movement_failed_reason = &""
-	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(Vector3(4.0, 0.0, 4.0))):
+	if movement_controller.request_move(
+		pc_view,
+		WorldObjectDataScript.new(&"npc_move", &"non_player_character", pc_data.position),
+		MoveTargetDataScript.new(Vector3(1.0, 0.0, 1.0))
+	):
+		return _fail("MovementController accepted non-player movement data.")
+	if root_event_bus != null and movement_controller_has_event_bus:
+		if _movement_failed_count != 1 or _movement_failed_reason != &"invalid_request":
+			return _fail("MovementController did not reject non-player movement data.")
+
+	_movement_failed_count = 0
+	_movement_failed_reason = &""
+	var bare_actor := Node3D.new()
+	bare_actor.position = pc_data.position
+	get_root().add_child(bare_actor)
+	if movement_controller.request_move(
+		bare_actor,
+		WorldObjectDataScript.new(&"pc_no_agent", &"player_character", pc_data.position),
+		MoveTargetDataScript.new(Vector3(1.0, 0.0, 1.0))
+	):
+		return _fail("MovementController accepted an actor without a NavigationAgent3D.")
+	if root_event_bus != null and movement_controller_has_event_bus:
+		if _movement_failed_count != 1 or _movement_failed_reason != &"missing_navigation_agent":
+			return _fail("MovementController did not emit missing_navigation_agent.")
+	bare_actor.free()
+
+	_movement_failed_count = 0
+	_movement_failed_reason = &""
+	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(Vector3(8.0, 0.0, 8.0))):
 		return _fail("MovementController accepted movement without a nav path.")
 	if root_event_bus != null and movement_controller_has_event_bus:
 		if _movement_failed_count != 1 or _movement_failed_reason != &"no_path":
 			return _fail("MovementController did not emit no_path for missing nav.")
+		root_event_bus.disconnect(&"movement_started", movement_started_callable)
+		root_event_bus.disconnect(&"movement_completed", movement_completed_callable)
 		root_event_bus.disconnect(&"movement_failed", movement_failed_callable)
 
 	movement_controller.free()
+	_free_nav_map(navigation_map, navigation_region)
 	pc_view.free()
 	return true
 
@@ -450,9 +559,13 @@ func _check_main_scene(root_event_bus: Node) -> bool:
 	var main_pc := main.get_node_or_null("PlayerCharacter") as BlockoutObjectViewScript
 	if main_pc == null or main_pc.object_data == null:
 		return _fail("Main scene is missing PlayerCharacter data.")
+	if main_pc.get_navigation_agent() == null:
+		return _fail("Main scene PlayerCharacter is missing a NavigationAgent3D.")
 	var main_npc := main.get_node_or_null("NPC") as BlockoutObjectViewScript
 	if main_npc == null or main_npc.object_data == null:
 		return _fail("Main scene is missing NPC data.")
+	if main_npc.get_navigation_agent() == null:
+		return _fail("Main scene NPC is missing a NavigationAgent3D.")
 	if main_npc.position != main_npc.object_data.position:
 		return _fail("NPC view is not using WorldObjectData.position.")
 	var main_npc_target := main_npc.get_node_or_null("InteractionTarget") as InteractionTargetScript
@@ -482,20 +595,7 @@ func _create_square_nav_map() -> Dictionary:
 	var navigation_map := NavigationServer3D.map_create()
 	NavigationServer3D.map_set_active(navigation_map, true)
 
-	var navigation_mesh := NavigationMesh.new()
-	navigation_mesh.vertices = PackedVector3Array([
-		Vector3(-3.0, 0.0, -3.0),
-		Vector3(3.0, 0.0, -3.0),
-		Vector3(3.0, 0.0, 3.0),
-		Vector3(-3.0, 0.0, 3.0),
-	])
-	navigation_mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
-
-	var navigation_region := NavigationServer3D.region_create()
-	NavigationServer3D.region_set_navigation_layers(navigation_region, 1)
-	NavigationServer3D.region_set_navigation_mesh(navigation_region, navigation_mesh)
-	NavigationServer3D.region_set_map(navigation_region, navigation_map)
-	NavigationServer3D.region_set_enabled(navigation_region, true)
+	var navigation_region := _create_square_nav_region_on_map(navigation_map)
 	return {
 		"map": navigation_map,
 		"region": navigation_region,
@@ -509,6 +609,23 @@ func _wait_for_navigation_map(navigation_map: RID) -> void:
 		await process_frame
 		await physics_frame
 		NavigationServer3D.map_force_update(navigation_map)
+
+func _create_square_nav_region_on_map(navigation_map: RID) -> RID:
+	var navigation_mesh := NavigationMesh.new()
+	navigation_mesh.vertices = PackedVector3Array([
+		Vector3(-3.0, 0.0, -3.0),
+		Vector3(3.0, 0.0, -3.0),
+		Vector3(3.0, 0.0, 3.0),
+		Vector3(-3.0, 0.0, 3.0),
+	])
+	navigation_mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
+	var navigation_region := NavigationServer3D.region_create()
+	NavigationServer3D.region_set_navigation_layers(navigation_region, 1)
+	NavigationServer3D.region_set_navigation_mesh(navigation_region, navigation_mesh)
+	NavigationServer3D.region_set_map(navigation_region, navigation_map)
+	NavigationServer3D.region_set_enabled(navigation_region, true)
+	NavigationServer3D.map_force_update(navigation_map)
+	return navigation_region
 
 func _free_nav_map(navigation_map: RID, navigation_region: RID) -> void:
 	if navigation_region.is_valid():
@@ -533,6 +650,13 @@ func _record_move_requested(actor: Node, _actor_data: Resource, destination_data
 	_move_requested_count += 1
 	_move_requested_actor = actor
 	_move_requested_destination = destination_data
+
+func _record_movement_started(_actor: Node, path: PackedVector3Array) -> void:
+	_movement_started_count += 1
+	_movement_started_path = path
+
+func _record_movement_completed(_actor: Node, _destination_data: Resource) -> void:
+	_movement_completed_count += 1
 
 func _record_movement_failed(_actor: Node, _destination_data: Resource, reason: StringName) -> void:
 	_movement_failed_count += 1

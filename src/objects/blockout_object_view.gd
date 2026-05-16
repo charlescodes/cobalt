@@ -20,9 +20,13 @@ func apply_data() -> void:
 	position = object_data.position
 	_configure_body()
 	_configure_interaction_target()
+	_configure_navigation_agent()
 
 static func body_center_offset(size_m: Vector3) -> Vector3:
 	return Vector3(0.0, size_m.y * 0.5, 0.0)
+
+func get_navigation_agent() -> NavigationAgent3D:
+	return _get_or_create_navigation_agent()
 
 func _configure_body() -> void:
 	var body := get_node_or_null("Body") as MeshInstance3D
@@ -86,3 +90,20 @@ func _configure_interaction_target() -> void:
 		target.add_child(highlighter)
 
 	highlighter.root_path = ^"../.."
+
+func _configure_navigation_agent() -> void:
+	var agent := _get_or_create_navigation_agent()
+	agent.path_desired_distance = 0.1
+	agent.target_desired_distance = 0.1
+	agent.navigation_layers = 1
+	agent.avoidance_enabled = false
+
+func _get_or_create_navigation_agent() -> NavigationAgent3D:
+	var agent := get_node_or_null("NavigationAgent3D") as NavigationAgent3D
+	if agent != null:
+		return agent
+
+	agent = NavigationAgent3D.new()
+	agent.name = "NavigationAgent3D"
+	add_child(agent)
+	return agent
