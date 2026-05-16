@@ -1,0 +1,33 @@
+# Godot 4.1+ generated cache.
+.godot/
+*.translation
+**/*.gd.uid
+
+# Local editor/OS files.
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local shell environment.
+.env
+.env.*
+!.env.example
+scripts/godot-env.local.sh
+
+# Local exports/build outputs.
+build/
+builds/
+exports/
+*.pck
+*.zip
+*.apk
+*.aab
+*.ipa
+*.exe
+*.app
+*.dmg
+*.x86_64
+*.arm64

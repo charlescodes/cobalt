@@ -1,0 +1,101 @@
+[gd_scene load_steps=15 format=3 uid="uid://62ol1vkaq7c7"]
+
+[ext_resource type="Script" uid="uid://dg4bbajxhymap" path="res://src/grid/hex_grid_manager.gd" id="1_63or0"]
+[ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
+[ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
+[ext_resource type="Script" uid="uid://w1550dfv7lwr" path="res://src/objects/world_object_data.gd" id="4_g8al5"]
+[ext_resource type="Script" uid="uid://dotaldayijpgi" path="res://src/objects/blockout_object_view.gd" id="5_gsyx3"]
+[ext_resource type="Script" uid="uid://bs3mf3ml2nv3c" path="res://src/ui/interaction_menu.gd" id="6_vvgt8"]
+[ext_resource type="Script" uid="uid://nffvpt370fl2" path="res://src/ui/interaction_log_panel.gd" id="7_f8j3g"]
+[ext_resource type="Script" uid="uid://cb7pmkcrcai4t" path="res://src/movement/movement_controller.gd" id="8_0kq8v"]
+[ext_resource type="Script" path="res://src/walls/wall_layout_view.gd" id="9_mjm1e"]
+[ext_resource type="Script" path="res://src/walls/wall_segment_data.gd" id="10_s27cq"]
+
+[sub_resource type="Resource" id="Resource_player_character_data"]
+script = ExtResource("4_g8al5")
+object_id = &"pc_001"
+object_kind = &"player_character"
+q = 0
+r = 0
+s = 0
+size_m = Vector3(0.5, 1.83, 0.5)
+color = Color(0.1, 0.25, 1, 1)
+is_hoverable = true
+
+[sub_resource type="Resource" id="Resource_npc_data"]
+script = ExtResource("4_g8al5")
+object_id = &"npc_001"
+object_kind = &"non_player_character"
+q = 1
+r = 0
+s = -1
+size_m = Vector3(0.5, 1.83, 0.5)
+color = Color(0.45, 0.45, 0.45, 1)
+is_hoverable = true
+
+[sub_resource type="Resource" id="Resource_wall_corner_segment"]
+script = ExtResource("10_s27cq")
+start_q = 0
+start_r = 2
+end_q = 3
+end_r = 2
+span_mode = &"corner_to_corner"
+height_m = 2.2
+thickness_m = 0.18
+color = Color(0.34, 0.33, 0.31, 1)
+
+[sub_resource type="Resource" id="Resource_wall_side_segment"]
+script = ExtResource("10_s27cq")
+start_q = 4
+start_r = 1
+end_q = 4
+end_r = 4
+span_mode = &"side_to_side"
+height_m = 2.2
+thickness_m = 0.18
+color = Color(0.29, 0.3, 0.31, 1)
+
+[node name="Main" type="Node3D"]
+
+[node name="HexGridManager" type="Node3D" parent="."]
+script = ExtResource("1_63or0")
+
+[node name="WallLayout" type="Node3D" parent="."]
+script = ExtResource("9_mjm1e")
+wall_segments = Array[Resource]([SubResource("Resource_wall_corner_segment"), SubResource("Resource_wall_side_segment")])
+
+[node name="PlayerCharacter" type="Node3D" parent="."]
+script = ExtResource("5_gsyx3")
+object_data = SubResource("Resource_player_character_data")
+
+[node name="NPC" type="Node3D" parent="."]
+script = ExtResource("5_gsyx3")
+object_data = SubResource("Resource_npc_data")
+
+[node name="InteractionController" type="Node" parent="."]
+script = ExtResource("3_l45p7")
+
+[node name="MovementController" type="Node" parent="."]
+script = ExtResource("8_0kq8v")
+
+[node name="InteractionUI" type="CanvasLayer" parent="."]
+
+[node name="InteractionMenu" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("6_vvgt8")
+
+[node name="InteractionLogPanel" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("7_f8j3g")
+
+[node name="SunLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.612373, 0.353552, 0, 0.499998, 0.866027, -0.707107, -0.612373, 0.353552, 0, 0, 0)
+light_energy = 1.35
+
+[node name="CameraRig" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.165, 0, 3.75)
+script = ExtResource("2_6la6x")
+
+[node name="PitchPivot" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/PitchPivot"]
+current = true
+fov = 55.0

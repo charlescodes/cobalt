@@ -1,0 +1,44 @@
+# Godot generated/imported cache.
+.godot/
+.import/
+**/.import/
+**/*.import
+**/*.uid
+
+# Binary/image/audio/video assets.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+*.tga
+*.svg
+*.aseprite
+*.kra
+*.psd
+*.xcf
+*.wav
+*.ogg
+*.mp3
+*.flac
+*.mp4
+*.mov
+*.mkv
+
+# 3D/source art binaries.
+*.blend
+*.fbx
+*.glb
+*.gltf
+*.obj
+*.dae
+
+# Archives/exports.
+*.zip
+*.7z
+*.rar
+*.pck
+build/
+builds/
+exports/
