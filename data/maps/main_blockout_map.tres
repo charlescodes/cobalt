@@ -1,0 +1,54 @@
+[gd_resource type="Resource" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://src/maps/map_data.gd" id="1_map"]
+[ext_resource type="Script" path="res://src/maps/floor_data.gd" id="2_floor"]
+[ext_resource type="Script" path="res://src/walls/wall_segment_data.gd" id="3_wall"]
+[ext_resource type="Script" path="res://src/objects/world_object_data.gd" id="4_object"]
+
+[sub_resource type="Resource" id="Resource_floor"]
+script = ExtResource("2_floor")
+floor_id = &"Floor"
+position = Vector3(0, -0.05, 0)
+size_m = Vector3(12, 0.1, 12)
+color = Color(0.19, 0.22, 0.2, 1)
+
+[sub_resource type="Resource" id="Resource_wall_corner_segment"]
+script = ExtResource("3_wall")
+start_position = Vector3(-2.5, 0, 2)
+end_position = Vector3(1.5, 0, 2)
+height_m = 2.2
+thickness_m = 0.18
+color = Color(0.34, 0.33, 0.31, 1)
+
+[sub_resource type="Resource" id="Resource_wall_side_segment"]
+script = ExtResource("3_wall")
+start_position = Vector3(3, 0, -1)
+end_position = Vector3(3, 0, 3)
+height_m = 2.2
+thickness_m = 0.18
+color = Color(0.29, 0.3, 0.31, 1)
+
+[sub_resource type="Resource" id="Resource_player_character_data"]
+script = ExtResource("4_object")
+object_id = &"pc_001"
+object_kind = &"player_character"
+position = Vector3(0, 0, 0)
+size_m = Vector3(0.5, 1.83, 0.5)
+color = Color(0.1, 0.25, 1, 1)
+is_hoverable = true
+
+[sub_resource type="Resource" id="Resource_npc_data"]
+script = ExtResource("4_object")
+object_id = &"npc_001"
+object_kind = &"non_player_character"
+position = Vector3(1.5, 0, 0.75)
+size_m = Vector3(0.5, 1.83, 0.5)
+color = Color(0.45, 0.45, 0.45, 1)
+is_hoverable = true
+
+[resource]
+script = ExtResource("1_map")
+map_id = "main_blockout"
+floors = Array[ExtResource("2_floor")]([SubResource("Resource_floor")])
+static_walls = Array[ExtResource("3_wall")]([SubResource("Resource_wall_corner_segment"), SubResource("Resource_wall_side_segment")])
+world_objects = Array[ExtResource("4_object")]([SubResource("Resource_player_character_data"), SubResource("Resource_npc_data")])

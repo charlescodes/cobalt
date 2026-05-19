@@ -1,6 +1,6 @@
 # COBALT Notes
 
-Last updated: 2026-05-16
+Last updated: 2026-05-19
 
 Purpose: preserve project decisions and known follow-up work across long Codex sessions. Treat `AGENTS.md` as the architectural rule source; this file is the migration/handoff log.
 
@@ -12,7 +12,8 @@ Key runtime shape:
 
 - `WorldObjectData.position: Vector3` is the canonical location for actors and world objects.
 - `MoveTargetData.position: Vector3` carries exact clicked movement destinations.
-- `scenes/main.tscn` contains a `NavigationRegion3D`, a static floor, a floor `InteractionTarget` with domain `move_target`, a `WallLayout`, player/NPC blockout objects, movement/interaction controllers, UI, camera, and light.
+- `scenes/main.tscn` contains a `NavigationRegion3D`, `MapLoader`, movement/interaction controllers, UI, camera, and light.
+- `res://data/maps/main_blockout_map.tres` stores the sample floor, static walls, player, and NPC as `MapData`.
 - `BlockoutObjectView` composes primitive visuals, an `InteractionTarget`, hover highlighting, and a `NavigationAgent3D`.
 - `MoveTargetResolver` remains stateless and validates movement through `NavigationServer3D.map_get_path()`.
 - `MovementController` listens for `EventBus.move_requested`, validates the request, drives the actor through its `NavigationAgent3D`, updates `WorldObjectData.position`, and emits movement lifecycle events.
@@ -70,7 +71,7 @@ These are intentional gaps, not regressions from the refactor:
 - No combat, dialogue, quests, inventory, party management, saves, or AI behavior.
 - No complex models or animations; primitive blockout visuals remain the standard.
 - No `CharacterBody3D` movement, avoidance, acceleration, rotation, footstep animation, or path preview.
-- Wall and floor data are inline scene resources, not external `.tres` map/encounter definitions.
+- Zones, camera culling, streaming, and multi-region map loading are intentionally out of scope.
 - The floor `move_target` is non-highlightable by design to avoid a giant floor hover shell.
 - `EventBus.movement_step_reached` still exists but is not currently emitted by the continuous nav movement flow.
 - Failed movement reasons are emitted, but there is no player-facing invalid-destination feedback yet.
@@ -108,5 +109,6 @@ Covered by tests:
 - native navigation accepts reachable destinations and rejects off-nav destinations;
 - movement starts, rejects busy actors, updates actor data, completes, and reports failures;
 - wall layout creates primitive visuals and static collision;
-- main scene loads with nav region, floor target, wall layout, actors, controllers, UI, camera, and light;
+- map builder creates typed map content, floor targets, static collision, and object views;
+- main scene loads with nav region, generated map content, controllers, UI, camera, and light;
 - interaction raycasts still support hover, menu, examine, target filtering, exact floor-hit destination capture, and `move_requested` payloads.

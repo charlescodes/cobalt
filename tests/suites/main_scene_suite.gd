@@ -7,7 +7,7 @@ const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
-const WallLayoutViewScript := preload("res://src/walls/wall_layout_view.gd")
+const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -28,10 +28,18 @@ func run(ctx) -> bool:
 	if navigation_region.navigation_mesh == null:
 		main.free()
 		return ctx.fail("NavigationRegion3D is missing a NavigationMesh.")
-	if navigation_region.get_node_or_null("Floor") as StaticBody3D == null:
+	var map_loader := main.get_node_or_null("MapLoader") as MapLoaderScript
+	if map_loader == null or map_loader.map_data == null:
+		main.free()
+		return ctx.fail("Main scene is missing MapLoader data.")
+	var generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if generated_map == null:
+		main.free()
+		return ctx.fail("Main scene did not generate its MapData content.")
+	if generated_map.get_node_or_null("StaticFloors/Floor") as StaticBody3D == null:
 		main.free()
 		return ctx.fail("Main scene is missing a static floor body.")
-	var floor_target := navigation_region.get_node_or_null("Floor/FloorMoveTarget") as InteractionTargetScript
+	var floor_target := generated_map.get_node_or_null("StaticFloors/Floor/FloorMoveTarget") as InteractionTargetScript
 	if floor_target == null:
 		main.free()
 		return ctx.fail("Main scene is missing the floor move target.")
@@ -41,21 +49,17 @@ func run(ctx) -> bool:
 	if not (floor_target.target_data is MoveTargetDataScript):
 		main.free()
 		return ctx.fail("Floor move target does not carry MoveTargetData.")
-	var main_wall_layout := navigation_region.get_node_or_null("WallLayout") as WallLayoutViewScript
-	if main_wall_layout == null:
+	var static_walls := generated_map.get_node_or_null("StaticWalls") as Node3D
+	if static_walls == null or static_walls.get_child_count() != 2:
 		main.free()
-		return ctx.fail("Main scene wall layout should be inside the navigation region.")
-	if main_wall_layout.wall_segments.size() != 2:
+		return ctx.fail("Main scene should generate two static walls.")
+	if map_loader.map_data.static_walls.size() != 2 or not map_loader.map_data.static_walls[0].is_valid_segment():
 		main.free()
-		return ctx.fail("Main scene wall layout should contain two sample wall segments.")
-	if not main_wall_layout.wall_segments[0].is_valid_segment():
+		return ctx.fail("Main scene first map wall segment is invalid.")
+	var wall_body := generated_map.get_node_or_null("StaticWalls/Wall_00/StaticBody3D") as StaticBody3D
+	if wall_body == null:
 		main.free()
-		return ctx.fail("Main scene first wall segment is invalid.")
-	main_wall_layout.apply_layout()
-	var main_wall_visual_root := main_wall_layout.get_node_or_null("WallVisuals")
-	if main_wall_visual_root == null or main_wall_visual_root.get_child_count() != 2:
-		main.free()
-		return ctx.fail("Main scene wall layout did not build its static wall nodes.")
+		return ctx.fail("Main scene static wall is missing collision body.")
 	if main.get_node_or_null("MovementController") == null:
 		main.free()
 		return ctx.fail("Main scene is missing MovementController.")
@@ -74,14 +78,14 @@ func run(ctx) -> bool:
 	if main.get_node_or_null("SunLight") == null:
 		main.free()
 		return ctx.fail("Main scene is missing SunLight.")
-	var main_pc := main.get_node_or_null("PlayerCharacter") as BlockoutObjectViewScript
+	var main_pc := generated_map.get_node_or_null("WorldObjects/pc_001") as BlockoutObjectViewScript
 	if main_pc == null or main_pc.object_data == null:
 		main.free()
 		return ctx.fail("Main scene is missing PlayerCharacter data.")
 	if main_pc.get_navigation_agent() == null:
 		main.free()
 		return ctx.fail("Main scene PlayerCharacter is missing a NavigationAgent3D.")
-	var main_npc := main.get_node_or_null("NPC") as BlockoutObjectViewScript
+	var main_npc := generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript
 	if main_npc == null or main_npc.object_data == null:
 		main.free()
 		return ctx.fail("Main scene is missing NPC data.")

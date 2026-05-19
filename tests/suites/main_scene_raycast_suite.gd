@@ -37,9 +37,15 @@ func run(ctx) -> bool:
 	if interaction_ui != null:
 		interaction_menu = interaction_ui.get_node_or_null("InteractionMenu") as InteractionMenuScript
 		interaction_log_panel = interaction_ui.get_node_or_null("InteractionLogPanel") as InteractionLogPanelScript
-	var main_pc := main.get_node_or_null("PlayerCharacter") as BlockoutObjectViewScript
-	var main_npc := main.get_node_or_null("NPC") as BlockoutObjectViewScript
 	var navigation_region := main.get_node_or_null("NavigationRegion3D") as NavigationRegion3D
+	var generated_map: Node3D
+	var main_pc: BlockoutObjectViewScript
+	var main_npc: BlockoutObjectViewScript
+	if navigation_region != null:
+		generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if generated_map != null:
+		main_pc = generated_map.get_node_or_null("WorldObjects/pc_001") as BlockoutObjectViewScript
+		main_npc = generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript
 	if (
 		camera == null
 		or interaction_controller == null
@@ -57,7 +63,7 @@ func run(ctx) -> bool:
 
 	var pc_target := main_pc.get_node_or_null("InteractionTarget") as InteractionTargetScript
 	var npc_target := main_npc.get_node_or_null("InteractionTarget") as InteractionTargetScript
-	var floor_target := navigation_region.get_node_or_null("Floor/FloorMoveTarget") as InteractionTargetScript
+	var floor_target := generated_map.get_node_or_null("StaticFloors/Floor/FloorMoveTarget") as InteractionTargetScript
 	if pc_target == null or npc_target == null or floor_target == null:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Main scene interaction raycast check is missing interaction targets.")
 	if not pc_target.input_ray_pickable or not npc_target.input_ray_pickable or not floor_target.input_ray_pickable:
