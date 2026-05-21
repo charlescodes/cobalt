@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=12 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://src/maps/map_loader.gd" id="13_f0a8h"]
 [ext_resource type="Resource" path="res://data/maps/main_blockout_map.tres" id="14_w2y7m"]
 [ext_resource type="Script" path="res://src/ui/debug_log_panel.gd" id="15_f144a"]
+[ext_resource type="Script" path="res://src/ui/navigation_debug_overlay.gd" id="16_t70pm"]
+[ext_resource type="Script" path="res://src/ui/debug_overlay_controller.gd" id="17_2cgpl"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_main"]
 geometry_parsed_geometry_type = 1
@@ -39,6 +41,9 @@ script = ExtResource("7_f8j3g")
 [node name="DebugLogPanel" type="PanelContainer" parent="InteractionUI"]
 script = ExtResource("15_f144a")
 
+[node name="NavigationDebugOverlay" type="Node3D" parent="."]
+script = ExtResource("16_t70pm")
+
 [node name="SunLight" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.707107, -0.612373, 0.353552, 0, 0.499998, 0.866027, -0.707107, -0.612373, 0.353552, 0, 0, 0)
 light_energy = 1.35
@@ -52,3 +57,6 @@ script = ExtResource("2_6la6x")
 [node name="Camera3D" type="Camera3D" parent="CameraRig/PitchPivot"]
 current = true
 fov = 55.0
+
+[node name="DebugOverlayController" type="Node" parent="."]
+script = ExtResource("17_2cgpl")

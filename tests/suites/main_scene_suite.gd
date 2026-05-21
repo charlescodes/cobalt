@@ -5,6 +5,8 @@ const InteractionControllerScript := preload("res://src/interaction/interaction_
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const DebugLogPanelScript := preload("res://src/ui/debug_log_panel.gd")
+const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
+const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
@@ -76,9 +78,32 @@ func run(ctx) -> bool:
 	if interaction_ui.get_node_or_null("InteractionLogPanel") == null:
 		main.free()
 		return ctx.fail("Main scene is missing InteractionLogPanel.")
-	if interaction_ui.get_node_or_null("DebugLogPanel") as DebugLogPanelScript == null:
+	var debug_log_panel := interaction_ui.get_node_or_null("DebugLogPanel") as DebugLogPanelScript
+	if debug_log_panel == null:
 		main.free()
 		return ctx.fail("Main scene is missing DebugLogPanel.")
+	if debug_log_panel.visible:
+		main.free()
+		return ctx.fail("DebugLogPanel should be hidden until F12 toggles debug.")
+	var navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
+	if navigation_debug_overlay == null:
+		main.free()
+		return ctx.fail("Main scene is missing NavigationDebugOverlay.")
+	if navigation_debug_overlay.visible:
+		main.free()
+		return ctx.fail("NavigationDebugOverlay should be hidden until F12 toggles debug.")
+	var debug_overlay_controller := main.get_node_or_null("DebugOverlayController") as DebugOverlayControllerScript
+	if debug_overlay_controller == null:
+		main.free()
+		return ctx.fail("Main scene is missing DebugOverlayController.")
+	debug_overlay_controller.set_debug_visible(true)
+	if not debug_log_panel.visible or not navigation_debug_overlay.visible:
+		main.free()
+		return ctx.fail("DebugOverlayController did not show both debug overlays.")
+	debug_overlay_controller.set_debug_visible(false)
+	if debug_log_panel.visible or navigation_debug_overlay.visible:
+		main.free()
+		return ctx.fail("DebugOverlayController did not hide both debug overlays.")
 	if main.get_node_or_null("SunLight") == null:
 		main.free()
 		return ctx.fail("Main scene is missing SunLight.")

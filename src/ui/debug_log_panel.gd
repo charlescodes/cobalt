@@ -7,7 +7,7 @@ var _content_label: Label
 var _lines: Array[String] = []
 
 func _ready() -> void:
-	visible = true
+	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_configure_layout()
 	_configure_style()
