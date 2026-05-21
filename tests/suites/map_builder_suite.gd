@@ -1,7 +1,7 @@
 extends RefCounted
 
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
-const FloorDataScript := preload("res://src/maps/floor_data.gd")
+const GroundDataScript := preload("res://src/maps/ground_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
@@ -12,8 +12,8 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 func run(ctx) -> bool:
 	await ctx.idle_frame()
 
-	var floor := FloorDataScript.new(
-		&"test_floor",
+	var ground := GroundDataScript.new(
+		&"test_ground",
 		Vector3(0.0, -0.05, 0.0),
 		Vector3(4.0, 0.1, 4.0),
 		Color(0.2, 0.3, 0.25, 1.0)
@@ -32,16 +32,16 @@ func run(ctx) -> bool:
 		Vector3(0.5, 1.8, 0.5),
 		Color.BLUE
 	)
-	var floors: Array[FloorDataScript] = []
+	var grounds: Array[GroundDataScript] = []
 	var walls: Array[WallSegmentDataScript] = []
 	var objects: Array[WorldObjectDataScript] = []
-	floors.append(floor)
+	grounds.append(ground)
 	walls.append(wall)
 	objects.append(object_data)
-	var map_data := MapDataScript.new("test_map", floors, walls, objects)
+	var map_data := MapDataScript.new("test_map", grounds, walls, objects)
 
-	if map_data.map_id != "test_map" or map_data.floors[0] != floor:
-		return ctx.fail("MapData did not preserve floor data.")
+	if map_data.map_id != "test_map" or map_data.grounds[0] != ground:
+		return ctx.fail("MapData did not preserve ground data.")
 	if map_data.static_walls[0] != wall or map_data.world_objects[0] != object_data:
 		return ctx.fail("MapData did not preserve wall or world-object data.")
 
@@ -55,49 +55,45 @@ func run(ctx) -> bool:
 		parent.free()
 		return ctx.fail("MapBuilder did not add GeneratedMap to the parent.")
 
-	var floor_body := generated_map.get_node_or_null("StaticFloors/test_floor") as StaticBody3D
-	if floor_body == null:
+	var ground_body := generated_map.get_node_or_null("StaticGround/test_ground") as StaticBody3D
+	if ground_body == null:
 		parent.free()
-		return ctx.fail("MapBuilder did not create a StaticBody3D floor.")
-	if floor_body.position != floor.position:
+		return ctx.fail("MapBuilder did not create a StaticBody3D ground.")
+	if ground_body.position != ground.position:
 		parent.free()
-		return ctx.fail("Generated floor did not use FloorData.position.")
-	var floor_mesh := floor_body.get_node_or_null("Mesh") as MeshInstance3D
-	if floor_mesh == null:
+		return ctx.fail("Generated ground did not use GroundData.position.")
+	var ground_mesh := ground_body.get_node_or_null("Mesh") as MeshInstance3D
+	if ground_mesh == null:
 		parent.free()
-		return ctx.fail("Generated floor is missing a mesh instance.")
-	var floor_box := floor_mesh.mesh as BoxMesh
-	if floor_box == null or floor_box.size != floor.size_m:
+		return ctx.fail("Generated ground is missing a mesh instance.")
+	var ground_box := ground_mesh.mesh as BoxMesh
+	if ground_box == null or ground_box.size != ground.size_m:
 		parent.free()
-		return ctx.fail("Generated floor mesh did not use FloorData.size_m.")
-	var floor_collision := floor_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
-	if floor_collision == null or not (floor_collision.shape is BoxShape3D):
+		return ctx.fail("Generated ground mesh did not use GroundData.size_m.")
+	var ground_collision := ground_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if ground_collision == null or not (ground_collision.shape is BoxShape3D):
 		parent.free()
-		return ctx.fail("Generated floor is missing static box collision.")
+		return ctx.fail("Generated ground is missing static box collision.")
 
-	var floor_target := floor_body.get_node_or_null("FloorMoveTarget") as InteractionTargetScript
-	if floor_target == null:
+	var ground_target := ground_body.get_node_or_null("GroundMoveTarget") as InteractionTargetScript
+	if ground_target == null:
 		parent.free()
-		return ctx.fail("Generated floor is missing a movement target.")
-	if floor_target.can_highlight or not floor_target.input_ray_pickable:
+		return ctx.fail("Generated ground is missing a movement target.")
+	if ground_target.can_highlight or not ground_target.input_ray_pickable:
 		parent.free()
-		return ctx.fail("Generated floor movement target has wrong interaction flags.")
-	if not (floor_target.target_data is MoveTargetDataScript):
+		return ctx.fail("Generated ground movement target has wrong interaction flags.")
+	if not (ground_target.target_data is MoveTargetDataScript):
 		parent.free()
-		return ctx.fail("Generated floor movement target does not carry MoveTargetData.")
-	var target_collision := floor_target.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		return ctx.fail("Generated ground movement target does not carry MoveTargetData.")
+	var target_collision := ground_target.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if target_collision == null or not (target_collision.shape is BoxShape3D):
 		parent.free()
-		return ctx.fail("Generated floor movement target is missing area collision.")
+		return ctx.fail("Generated ground movement target is missing area collision.")
 
-	var wall_node := generated_map.get_node_or_null("StaticWalls/Wall_00") as Node3D
-	if wall_node == null:
-		parent.free()
-		return ctx.fail("MapBuilder did not create a static wall node.")
-	var wall_body := wall_node.get_node_or_null("StaticBody3D") as StaticBody3D
+	var wall_body := generated_map.get_node_or_null("StaticWalls/Wall_00") as StaticBody3D
 	if wall_body == null:
 		parent.free()
-		return ctx.fail("Generated static wall is missing StaticBody3D.")
+		return ctx.fail("MapBuilder did not create a StaticBody3D wall.")
 	var wall_collision := wall_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if wall_collision == null or not (wall_collision.shape is BoxShape3D):
 		parent.free()

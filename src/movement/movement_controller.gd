@@ -67,6 +67,8 @@ func request_move(actor: Node, actor_data: Resource, destination_data: Resource)
 		"actor_data": world_object_data,
 		"agent": agent,
 		"destination_data": move_target_data,
+		"path": path,
+		"path_index": 0,
 		"target_position": move_target_data.position,
 	}
 	set_physics_process(true)
@@ -119,9 +121,7 @@ func _process_active_movement(actor_id: int, delta: float) -> void:
 		_complete_active_movement(actor_id, actor, actor_data, destination_data, target_position)
 		return
 
-	var next_position := agent.get_next_path_position()
-	if absf(next_position.y - actor.position.y) <= 0.001:
-		next_position.y = actor.position.y
+	var next_position := _next_path_position(record, actor, agent, target_position)
 
 	var move_budget := maxf(movement_speed_mps, 0.01) * delta
 	var to_next := next_position - actor.position
@@ -139,6 +139,28 @@ func _process_active_movement(actor_id: int, delta: float) -> void:
 
 	if actor.position.distance_to(target_position) <= arrival_tolerance:
 		_complete_active_movement(actor_id, actor, actor_data, destination_data, target_position)
+
+func _next_path_position(
+	record: Dictionary,
+	actor: Node3D,
+	agent: NavigationAgent3D,
+	target_position: Vector3
+) -> Vector3:
+	var path: PackedVector3Array = record.get("path", PackedVector3Array())
+	var path_index := int(record.get("path_index", 0))
+	var desired_distance := maxf(agent.path_desired_distance, MIN_MOVE_STEP_M)
+	while path_index < path.size():
+		var candidate := path[path_index]
+		candidate.y = actor.position.y
+		if _horizontal_distance(actor.position, candidate) <= desired_distance:
+			path_index += 1
+			continue
+
+		record["path_index"] = path_index
+		return candidate
+
+	record["path_index"] = path_index
+	return target_position
 
 func _complete_active_movement(
 	actor_id: int,
@@ -174,6 +196,9 @@ func _emit_event(signal_name: StringName, args: Array) -> void:
 				event_bus.emit_signal(signal_name, args[0], args[1])
 			&"movement_failed":
 				event_bus.emit_signal(signal_name, args[0], args[1], args[2])
+
+func _horizontal_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 func _get_event_bus() -> Node:
 	var tree: SceneTree

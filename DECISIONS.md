@@ -23,13 +23,13 @@ Runtime source of truth:
 - Actor and object placement is continuous `Vector3` data, not grid, hex, square-cell, or axial coordinates.
 - `WorldObjectData` owns object identity, kind, primitive size, color, hoverability, and canonical `position`.
 - `MoveTargetData` owns a single exact `position` for requested movement destinations. Interaction raycasts update this position from the real hit point; do not flatten or quantize it in interaction code.
-- Authored map content lives in `MapData` resources, currently `res://data/maps/main_blockout_map.tres`, with arrays for floors, static walls, and world objects.
+- Authored map content lives in `MapData` resources, currently `res://data/maps/main_blockout_map.tres`, with arrays for ground, static walls, and world objects.
 
 ### Runtime Scene Shape
 
 - `res://scenes/main.tscn` contains `NavigationRegion3D`, `MapLoader`, `InteractionController`, `MovementController`, `InteractionUI`, `CameraRig`, and `SunLight`.
 - `MapLoader` builds generated map content under the configured `NavigationRegion3D`.
-- `MapBuilder` creates a stable generated subtree: `GeneratedMap/StaticFloors`, `GeneratedMap/StaticWalls`, and `GeneratedMap/WorldObjects`.
+- `MapBuilder` creates a stable generated subtree: `GeneratedMap/StaticGround`, `GeneratedMap/StaticWalls`, and `GeneratedMap/WorldObjects`.
 - `BlockoutObjectView` composes primitive visuals, an `InteractionTarget`, hover highlighting, and a `NavigationAgent3D` from `WorldObjectData`.
 
 ### Walls and NavMesh Geometry
@@ -37,7 +37,7 @@ Runtime source of truth:
 - Static walls are authored as `WallSegmentData` with `start_position` and `end_position` `Vector3` endpoints, height, thickness, and color.
 - `WallVisualResolver` derives wall center, length, and rotation from the segment endpoints.
 - `MapBuilder` turns walls into primitive `BoxMesh` visuals plus `StaticBody3D` collision on collision layer `1`.
-- Floors are also generated as static collision bodies and include a child `FloorMoveTarget` `Area3D` for movement targeting.
+- Ground is also generated as static collision bodies and includes a child `GroundMoveTarget` `Area3D` for movement targeting.
 - `MapLoader.rebake_navigation()` configures the `NavigationMesh` to parse static colliders and bakes the `NavigationRegion3D`.
 - Walls block movement because the native navmesh bakes around static collision. Do not reintroduce logical wall cells or grid blocking flags.
 
@@ -55,6 +55,7 @@ Runtime source of truth:
 - `MovementController` listens for `EventBus.move_requested`, validates the request again, and drives active movement through the actor's `NavigationAgent3D`.
 - `MovementController` may store transient busy movement records keyed by actor instance id. This is runtime coordination state, not tactical rule state.
 - Movement is rejected for invalid requests, busy actors, same-position destinations, missing agents, and missing native paths.
+- Movement stores the validated native path transiently and steers through its waypoints while preserving the actor's gameplay-plane height.
 - During movement, the actor node and `WorldObjectData.position` stay synchronized.
 - Arrival snaps both actor position and `WorldObjectData.position` to the requested `MoveTargetData.position` to avoid drift.
 - Movement outcomes are emitted through `EventBus.movement_started`, `EventBus.movement_completed`, and `EventBus.movement_failed`.
@@ -64,8 +65,8 @@ Runtime source of truth:
 - Interaction raycasts hit `Area3D` `InteractionTarget` nodes on collision layer `1`.
 - World-object targets expose context actions through `InteractionActionResolver`.
 - Only player-character world objects expose `Move`; other world objects expose `Examine` only.
-- Floor movement targets are intentionally non-highlightable so the entire floor does not create a giant hover shell.
-- Interaction targeting emits `move_requested` only after `MoveTargetResolver.can_move()` accepts the selected floor target.
+- Ground movement targets are intentionally non-highlightable so the entire ground does not create a giant hover shell.
+- Interaction targeting emits `move_requested` only after `MoveTargetResolver.can_move()` accepts the selected ground target.
 - The interaction layer remains decoupled from navigation except for handing a `MoveTargetData` destination to the movement flow.
 
 ### Verification
@@ -89,7 +90,7 @@ These are intentional gaps, not regressions from the refactor:
 - No complex models or animations; primitive blockout visuals remain the standard.
 - No `CharacterBody3D` movement, avoidance, acceleration, rotation, footstep animation, or path preview.
 - Zones, camera culling, streaming, and multi-region map loading are intentionally out of scope.
-- The floor `move_target` is non-highlightable by design to avoid a giant floor hover shell.
+- The ground `move_target` is non-highlightable by design to avoid a giant ground hover shell.
 - `EventBus.movement_step_reached` still exists but is not currently emitted by the continuous nav movement flow.
 - Failed movement reasons are emitted, but there is no player-facing invalid-destination feedback yet.
 - Native navigation baking is local/simple; broader map streaming or multi-region navigation is not designed yet.

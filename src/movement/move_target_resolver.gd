@@ -7,6 +7,7 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const PLAYER_CHARACTER_KIND: StringName = &"player_character"
 const NAV_SNAP_TOLERANCE_M: float = 0.35
+const NAV_VERTICAL_SNAP_TOLERANCE_M: float = 0.5
 const PATH_ENDPOINT_TOLERANCE_M: float = 0.05
 
 static func can_start_move(source: Node) -> bool:
@@ -65,12 +66,14 @@ static func navigation_path(
 
 	var snapped_start := NavigationServer3D.map_get_closest_point(navigation_map, start_position)
 	var snapped_target := NavigationServer3D.map_get_closest_point(navigation_map, target_position)
-	if snapped_start.distance_to(start_position) > snap_tolerance_m:
+	if not _is_within_snap_tolerance(snapped_start, start_position, snap_tolerance_m):
 		return PackedVector3Array()
-	if snapped_target.distance_to(target_position) > snap_tolerance_m:
+	if not _is_within_snap_tolerance(snapped_target, target_position, snap_tolerance_m):
 		return PackedVector3Array()
 
-	var path := NavigationServer3D.map_get_path(navigation_map, snapped_start, snapped_target, true)
+	snapped_start = _stabilize_navigation_point(snapped_start)
+	snapped_target = _stabilize_navigation_point(snapped_target)
+	var path := NavigationServer3D.map_get_path(navigation_map, snapped_start, snapped_target, false)
 	if path.is_empty():
 		return PackedVector3Array()
 	if path[path.size() - 1].distance_to(snapped_target) > PATH_ENDPOINT_TOLERANCE_M:
@@ -151,3 +154,24 @@ static func _navigation_map_for_actor_node(actor: Node) -> RID:
 
 	var navigation_map := agent.get_navigation_map()
 	return navigation_map if navigation_map.is_valid() else RID()
+
+static func _is_within_snap_tolerance(
+	snapped_position: Vector3,
+	requested_position: Vector3,
+	horizontal_tolerance_m: float
+) -> bool:
+	var horizontal_delta := Vector2(
+		snapped_position.x - requested_position.x,
+		snapped_position.z - requested_position.z
+	)
+	return (
+		horizontal_delta.length() <= horizontal_tolerance_m
+		and absf(snapped_position.y - requested_position.y) <= NAV_VERTICAL_SNAP_TOLERANCE_M
+	)
+
+static func _stabilize_navigation_point(position: Vector3) -> Vector3:
+	return Vector3(
+		snappedf(position.x, 0.001),
+		snappedf(position.y, 0.001),
+		snappedf(position.z, 0.001)
+	)

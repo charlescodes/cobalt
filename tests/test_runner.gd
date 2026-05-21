@@ -10,6 +10,7 @@ const MapBuilderSuiteScript := preload("res://tests/suites/map_builder_suite.gd"
 const InteractionUiSuiteScript := preload("res://tests/suites/interaction_ui_suite.gd")
 const MainSceneSuiteScript := preload("res://tests/suites/main_scene_suite.gd")
 const MainSceneRaycastSuiteScript := preload("res://tests/suites/main_scene_raycast_suite.gd")
+const MainSceneMovementSuiteScript := preload("res://tests/suites/main_scene_movement_suite.gd")
 const CameraSuiteScript := preload("res://tests/suites/camera_suite.gd")
 
 func _init() -> void:
@@ -46,5 +47,6 @@ func _build_suites() -> Array[RefCounted]:
 		InteractionUiSuiteScript.new(),
 		MainSceneSuiteScript.new(),
 		MainSceneRaycastSuiteScript.new(),
+		MainSceneMovementSuiteScript.new(),
 		CameraSuiteScript.new(),
 	]

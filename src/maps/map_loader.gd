@@ -26,19 +26,26 @@ func load_map() -> Node3D:
 	_clear_generated_map(build_parent)
 	generated_map = MapBuilderScript.build(map_data, build_parent)
 	if bake_navigation_on_load:
-		rebake_navigation()
+		if is_inside_tree():
+			call_deferred("_rebake_navigation_after_physics")
+		else:
+			rebake_navigation()
 	return generated_map
+
+func _rebake_navigation_after_physics() -> void:
+	if is_inside_tree():
+		await get_tree().physics_frame
+	rebake_navigation()
 
 func rebake_navigation() -> void:
 	var navigation_region := _resolve_navigation_region()
 	if navigation_region == null:
 		return
-	if navigation_region.navigation_mesh == null:
-		navigation_region.navigation_mesh = NavigationMesh.new()
 
-	var navigation_mesh := navigation_region.navigation_mesh
+	var navigation_mesh := NavigationMesh.new()
 	navigation_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	navigation_mesh.geometry_collision_mask = 1
+	navigation_region.navigation_mesh = navigation_mesh
 	navigation_region.bake_navigation_mesh(false)
 
 func _clear_generated_map(parent: Node3D) -> void:

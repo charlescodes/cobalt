@@ -1,10 +1,10 @@
 # COBALT Project Overview
 
-Last reviewed: 2026-05-19
+Last reviewed: 2026-05-21
 
 COBALT is a Godot 4.4 3D isometric RPG prototype focused on core tactical interaction and free-form navigation systems. It was migrated from the earlier Blightroot hex-grid prototype, but active gameplay code now uses continuous `Vector3` positions and Godot native navigation.
 
-The current build is a playable systems blockout, not a content-complete RPG. It shows primitive actors, supports hover/context-menu/examine interactions, lets the player select a movement destination on the floor, validates that destination through `NavigationServer3D`, and steers the actor with a `NavigationAgent3D`.
+The current build is a playable systems blockout, not a content-complete RPG. It shows primitive actors, supports hover/context-menu/examine interactions, lets the player select a movement destination on the ground, validates that destination through `NavigationServer3D`, and steers the actor with a `NavigationAgent3D`.
 
 ## Current Runtime Snapshot
 
@@ -14,7 +14,7 @@ At startup, it contains:
 
 - `NavigationRegion3D`: owns the native navigation mesh for the blockout space.
 - `MapLoader`: loads `res://data/maps/main_blockout_map.tres`, builds `GeneratedMap`, and rebakes navigation.
-- `GeneratedMap/StaticFloors`: visual floors, static collision, and non-highlighted floor move targets.
+- `GeneratedMap/StaticGround`: visual ground, static collision, and non-highlighted ground move targets.
 - `GeneratedMap/StaticWalls`: primitive static wall visuals and `StaticBody3D` collision from `WallSegmentData`.
 - `GeneratedMap/WorldObjects`: primitive actors and interactables instantiated from `WorldObjectData`.
 - `InteractionController`: handles camera raycasts, hover state, context menu requests, examine actions, and movement targeting.
@@ -40,10 +40,10 @@ It defines the main gameplay signals for hover changes, interaction menus, UI ca
 Current data resources:
 
 - `WorldObjectData`: object id, object kind, `Vector3` position, primitive size, color, and hoverability.
-- `MoveTargetData`: exact `Vector3` movement destination, usually written from a floor raycast hit.
+- `MoveTargetData`: exact `Vector3` movement destination, usually written from a ground raycast hit.
 - `WallSegmentData`: start/end `Vector3` endpoints, wall height, thickness, and color.
-- `FloorData`: static floor id, center position, dimensions, and color.
-- `MapData`: map id plus floor, static wall, and world-object resource arrays.
+- `GroundData`: static ground id, center position, dimensions, and color.
+- `MapData`: map id plus ground, static wall, and world-object resource arrays.
 
 The main blockout content is authored as `res://data/maps/main_blockout_map.tres`.
 
@@ -80,7 +80,7 @@ Important node scripts:
 3. Left-click a world object to open its context menu.
 4. Choose `Examine` to send object details to the interaction log.
 5. Choose `Move` on the player character to enter movement targeting.
-6. Left-click a reachable point on the floor.
+6. Left-click a reachable point on the ground.
 7. `InteractionController` writes the exact raycast hit to `MoveTargetData.position` and emits `move_requested`.
 8. `MovementController` validates a native nav path and steers the actor through its `NavigationAgent3D`.
 9. During movement, the actor node and its `WorldObjectData.position` stay synchronized.
@@ -108,7 +108,7 @@ Movement execution:
 - arrival snaps actor and data positions to the requested destination to avoid drift;
 - movement emits `movement_started`, `movement_completed`, or `movement_failed`.
 
-Maps are represented as `MapData` resources. `MapBuilder` creates floor and wall primitives with static collision under the `NavigationRegion3D`; `MapLoader` then configures the `NavigationMesh` to parse static colliders and calls `bake_navigation_mesh(false)`. The navmesh bakes around those static colliders, so walls block movement through native navigation geometry rather than logical cell flags.
+Maps are represented as `MapData` resources. `MapBuilder` creates ground and wall primitives with static collision under the `NavigationRegion3D`; `MapLoader` then configures the `NavigationMesh` to parse static colliders and calls `bake_navigation_mesh(false)`. The navmesh bakes around those static colliders, so walls block movement through native navigation geometry rather than logical cell flags.
 
 ## Repository Layout
 
@@ -161,9 +161,10 @@ Current test coverage includes:
 - native navigation accepts reachable destinations and rejects off-nav destinations;
 - movement starts, rejects busy actors, updates actor data, completes, and reports failures;
 - wall layout creates primitive visuals and static collision;
-- map builder creates typed map content, floor targets, static collision, and object views;
+- map builder creates typed map content, ground targets, static collision, and object views;
 - main scene loads with nav region, generated map content, controllers, UI, camera, and light;
-- interaction raycasts support hover, menu, examine, target filtering, exact floor-hit destination capture, and `move_requested` payloads.
+- interaction raycasts support hover, menu, examine, target filtering, exact ground-hit destination capture, and `move_requested` payloads.
+- the default main scene can confirm a ground move target and move the PC through the baked navigation map.
 
 ## Known Gaps
 
