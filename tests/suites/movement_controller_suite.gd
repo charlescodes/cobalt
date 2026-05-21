@@ -129,7 +129,63 @@ func run(ctx) -> bool:
 
 	ctx.movement_failed_count = 0
 	ctx.movement_failed_reason = &""
-	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(valid_destination.position)):
+	ctx.movement_started_count = 0
+	ctx.movement_completed_count = 0
+	var second_valid_destination := MoveTargetDataScript.new(Vector3(1.0, 0.0, 1.0))
+	if not movement_controller.request_move(pc_view, pc_data, second_valid_destination):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController rejected a second valid move after completion: %s." % ctx.movement_failed_reason)
+	if movement_controller_has_event_bus and ctx.movement_failed_count != 0:
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController emitted a failure while starting the second valid move.")
+
+	for _index in range(40):
+		await ctx.tree.physics_frame
+		movement_controller._physics_process(0.1)
+		if not movement_controller.is_actor_busy(pc_view):
+			break
+
+	if movement_controller.is_actor_busy(pc_view):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController did not complete the second valid move.")
+	if pc_data.position.distance_to(second_valid_destination.position) > 0.001:
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController did not update WorldObjectData.position after the second valid move.")
+	if movement_controller_has_event_bus and ctx.movement_completed_count != 1:
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController did not emit movement_completed for the second valid move.")
+
+	ctx.movement_failed_count = 0
+	ctx.movement_failed_reason = &""
+	var stale_busy_destination := MoveTargetDataScript.new(Vector3(0.0, 0.0, 0.0))
+	if not movement_controller.request_move(pc_view, pc_data, stale_busy_destination):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController rejected the stale-busy setup move: %s." % ctx.movement_failed_reason)
+	pc_view.position = stale_busy_destination.position
+	pc_data.position = stale_busy_destination.position
+	var after_stale_destination := MoveTargetDataScript.new(Vector3(2.0, 0.0, 0.0))
+	ctx.movement_failed_count = 0
+	ctx.movement_failed_reason = &""
+	if not movement_controller.request_move(pc_view, pc_data, after_stale_destination):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController rejected a valid move after stale busy arrival: %s." % ctx.movement_failed_reason)
+	if movement_controller_has_event_bus and ctx.movement_failed_count != 0:
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController emitted a failure while clearing stale busy arrival.")
+
+	for _index in range(40):
+		await ctx.tree.physics_frame
+		movement_controller._physics_process(0.1)
+		if not movement_controller.is_actor_busy(pc_view):
+			break
+
+	if movement_controller.is_actor_busy(pc_view):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController did not complete movement after clearing stale busy arrival.")
+
+	ctx.movement_failed_count = 0
+	ctx.movement_failed_reason = &""
+	if movement_controller.request_move(pc_view, pc_data, MoveTargetDataScript.new(after_stale_destination.position)):
 		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
 		return ctx.fail("MovementController accepted already-at-destination movement.")
 	if movement_controller.is_actor_busy(pc_view):
@@ -162,7 +218,7 @@ func run(ctx) -> bool:
 	if movement_controller.request_move(
 		bare_actor,
 		WorldObjectDataScript.new(&"pc_no_agent", &"player_character", pc_data.position),
-		MoveTargetDataScript.new(Vector3(1.0, 0.0, 1.0))
+		MoveTargetDataScript.new(Vector3(0.0, 0.0, 0.0))
 	):
 		bare_actor.free()
 		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)

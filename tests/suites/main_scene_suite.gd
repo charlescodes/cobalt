@@ -9,6 +9,7 @@ const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_contro
 const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
+const MovementControllerScript := preload("res://src/movement/movement_controller.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 
@@ -63,7 +64,8 @@ func run(ctx) -> bool:
 	if wall_body == null:
 		main.free()
 		return ctx.fail("Main scene static wall is missing collision body.")
-	if main.get_node_or_null("MovementController") == null:
+	var movement_controller := main.get_node_or_null("MovementController") as MovementControllerScript
+	if movement_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing MovementController.")
 	var interaction_ui := main.get_node_or_null("InteractionUI") as CanvasLayer
@@ -132,6 +134,37 @@ func run(ctx) -> bool:
 				str(default_map_path_result.get("snapped_target", Vector3.ZERO)),
 			]
 		)
+	movement_controller.movement_speed_mps = 10.0
+	if not movement_controller.request_move(
+		main_pc,
+		main_pc.object_data,
+		MoveTargetDataScript.new(Vector3(2.0, 0.0, 0.0))
+	):
+		main.free()
+		return ctx.fail("Main scene MovementController rejected the first real-map move.")
+	for _index in range(40):
+		await ctx.tree.physics_frame
+		movement_controller._physics_process(0.1)
+		if not movement_controller.is_actor_busy(main_pc):
+			break
+	if movement_controller.is_actor_busy(main_pc):
+		main.free()
+		return ctx.fail("Main scene MovementController did not complete the first real-map move.")
+	if not movement_controller.request_move(
+		main_pc,
+		main_pc.object_data,
+		MoveTargetDataScript.new(Vector3(1.0, 0.0, 1.0))
+	):
+		main.free()
+		return ctx.fail("Main scene MovementController rejected a second real-map move after completion.")
+	for _index in range(40):
+		await ctx.tree.physics_frame
+		movement_controller._physics_process(0.1)
+		if not movement_controller.is_actor_busy(main_pc):
+			break
+	if movement_controller.is_actor_busy(main_pc):
+		main.free()
+		return ctx.fail("Main scene MovementController did not complete the second real-map move.")
 	var main_npc := generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript
 	if main_npc == null or main_npc.object_data == null:
 		main.free()

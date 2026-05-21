@@ -39,6 +39,9 @@ func request_move(actor: Node, actor_data: Resource, destination_data: Resource)
 		return false
 
 	if _is_actor_busy(actor):
+		_complete_arrived_busy_actor(actor)
+
+	if _is_actor_busy(actor):
 		_emit_movement_failed(actor, destination_data, &"actor_busy")
 		return false
 
@@ -95,6 +98,29 @@ func _handle_movement_completed(actor: Node, _destination_data: Resource) -> voi
 func _is_actor_busy(actor: Node) -> bool:
 	return actor != null and _busy_actors.has(actor.get_instance_id())
 
+func _complete_arrived_busy_actor(actor: Node) -> void:
+	if actor == null:
+		return
+
+	var actor_id := actor.get_instance_id()
+	var record := _busy_actors.get(actor_id, {}) as Dictionary
+	var actor3d := record.get("actor") as Node3D
+	var actor_data := record.get("actor_data") as WorldObjectDataScript
+	var agent := record.get("agent") as NavigationAgent3D
+	var destination_data := record.get("destination_data") as MoveTargetDataScript
+	var target_position: Vector3 = record.get("target_position", Vector3.ZERO)
+	if actor3d == null or actor_data == null or destination_data == null:
+		return
+
+	var arrival_tolerance := ARRIVAL_TOLERANCE_M
+	if agent != null and is_instance_valid(agent):
+		arrival_tolerance = maxf(arrival_tolerance, agent.target_desired_distance)
+		if agent.is_navigation_finished():
+			_complete_active_movement(actor_id, actor3d, actor_data, destination_data, target_position)
+			return
+	if actor3d.position.distance_to(target_position) <= arrival_tolerance:
+		_complete_active_movement(actor_id, actor3d, actor_data, destination_data, target_position)
+
 func _process_active_movement(actor_id: int, delta: float) -> void:
 	var record := _busy_actors.get(actor_id, {}) as Dictionary
 	var actor := record.get("actor") as Node3D
@@ -118,6 +144,9 @@ func _process_active_movement(actor_id: int, delta: float) -> void:
 
 	var arrival_tolerance := maxf(ARRIVAL_TOLERANCE_M, agent.target_desired_distance)
 	if actor.position.distance_to(target_position) <= arrival_tolerance:
+		_complete_active_movement(actor_id, actor, actor_data, destination_data, target_position)
+		return
+	if agent.is_navigation_finished():
 		_complete_active_movement(actor_id, actor, actor_data, destination_data, target_position)
 		return
 

@@ -41,6 +41,16 @@ func run(ctx) -> bool:
 		overlay.free()
 		return ctx.fail("NavigationDebugOverlay did not draw the final waypoint marker.")
 
+	root_event_bus.emit_signal(
+		&"move_requested",
+		overlay,
+		null,
+		MoveTargetDataScript.new(Vector3(2.0, 0.0, 1.25))
+	)
+	if overlay.get_node_or_null("PathDebug/PathLine") as MeshInstance3D == null:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay cleared an active path after a destination update.")
+
 	var failed_target := InteractionTargetScript.new()
 	failed_target.target_domain = InteractionActionResolverScript.DOMAIN_MOVE_TARGET
 	failed_target.target_data = MoveTargetDataScript.new(Vector3(3.0, 0.0, 3.0))
@@ -57,6 +67,9 @@ func run(ctx) -> bool:
 	if failure_marker == null:
 		overlay.free()
 		return ctx.fail("NavigationDebugOverlay did not draw a targeting failure marker.")
+	if overlay.get_node_or_null("PathDebug/PathLine") as MeshInstance3D != null:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay did not clear the stale path after a targeting failure.")
 
 	overlay.free()
 	return true

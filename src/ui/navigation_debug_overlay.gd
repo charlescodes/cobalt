@@ -49,6 +49,8 @@ func _on_movement_failed(
 ) -> void:
 	var failure_position: Variant = _position_from_resource(destination_data)
 	if failure_position != null:
+		_clear_path()
+		_clear_failure_marker()
 		_draw_failure_marker(failure_position)
 
 func _on_interaction_targeting_failed(
@@ -62,6 +64,8 @@ func _on_interaction_targeting_failed(
 	if failure_position == null:
 		failure_position = _position_from_details(details)
 	if failure_position != null:
+		_clear_path()
+		_clear_failure_marker()
 		_draw_failure_marker(failure_position)
 
 func _draw_path(path: PackedVector3Array) -> void:
