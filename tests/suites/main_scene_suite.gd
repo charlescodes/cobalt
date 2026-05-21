@@ -4,6 +4,7 @@ const InteractionActionResolverScript := preload("res://src/interaction/interact
 const InteractionControllerScript := preload("res://src/interaction/interaction_controller.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
+const DebugLogPanelScript := preload("res://src/ui/debug_log_panel.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
@@ -75,6 +76,9 @@ func run(ctx) -> bool:
 	if interaction_ui.get_node_or_null("InteractionLogPanel") == null:
 		main.free()
 		return ctx.fail("Main scene is missing InteractionLogPanel.")
+	if interaction_ui.get_node_or_null("DebugLogPanel") as DebugLogPanelScript == null:
+		main.free()
+		return ctx.fail("Main scene is missing DebugLogPanel.")
 	if main.get_node_or_null("SunLight") == null:
 		main.free()
 		return ctx.fail("Main scene is missing SunLight.")
@@ -85,6 +89,24 @@ func run(ctx) -> bool:
 	if main_pc.get_navigation_agent() == null:
 		main.free()
 		return ctx.fail("Main scene PlayerCharacter is missing a NavigationAgent3D.")
+	var scene_navigation_map := navigation_region.get_navigation_map()
+	await ctx.wait_for_scene_navigation_map(scene_navigation_map)
+	var default_map_path_result := MoveTargetResolverScript.navigation_path_result(
+		scene_navigation_map,
+		main_pc.object_data.position,
+		Vector3(2.0, 0.0, 0.0)
+	)
+	if not bool(default_map_path_result.get("ok", false)):
+		main.free()
+		return ctx.fail(
+			"Main scene default map did not produce a native nav path. reason=%s iteration=%s start_snap=%s target_snap=%s"
+			% [
+				default_map_path_result.get("reason", &""),
+				str(default_map_path_result.get("navigation_map_iteration", 0)),
+				str(default_map_path_result.get("snapped_start", Vector3.ZERO)),
+				str(default_map_path_result.get("snapped_target", Vector3.ZERO)),
+			]
+		)
 	var main_npc := generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript
 	if main_npc == null or main_npc.object_data == null:
 		main.free()

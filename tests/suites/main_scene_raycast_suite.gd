@@ -6,6 +6,7 @@ const InteractionTargetScript := preload("res://src/interaction/interaction_targ
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const InteractionLogPanelScript := preload("res://src/ui/interaction_log_panel.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
+const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 
 func run(ctx) -> bool:
@@ -71,17 +72,36 @@ func run(ctx) -> bool:
 	if pc_target.target_data != main_pc.object_data or npc_target.target_data != main_npc.object_data:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "World-object interaction targets do not carry their object data.")
 
-	var nav: Dictionary = ctx.create_square_nav_map()
-	navigation_map = nav["map"]
-	navigation_region_rid = nav["region"]
-	main_pc.get_navigation_agent().set_navigation_map(navigation_map)
-	await ctx.wait_for_navigation_map(navigation_map)
+	var scene_navigation_map := navigation_region.get_navigation_map()
+	await ctx.wait_for_scene_navigation_map(scene_navigation_map)
+	var scene_path_result := MoveTargetResolverScript.navigation_path_result(
+		scene_navigation_map,
+		main_pc.object_data.position,
+		Vector3(2.0, 0.0, 0.0)
+	)
+	if not bool(scene_path_result.get("ok", false)):
+		return _fail_raycast(
+			ctx,
+			root_event_bus,
+			main,
+			original_root_size,
+			navigation_map,
+			navigation_region_rid,
+			signals_connected,
+			"Main scene real navigation map did not produce a path. reason=%s iteration=%s."
+			% [
+				scene_path_result.get("reason", &""),
+				str(scene_path_result.get("navigation_map_iteration", 0)),
+			]
+		)
 
 	var hover_callable: Callable = ctx.hover_changed_callable()
 	var move_requested_callable: Callable = ctx.move_requested_callable()
+	var targeting_failed_callable: Callable = ctx.targeting_failed_callable()
 	var examined_callable: Callable = ctx.examined_output_callable()
 	ctx.connect_if_needed(root_event_bus, &"hover_target_changed", hover_callable)
 	ctx.connect_if_needed(root_event_bus, &"move_requested", move_requested_callable)
+	ctx.connect_if_needed(root_event_bus, &"interaction_targeting_failed", targeting_failed_callable)
 	ctx.connect_if_needed(root_event_bus, &"examined_output", examined_callable)
 	signals_connected = true
 
@@ -182,6 +202,16 @@ func run(ctx) -> bool:
 	)
 	if ctx.hover_changed_target == pc_target:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting raycast did not filter out world-object targets.")
+	ctx.reset_targeting_failed()
+	if interaction_controller.try_confirm_targeting_target(null):
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting confirmed a null target.")
+	if (
+		ctx.targeting_failed_count != 1
+		or ctx.targeting_failed_source != pc_target
+		or ctx.targeting_failed_action_id != InteractionActionResolverScript.ACTION_MOVE
+		or ctx.targeting_failed_reason != MoveTargetResolverScript.REASON_INVALID_DESTINATION
+	):
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting did not emit an invalid-destination failure.")
 
 	var ground_click_position := Vector3(2.0, 0.0, 0.0)
 	var ground_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, ground_click_position)
@@ -243,6 +273,7 @@ func _cleanup_raycast(
 	if signals_connected:
 		ctx.disconnect_if_connected(root_event_bus, &"hover_target_changed", ctx.hover_changed_callable())
 		ctx.disconnect_if_connected(root_event_bus, &"move_requested", ctx.move_requested_callable())
+		ctx.disconnect_if_connected(root_event_bus, &"interaction_targeting_failed", ctx.targeting_failed_callable())
 		ctx.disconnect_if_connected(root_event_bus, &"examined_output", ctx.examined_output_callable())
 	if navigation_map.is_valid() or navigation_region_rid.is_valid():
 		ctx.free_nav_map(navigation_map, navigation_region_rid)

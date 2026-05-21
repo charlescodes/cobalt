@@ -118,7 +118,15 @@ func try_confirm_targeting_target(target: Node) -> bool:
 		return false
 	if _targeting_action_id != InteractionActionResolverScript.ACTION_MOVE:
 		return false
-	if not MoveTargetResolverScript.can_move(_targeting_source, target):
+	var validation := MoveTargetResolverScript.validate_move(_targeting_source, target)
+	if not bool(validation.get("ok", false)):
+		_emit_event(&"interaction_targeting_failed", [
+			_targeting_source,
+			target,
+			_targeting_action_id,
+			validation.get("reason", &"invalid_request"),
+			validation,
+		])
 		return false
 
 	var actor := MoveTargetResolverScript.get_actor_node(_targeting_source)
@@ -278,5 +286,7 @@ func _emit_event(signal_name: StringName, args: Array) -> void:
 			event_bus.emit_signal(signal_name, args[0], args[1])
 		&"interaction_targeting_cancelled":
 			event_bus.emit_signal(signal_name, args[0], args[1])
+		&"interaction_targeting_failed":
+			event_bus.emit_signal(signal_name, args[0], args[1], args[2], args[3], args[4])
 		&"move_requested":
 			event_bus.emit_signal(signal_name, args[0], args[1], args[2])

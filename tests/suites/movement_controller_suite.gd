@@ -180,9 +180,12 @@ func run(ctx) -> bool:
 		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
 		return ctx.fail("MovementController accepted movement without a nav path.")
 	if movement_controller_has_event_bus:
-		if ctx.movement_failed_count != 1 or ctx.movement_failed_reason != &"no_path":
+		if (
+			ctx.movement_failed_count != 1
+			or ctx.movement_failed_reason != MoveTargetResolverScript.REASON_TARGET_OFF_NAV
+		):
 			_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
-			return ctx.fail("MovementController did not emit no_path for missing nav.")
+			return ctx.fail("MovementController did not emit target_off_nav for an off-nav destination.")
 		ctx.disconnect_if_connected(root_event_bus, &"movement_started", movement_started_callable)
 		ctx.disconnect_if_connected(root_event_bus, &"movement_completed", movement_completed_callable)
 		ctx.disconnect_if_connected(root_event_bus, &"movement_failed", movement_failed_callable)

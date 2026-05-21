@@ -11,6 +11,12 @@ var move_requested_actor_data: Resource
 var move_requested_destination: Resource
 var hover_changed_count: int = 0
 var hover_changed_target: Node
+var targeting_failed_count: int = 0
+var targeting_failed_source: Node
+var targeting_failed_target: Node
+var targeting_failed_action_id: StringName = &""
+var targeting_failed_reason: StringName = &""
+var targeting_failed_details: Dictionary = {}
 var examined_count: int = 0
 var examined_target_domain: StringName = &""
 var examined_target_data: Resource
@@ -62,6 +68,14 @@ func reset_hover_changed() -> void:
 	hover_changed_count = 0
 	hover_changed_target = null
 
+func reset_targeting_failed() -> void:
+	targeting_failed_count = 0
+	targeting_failed_source = null
+	targeting_failed_target = null
+	targeting_failed_action_id = &""
+	targeting_failed_reason = &""
+	targeting_failed_details = {}
+
 func reset_examined_output() -> void:
 	examined_count = 0
 	examined_target_domain = &""
@@ -80,6 +94,9 @@ func move_requested_callable() -> Callable:
 
 func hover_changed_callable() -> Callable:
 	return Callable(self, "_record_hover_target_changed")
+
+func targeting_failed_callable() -> Callable:
+	return Callable(self, "_record_targeting_failed")
 
 func examined_output_callable() -> Callable:
 	return Callable(self, "_record_examined_output")
@@ -111,6 +128,15 @@ func wait_for_navigation_map(navigation_map: RID) -> void:
 		await tree.process_frame
 		await tree.physics_frame
 		NavigationServer3D.map_force_update(navigation_map)
+
+func wait_for_scene_navigation_map(navigation_map: RID) -> void:
+	for _index in range(12):
+		await tree.process_frame
+		await tree.physics_frame
+		if navigation_map.is_valid():
+			NavigationServer3D.map_force_update(navigation_map)
+			if NavigationServer3D.map_get_iteration_id(navigation_map) > 0:
+				return
 
 func create_square_nav_region_on_map(navigation_map: RID) -> RID:
 	var navigation_mesh := NavigationMesh.new()
@@ -193,6 +219,20 @@ func _record_move_requested(actor: Node, actor_data: Resource, destination_data:
 func _record_hover_target_changed(target: Node) -> void:
 	hover_changed_count += 1
 	hover_changed_target = target
+
+func _record_targeting_failed(
+	source: Node,
+	target: Node,
+	action_id: StringName,
+	reason: StringName,
+	details: Dictionary
+) -> void:
+	targeting_failed_count += 1
+	targeting_failed_source = source
+	targeting_failed_target = target
+	targeting_failed_action_id = action_id
+	targeting_failed_reason = reason
+	targeting_failed_details = details
 
 func _record_examined_output(target_domain: StringName, target_data: Resource, output: Dictionary) -> void:
 	examined_count += 1

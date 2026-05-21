@@ -14,6 +14,7 @@ func run(ctx) -> bool:
 		"interaction_ui_cancel_requested",
 		"interaction_targeting_started",
 		"interaction_targeting_cancelled",
+		"interaction_targeting_failed",
 		"move_requested",
 		"movement_started",
 		"movement_step_reached",

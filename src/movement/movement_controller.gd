@@ -52,14 +52,16 @@ func request_move(actor: Node, actor_data: Resource, destination_data: Resource)
 		return false
 
 	var navigation_map := _navigation_map_for_actor(actor)
-	var path := MoveTargetResolverScript.navigation_path(
+	var validation := MoveTargetResolverScript.navigation_path_result(
 		navigation_map,
 		world_object_data.position,
 		move_target_data.position
 	)
-	if path.is_empty():
-		_emit_movement_failed(actor, destination_data, &"no_path")
+	if not bool(validation.get("ok", false)):
+		var reason: StringName = validation.get("reason", &"no_path")
+		_emit_movement_failed(actor, destination_data, reason)
 		return false
+	var path := validation.get("path", PackedVector3Array()) as PackedVector3Array
 
 	agent.target_position = move_target_data.position
 	_busy_actors[actor.get_instance_id()] = {

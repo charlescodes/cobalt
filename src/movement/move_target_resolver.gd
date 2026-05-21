@@ -8,6 +8,15 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 const PLAYER_CHARACTER_KIND: StringName = &"player_character"
 const NAV_SNAP_TOLERANCE_M: float = 0.35
 const PATH_ENDPOINT_TOLERANCE_M: float = 0.05
+const REASON_OK: StringName = &"ok"
+const REASON_INVALID_SOURCE: StringName = &"invalid_source"
+const REASON_INVALID_DESTINATION: StringName = &"invalid_destination"
+const REASON_INVALID_MAP: StringName = &"invalid_map"
+const REASON_UNBAKED_MAP: StringName = &"unbaked_map"
+const REASON_START_OFF_NAV: StringName = &"start_off_nav"
+const REASON_TARGET_OFF_NAV: StringName = &"target_off_nav"
+const REASON_NO_PATH: StringName = &"no_path"
+const REASON_INCOMPLETE_PATH: StringName = &"incomplete_path"
 
 static func can_start_move(source: Node) -> bool:
 	return (
@@ -31,10 +40,26 @@ static func can_select_destination_data(destination_data: Resource) -> bool:
 	return destination_data is MoveTargetDataScript
 
 static func can_move(source: Node, destination: Node, navigation_map: RID = RID()) -> bool:
-	if not can_start_move(source) or not can_select_destination(destination):
-		return false
+	return bool(validate_move(source, destination, navigation_map).get("ok", false))
 
-	return not navigation_path_for_targets(source, destination, navigation_map).is_empty()
+static func validate_move(source: Node, destination: Node, navigation_map: RID = RID()) -> Dictionary:
+	if not can_start_move(source):
+		return _result(false, REASON_INVALID_SOURCE)
+	if not can_select_destination(destination):
+		return _result(false, REASON_INVALID_DESTINATION)
+
+	var actor_data := get_target_data(source) as WorldObjectDataScript
+	var destination_data := get_target_data(destination) as MoveTargetDataScript
+	if actor_data == null:
+		return _result(false, REASON_INVALID_SOURCE)
+	if destination_data == null:
+		return _result(false, REASON_INVALID_DESTINATION)
+
+	var resolved_map := navigation_map
+	if not resolved_map.is_valid():
+		resolved_map = get_navigation_map(source, destination)
+
+	return navigation_path_result(resolved_map, actor_data.position, destination_data.position)
 
 static func navigation_path_for_targets(
 	source: Node,
@@ -50,7 +75,11 @@ static func navigation_path_for_targets(
 	if not resolved_map.is_valid():
 		resolved_map = get_navigation_map(source, destination)
 
-	return navigation_path(resolved_map, actor_data.position, destination_data.position)
+	return navigation_path_result(
+		resolved_map,
+		actor_data.position,
+		destination_data.position
+	).get("path", PackedVector3Array()) as PackedVector3Array
 
 static func navigation_path(
 	navigation_map: RID,
@@ -58,25 +87,56 @@ static func navigation_path(
 	target_position: Vector3,
 	snap_tolerance_m: float = NAV_SNAP_TOLERANCE_M
 ) -> PackedVector3Array:
+	return navigation_path_result(
+		navigation_map,
+		start_position,
+		target_position,
+		snap_tolerance_m
+	).get("path", PackedVector3Array()) as PackedVector3Array
+
+static func navigation_path_result(
+	navigation_map: RID,
+	start_position: Vector3,
+	target_position: Vector3,
+	snap_tolerance_m: float = NAV_SNAP_TOLERANCE_M
+) -> Dictionary:
+	var result := _result(false, REASON_INVALID_MAP)
+	result["start_position"] = start_position
+	result["target_position"] = target_position
+	result["navigation_map_iteration"] = 0
 	if not navigation_map.is_valid():
-		return PackedVector3Array()
-	if NavigationServer3D.map_get_iteration_id(navigation_map) == 0:
-		return PackedVector3Array()
+		return result
+
+	var iteration_id := NavigationServer3D.map_get_iteration_id(navigation_map)
+	result["navigation_map_iteration"] = iteration_id
+	if iteration_id == 0:
+		result["reason"] = REASON_UNBAKED_MAP
+		return result
 
 	var snapped_start := NavigationServer3D.map_get_closest_point(navigation_map, start_position)
 	var snapped_target := NavigationServer3D.map_get_closest_point(navigation_map, target_position)
+	result["snapped_start"] = snapped_start
+	result["snapped_target"] = snapped_target
 	if snapped_start.distance_to(start_position) > snap_tolerance_m:
-		return PackedVector3Array()
+		result["reason"] = REASON_START_OFF_NAV
+		return result
 	if snapped_target.distance_to(target_position) > snap_tolerance_m:
-		return PackedVector3Array()
+		result["reason"] = REASON_TARGET_OFF_NAV
+		return result
 
 	var path := NavigationServer3D.map_get_path(navigation_map, snapped_start, snapped_target, true)
 	if path.is_empty():
-		return PackedVector3Array()
+		result["reason"] = REASON_NO_PATH
+		return result
 	if path[path.size() - 1].distance_to(snapped_target) > PATH_ENDPOINT_TOLERANCE_M:
-		return PackedVector3Array()
+		result["path"] = path
+		result["reason"] = REASON_INCOMPLETE_PATH
+		return result
 
-	return path
+	result["ok"] = true
+	result["reason"] = REASON_OK
+	result["path"] = path
+	return result
 
 static func get_navigation_map(source: Node, destination: Node = null) -> RID:
 	var actor_map := _navigation_map_for_actor_node(get_actor_node(source))
@@ -151,3 +211,13 @@ static func _navigation_map_for_actor_node(actor: Node) -> RID:
 
 	var navigation_map := agent.get_navigation_map()
 	return navigation_map if navigation_map.is_valid() else RID()
+
+static func _result(ok: bool, reason: StringName) -> Dictionary:
+	return {
+		"ok": ok,
+		"reason": reason,
+		"path": PackedVector3Array(),
+		"snapped_start": Vector3.ZERO,
+		"snapped_target": Vector3.ZERO,
+		"navigation_map_iteration": 0,
+	}
