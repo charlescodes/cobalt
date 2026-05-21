@@ -2,7 +2,7 @@ class_name MapBuilder
 extends RefCounted
 
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
-const FloorDataScript := preload("res://src/maps/floor_data.gd")
+const GroundDataScript := preload("res://src/maps/ground_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
@@ -11,7 +11,7 @@ const WallVisualResolverScript := preload("res://src/walls/wall_visual_resolver.
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const GENERATED_ROOT_NAME: StringName = &"GeneratedMap"
-const STATIC_FLOORS_NAME: StringName = &"StaticFloors"
+const STATIC_GROUNDS_NAME: StringName = &"StaticGrounds"
 const STATIC_WALLS_NAME: StringName = &"StaticWalls"
 const WORLD_OBJECTS_NAME: StringName = &"WorldObjects"
 
@@ -24,57 +24,57 @@ static func build(map_data: MapDataScript, parent: Node3D) -> Node3D:
 	return root
 
 static func _add_roots(root: Node3D, map_data: MapDataScript) -> void:
-	var floors_root := _new_root(STATIC_FLOORS_NAME)
+	var grounds_root := _new_root(STATIC_GROUNDS_NAME)
 	var walls_root := _new_root(STATIC_WALLS_NAME)
 	var objects_root := _new_root(WORLD_OBJECTS_NAME)
-	root.add_child(floors_root)
+	root.add_child(grounds_root)
 	root.add_child(walls_root)
 	root.add_child(objects_root)
 
 	if map_data == null:
 		return
 
-	for floor_index in range(map_data.floors.size()):
-		_add_floor(floors_root, map_data.floors[floor_index], floor_index)
+	for ground_index in range(map_data.grounds.size()):
+		_add_ground(grounds_root, map_data.grounds[ground_index], ground_index)
 	for wall_index in range(map_data.static_walls.size()):
 		_add_wall(walls_root, map_data.static_walls[wall_index], wall_index)
 	for object_index in range(map_data.world_objects.size()):
 		_add_world_object(objects_root, map_data.world_objects[object_index], object_index)
 
-static func _add_floor(parent: Node3D, floor: FloorDataScript, floor_index: int) -> void:
-	if floor == null or not _is_positive_size(floor.size_m):
+static func _add_ground(parent: Node3D, ground: GroundDataScript, ground_index: int) -> void:
+	if ground == null or not _is_positive_size(ground.size_m):
 		return
 
 	var body := StaticBody3D.new()
-	body.name = _data_name(floor.floor_id, "Floor_%02d" % floor_index)
-	body.position = floor.position
+	body.name = _data_name(ground.ground_id, "Ground_%02d" % ground_index)
+	body.position = ground.position
 	body.collision_layer = 1
 	body.collision_mask = 1
 	parent.add_child(body)
 
 	var box_mesh := BoxMesh.new()
-	box_mesh.size = floor.size_m
+	box_mesh.size = ground.size_m
 
 	var mesh := MeshInstance3D.new()
 	mesh.name = "Mesh"
 	mesh.mesh = box_mesh
-	mesh.material_override = _material(floor.color)
+	mesh.material_override = _material(ground.color)
 	body.add_child(mesh)
 
 	var collision := CollisionShape3D.new()
 	collision.name = "CollisionShape3D"
 	var box_shape := BoxShape3D.new()
-	box_shape.size = floor.size_m
+	box_shape.size = ground.size_m
 	collision.shape = box_shape
 	body.add_child(collision)
 
-	_add_floor_move_target(body, floor)
+	_add_ground_move_target(body, ground)
 
-static func _add_floor_move_target(parent: Node3D, floor: FloorDataScript) -> void:
+static func _add_ground_move_target(parent: Node3D, ground: GroundDataScript) -> void:
 	var target := InteractionTargetScript.new()
-	target.name = "FloorMoveTarget"
+	target.name = "GroundMoveTarget"
 	target.target_domain = &"move_target"
-	target.target_data = MoveTargetDataScript.new(_floor_surface_center(floor))
+	target.target_data = MoveTargetDataScript.new(_ground_surface_center(ground))
 	target.can_highlight = false
 	target.interaction_enabled = true
 	target.collision_layer = 1
@@ -84,9 +84,9 @@ static func _add_floor_move_target(parent: Node3D, floor: FloorDataScript) -> vo
 
 	var collision := CollisionShape3D.new()
 	collision.name = "CollisionShape3D"
-	collision.position = Vector3(0.0, floor.size_m.y * 0.5, 0.0)
+	collision.position = Vector3(0.0, ground.size_m.y * 0.5, 0.0)
 	var box_shape := BoxShape3D.new()
-	box_shape.size = floor.size_m
+	box_shape.size = ground.size_m
 	collision.shape = box_shape
 	target.add_child(collision)
 
@@ -144,8 +144,8 @@ static func _data_name(id: StringName, fallback_name: String) -> String:
 	var value := String(id)
 	return fallback_name if value.is_empty() else value
 
-static func _floor_surface_center(floor: FloorDataScript) -> Vector3:
-	return floor.position + Vector3(0.0, floor.size_m.y * 0.5, 0.0)
+static func _ground_surface_center(ground: GroundDataScript) -> Vector3:
+	return ground.position + Vector3(0.0, ground.size_m.y * 0.5, 0.0)
 
 static func _is_positive_size(size_m: Vector3) -> bool:
 	return size_m.x > 0.001 and size_m.y > 0.001 and size_m.z > 0.001

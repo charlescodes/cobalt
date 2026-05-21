@@ -36,19 +36,19 @@ func run(ctx) -> bool:
 	if generated_map == null:
 		main.free()
 		return ctx.fail("Main scene did not generate its MapData content.")
-	if generated_map.get_node_or_null("StaticFloors/Floor") as StaticBody3D == null:
+	if generated_map.get_node_or_null("StaticGrounds/Ground") as StaticBody3D == null:
 		main.free()
-		return ctx.fail("Main scene is missing a static floor body.")
-	var floor_target := generated_map.get_node_or_null("StaticFloors/Floor/FloorMoveTarget") as InteractionTargetScript
-	if floor_target == null:
+		return ctx.fail("Main scene is missing a static ground body.")
+	var ground_target := generated_map.get_node_or_null("StaticGrounds/Ground/GroundMoveTarget") as InteractionTargetScript
+	if ground_target == null:
 		main.free()
-		return ctx.fail("Main scene is missing the floor move target.")
-	if floor_target.target_domain != InteractionActionResolverScript.DOMAIN_MOVE_TARGET:
+		return ctx.fail("Main scene is missing the ground move target.")
+	if ground_target.target_domain != InteractionActionResolverScript.DOMAIN_MOVE_TARGET:
 		main.free()
-		return ctx.fail("Floor move target has the wrong domain.")
-	if not (floor_target.target_data is MoveTargetDataScript):
+		return ctx.fail("Ground move target has the wrong domain.")
+	if not (ground_target.target_data is MoveTargetDataScript):
 		main.free()
-		return ctx.fail("Floor move target does not carry MoveTargetData.")
+		return ctx.fail("Ground move target does not carry MoveTargetData.")
 	var static_walls := generated_map.get_node_or_null("StaticWalls") as Node3D
 	if static_walls == null or static_walls.get_child_count() != 2:
 		main.free()

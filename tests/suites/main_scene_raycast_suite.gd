@@ -63,10 +63,10 @@ func run(ctx) -> bool:
 
 	var pc_target := main_pc.get_node_or_null("InteractionTarget") as InteractionTargetScript
 	var npc_target := main_npc.get_node_or_null("InteractionTarget") as InteractionTargetScript
-	var floor_target := generated_map.get_node_or_null("StaticFloors/Floor/FloorMoveTarget") as InteractionTargetScript
-	if pc_target == null or npc_target == null or floor_target == null:
+	var ground_target := generated_map.get_node_or_null("StaticGrounds/Ground/GroundMoveTarget") as InteractionTargetScript
+	if pc_target == null or npc_target == null or ground_target == null:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Main scene interaction raycast check is missing interaction targets.")
-	if not pc_target.input_ray_pickable or not npc_target.input_ray_pickable or not floor_target.input_ray_pickable:
+	if not pc_target.input_ray_pickable or not npc_target.input_ray_pickable or not ground_target.input_ray_pickable:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Main scene interaction targets are not ray-pickable.")
 	if pc_target.target_data != main_pc.object_data or npc_target.target_data != main_npc.object_data:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "World-object interaction targets do not carry their object data.")
@@ -183,33 +183,33 @@ func run(ctx) -> bool:
 	if ctx.hover_changed_target == pc_target:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting raycast did not filter out world-object targets.")
 
-	var floor_click_position := Vector3(2.0, 0.0, 0.0)
-	var floor_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, floor_click_position)
+	var ground_click_position := Vector3(2.0, 0.0, 0.0)
+	var ground_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, ground_click_position)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	var expected_floor_hit: Dictionary = ctx.raycast_first_area_hit(camera, floor_screen_position)
-	if expected_floor_hit.is_empty() or expected_floor_hit.get("collider") != floor_target:
-		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "CameraRig raycast did not hit the floor move target.")
+	var expected_ground_hit: Dictionary = ctx.raycast_first_area_hit(camera, ground_screen_position)
+	if expected_ground_hit.is_empty() or expected_ground_hit.get("collider") != ground_target:
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "CameraRig raycast did not hit the ground move target.")
 	ctx.drive_interaction_hover_at_screen(
 		interaction_controller,
-		floor_screen_position,
+		ground_screen_position,
 		InteractionActionResolverScript.DOMAIN_MOVE_TARGET
 	)
-	if ctx.hover_changed_target != floor_target:
-		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting did not hover the floor move target.")
-	var expected_floor_position: Vector3 = expected_floor_hit.get("position", Vector3.ZERO)
-	var floor_data := floor_target.target_data as MoveTargetDataScript
-	if floor_data == null or floor_data.position.distance_to(expected_floor_position) > 0.001:
-		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Floor MoveTargetData did not preserve the exact raycast hit position.")
+	if ctx.hover_changed_target != ground_target:
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting did not hover the ground move target.")
+	var expected_ground_position: Vector3 = expected_ground_hit.get("position", Vector3.ZERO)
+	var ground_data := ground_target.target_data as MoveTargetDataScript
+	if ground_data == null or ground_data.position.distance_to(expected_ground_position) > 0.001:
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Ground MoveTargetData did not preserve the exact raycast hit position.")
 
 	ctx.reset_move_requested()
-	if not interaction_controller.try_confirm_targeting_target(floor_target):
-		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting did not confirm a reachable floor target.")
+	if not interaction_controller.try_confirm_targeting_target(ground_target):
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting did not confirm a reachable ground target.")
 	if (
 		ctx.move_requested_count != 1
 		or ctx.move_requested_actor != main_pc
 		or ctx.move_requested_actor_data != main_pc.object_data
-		or ctx.move_requested_destination != floor_data
+		or ctx.move_requested_destination != ground_data
 	):
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Move targeting emitted the wrong move_requested payload.")
 	if interaction_controller.is_targeting_interaction():

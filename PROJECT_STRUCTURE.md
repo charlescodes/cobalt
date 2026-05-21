@@ -45,16 +45,16 @@ CameraRig/PitchPivot/Camera3D     Active camera.
 res://data/maps/main_blockout_map.tres
 ```
 
-Current sample map resource. Contains floor data, static wall segments, player-character data, and NPC data.
+Current sample map resource. Contains ground data, static wall segments, player-character data, and NPC data.
 
 ## Data Resource Scripts
 
 ```text
-res://src/maps/map_data.gd             Map id plus floor, wall, and object arrays.
-res://src/maps/floor_data.gd           Static floor id, position, size, and color.
+res://src/maps/map_data.gd             Map id plus ground, wall, and object arrays.
+res://src/maps/ground_data.gd           Static ground id, position, size, and color.
 res://src/walls/wall_segment_data.gd   Static wall endpoints, height, thickness, and color.
 res://src/objects/world_object_data.gd World object id, kind, position, size, color, and hoverability.
-res://src/movement/move_target_data.gd Exact Vector3 destination selected by floor raycasts.
+res://src/movement/move_target_data.gd Exact Vector3 destination selected by ground raycasts.
 ```
 
 ## Stateless Processors and Resolvers
