@@ -113,8 +113,8 @@ Maps are represented as `MapData` resources. `MapBuilder` creates floor and wall
 ## Repository Layout
 
 ```text
-AGENTS.md                  Project-specific Codex and architecture rules
-NOTES.md                   Migration decisions, deferred work, and handoff notes
+ARCHITECTURE.md            Project-specific Codex and architecture rules
+DECISIONS.md               Current architecture decisions, deferred work, and handoff notes
 project.godot              Godot project config and autoloads
 scenes/main.tscn           Current playable blockout scene
 data/maps/                 Authored map resources
