@@ -44,6 +44,7 @@ InteractionUI                     CanvasLayer containing interaction UI panels.
 InteractionUI/InteractionMenu     Context action menu.
 InteractionUI/InteractionLogPanel Examine output panel.
 InteractionUI/CameraCompass       50px camera-orientation compass.
+InteractionUI/BspDebugPanel       Right-side BSP parameter controls shown in debug map mode.
 SunLight                          Directional blockout lighting.
 CameraRig                         Isometric-style camera rig.
 CameraRig/PitchPivot/Camera3D     Active camera.
@@ -105,6 +106,7 @@ res://src/interaction/hover_highlighter.gd  Transparent hover shell for highligh
 res://src/ui/interaction_menu.gd      Context menu for target actions.
 res://src/ui/interaction_log_panel.gd Examine output panel and interaction log toggle.
 res://src/ui/camera_compass.gd        Small HUD compass that draws camera heading.
+res://src/ui/bsp_debug_panel.gd       Runtime BSP width/depth/min-room/depth/seed controls.
 ```
 
 ## Walls and Navigation Geometry

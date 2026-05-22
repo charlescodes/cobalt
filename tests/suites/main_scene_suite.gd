@@ -6,6 +6,7 @@ const InteractionTargetScript := preload("res://src/interaction/interaction_targ
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const DebugLogPanelScript := preload("res://src/ui/debug_log_panel.gd")
 const CameraCompassScript := preload("res://src/ui/camera_compass.gd")
+const BspDebugPanelScript := preload("res://src/ui/bsp_debug_panel.gd")
 const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
 const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
@@ -54,11 +55,12 @@ func run(ctx) -> bool:
 		main.free()
 		return ctx.fail("Startup BSP debug map is missing generated walls or actors.")
 	var startup_debug_log_panel := main.get_node_or_null("InteractionUI/DebugLogPanel") as DebugLogPanelScript
+	var startup_bsp_debug_panel := main.get_node_or_null("InteractionUI/BspDebugPanel") as BspDebugPanelScript
 	var startup_navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
-	if startup_debug_log_panel == null or startup_navigation_debug_overlay == null:
+	if startup_debug_log_panel == null or startup_bsp_debug_panel == null or startup_navigation_debug_overlay == null:
 		main.free()
 		return ctx.fail("Startup BSP debug mode is missing debug overlays.")
-	if not startup_debug_log_panel.visible or not startup_navigation_debug_overlay.visible:
+	if not startup_debug_log_panel.visible or not startup_bsp_debug_panel.visible or not startup_navigation_debug_overlay.visible:
 		main.free()
 		return ctx.fail("Startup BSP debug mode should show debug log and navigation overlays.")
 	var startup_generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
@@ -147,6 +149,13 @@ func run(ctx) -> bool:
 	if camera_compass == null:
 		main.free()
 		return ctx.fail("Main scene is missing CameraCompass.")
+	var bsp_debug_panel := interaction_ui.get_node_or_null("BspDebugPanel") as BspDebugPanelScript
+	if bsp_debug_panel == null:
+		main.free()
+		return ctx.fail("Main scene is missing BspDebugPanel.")
+	if bsp_debug_panel.visible:
+		main.free()
+		return ctx.fail("BspDebugPanel should be hidden in authored normal mode.")
 	var navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
 	if navigation_debug_overlay == null:
 		main.free()
@@ -310,7 +319,7 @@ func run(ctx) -> bool:
 	if map_loader.map_data != authored_map_data:
 		main.free()
 		return ctx.fail("BspDebugMapController did not restore the authored map data.")
-	if debug_log_panel.visible or navigation_debug_overlay.visible:
+	if debug_log_panel.visible or bsp_debug_panel.visible or navigation_debug_overlay.visible:
 		main.free()
 		return ctx.fail("BspDebugMapController did not restore the previous debug overlay visibility.")
 	var restored_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D

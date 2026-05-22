@@ -1,6 +1,8 @@
 class_name BspDebugMapController
 extends Node
 
+signal bsp_debug_map_changed(enabled: bool, data: Resource)
+
 const BspModuleDataScript := preload("res://src/debug/bsp_module_data.gd")
 const BspRoomProcessorScript := preload("res://src/debug/bsp_room_processor.gd")
 const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
@@ -40,16 +42,38 @@ func set_bsp_enabled(enabled: bool) -> void:
 		_authored_map_data = map_loader.map_data
 
 	if enabled:
-		map_loader.map_data = BspRoomProcessorScript.compile_to_map_data(_resolved_bsp_data())
+		_load_bsp_map(map_loader)
 	else:
 		map_loader.map_data = _authored_map_data
 
-	map_loader.load_map()
+	if not enabled:
+		map_loader.load_map()
 	_set_debug_overlay_for_bsp(enabled)
 	_is_bsp_enabled = enabled
+	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, _resolved_bsp_data())
 
 func is_bsp_enabled() -> bool:
 	return _is_bsp_enabled
+
+func get_bsp_data() -> BspModuleDataScript:
+	return _resolved_bsp_data()
+
+func apply_bsp_parameters(
+	building_size_m: Vector2,
+	min_room_size_m: float,
+	max_split_depth: int,
+	seed: int
+) -> void:
+	var data := _resolved_bsp_data()
+	data.building_size_m = building_size_m
+	data.min_room_size_m = min_room_size_m
+	data.max_split_depth = max_split_depth
+	data.seed = seed
+	if _is_bsp_enabled:
+		var map_loader := _resolve_map_loader()
+		if map_loader != null:
+			_load_bsp_map(map_loader)
+	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, data)
 
 func _resolve_map_loader() -> MapLoaderScript:
 	var configured_loader := get_node_or_null(map_loader_path) as MapLoaderScript
@@ -66,7 +90,13 @@ func _resolve_debug_overlay_controller() -> DebugOverlayControllerScript:
 	return get_parent().get_node_or_null("DebugOverlayController") as DebugOverlayControllerScript if get_parent() != null else null
 
 func _resolved_bsp_data() -> BspModuleDataScript:
-	return bsp_data if bsp_data != null else BspModuleDataScript.new()
+	if bsp_data == null:
+		bsp_data = BspModuleDataScript.new()
+	return bsp_data
+
+func _load_bsp_map(map_loader: MapLoaderScript) -> void:
+	map_loader.map_data = BspRoomProcessorScript.compile_to_map_data(_resolved_bsp_data())
+	map_loader.load_map()
 
 func _set_debug_overlay_for_bsp(enabled: bool) -> void:
 	var debug_overlay_controller := _resolve_debug_overlay_controller()
