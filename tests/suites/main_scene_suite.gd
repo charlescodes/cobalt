@@ -5,6 +5,7 @@ const InteractionControllerScript := preload("res://src/interaction/interaction_
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const DebugLogPanelScript := preload("res://src/ui/debug_log_panel.gd")
+const CameraCompassScript := preload("res://src/ui/camera_compass.gd")
 const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
 const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
@@ -88,6 +89,10 @@ func run(ctx) -> bool:
 	if debug_log_panel.visible:
 		main.free()
 		return ctx.fail("DebugLogPanel should be hidden until F12 toggles debug.")
+	var camera_compass := interaction_ui.get_node_or_null("CameraCompass") as CameraCompassScript
+	if camera_compass == null:
+		main.free()
+		return ctx.fail("Main scene is missing CameraCompass.")
 	var navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
 	if navigation_debug_overlay == null:
 		main.free()
@@ -228,6 +233,9 @@ func run(ctx) -> bool:
 	if map_loader.map_data.world_objects.size() != 2:
 		main.free()
 		return ctx.fail("BSP debug map should contain PC and NPC objects.")
+	if not debug_log_panel.visible or not navigation_debug_overlay.visible:
+		main.free()
+		return ctx.fail("BSP debug mode did not show debug log and navigation overlays.")
 	var bsp_generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
 	if bsp_generated_map == null:
 		main.free()
@@ -248,6 +256,9 @@ func run(ctx) -> bool:
 	if map_loader.map_data != authored_map_data:
 		main.free()
 		return ctx.fail("BspDebugMapController did not restore the authored map data.")
+	if debug_log_panel.visible or navigation_debug_overlay.visible:
+		main.free()
+		return ctx.fail("BspDebugMapController did not restore the previous debug overlay visibility.")
 	var restored_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
 	var restored_walls := restored_map.get_node_or_null("StaticWalls") as Node3D if restored_map != null else null
 	if restored_walls == null or restored_walls.get_child_count() != 2:

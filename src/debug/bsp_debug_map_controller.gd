@@ -3,13 +3,17 @@ extends Node
 
 const BspModuleDataScript := preload("res://src/debug/bsp_module_data.gd")
 const BspRoomProcessorScript := preload("res://src/debug/bsp_room_processor.gd")
+const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 
 @export var map_loader_path: NodePath = ^"../MapLoader"
+@export var debug_overlay_controller_path: NodePath = ^"../DebugOverlayController"
 @export var bsp_data: BspModuleDataScript = BspModuleDataScript.new()
 
 var _authored_map_data: MapDataScript
+var _authored_debug_visible: bool = false
+var _has_authored_debug_visible: bool = false
 var _is_bsp_enabled: bool = false
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -36,6 +40,7 @@ func set_bsp_enabled(enabled: bool) -> void:
 		map_loader.map_data = _authored_map_data
 
 	map_loader.load_map()
+	_set_debug_overlay_for_bsp(enabled)
 	_is_bsp_enabled = enabled
 
 func is_bsp_enabled() -> bool:
@@ -48,5 +53,27 @@ func _resolve_map_loader() -> MapLoaderScript:
 
 	return get_parent().get_node_or_null("MapLoader") as MapLoaderScript if get_parent() != null else null
 
+func _resolve_debug_overlay_controller() -> DebugOverlayControllerScript:
+	var configured_controller := get_node_or_null(debug_overlay_controller_path) as DebugOverlayControllerScript
+	if configured_controller != null:
+		return configured_controller
+
+	return get_parent().get_node_or_null("DebugOverlayController") as DebugOverlayControllerScript if get_parent() != null else null
+
 func _resolved_bsp_data() -> BspModuleDataScript:
 	return bsp_data if bsp_data != null else BspModuleDataScript.new()
+
+func _set_debug_overlay_for_bsp(enabled: bool) -> void:
+	var debug_overlay_controller := _resolve_debug_overlay_controller()
+	if debug_overlay_controller == null:
+		return
+
+	if enabled:
+		if not _has_authored_debug_visible:
+			_authored_debug_visible = debug_overlay_controller.is_debug_visible()
+			_has_authored_debug_visible = true
+		debug_overlay_controller.set_debug_visible(true)
+		return
+
+	debug_overlay_controller.set_debug_visible(_authored_debug_visible)
+	_has_authored_debug_visible = false
