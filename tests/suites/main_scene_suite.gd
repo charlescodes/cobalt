@@ -24,6 +24,8 @@ func run(ctx) -> bool:
 		return ctx.fail("Main scene did not load.")
 	var main := main_scene.instantiate()
 	ctx.root().add_child(main)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
 	if main.get_node_or_null("HexGridManager") != null:
 		main.free()
 		return ctx.fail("Main scene still contains HexGridManager.")
@@ -38,6 +40,36 @@ func run(ctx) -> bool:
 	if map_loader == null or map_loader.map_data == null:
 		main.free()
 		return ctx.fail("Main scene is missing MapLoader data.")
+	var startup_bsp_debug_map_controller := main.get_node_or_null("BspDebugMapController") as BspDebugMapControllerScript
+	if startup_bsp_debug_map_controller == null:
+		main.free()
+		return ctx.fail("Main scene is missing BspDebugMapController.")
+	if not startup_bsp_debug_map_controller.is_bsp_enabled():
+		main.free()
+		return ctx.fail("Main scene should start in BSP debug map mode.")
+	if map_loader.map_data.map_id != "bsp_debug":
+		main.free()
+		return ctx.fail("Main scene did not start with the BSP debug map.")
+	if map_loader.map_data.static_walls.size() <= 4 or map_loader.map_data.world_objects.size() != 2:
+		main.free()
+		return ctx.fail("Startup BSP debug map is missing generated walls or actors.")
+	var startup_debug_log_panel := main.get_node_or_null("InteractionUI/DebugLogPanel") as DebugLogPanelScript
+	var startup_navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
+	if startup_debug_log_panel == null or startup_navigation_debug_overlay == null:
+		main.free()
+		return ctx.fail("Startup BSP debug mode is missing debug overlays.")
+	if not startup_debug_log_panel.visible or not startup_navigation_debug_overlay.visible:
+		main.free()
+		return ctx.fail("Startup BSP debug mode should show debug log and navigation overlays.")
+	startup_bsp_debug_map_controller.set_bsp_enabled(false)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if startup_bsp_debug_map_controller.is_bsp_enabled():
+		main.free()
+		return ctx.fail("F12 normal-mode toggle did not disable BSP debug map mode.")
+	if map_loader.map_data.map_id != "main_blockout":
+		main.free()
+		return ctx.fail("F12 normal-mode toggle did not restore the authored map.")
 	var generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
 	if generated_map == null:
 		main.free()

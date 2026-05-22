@@ -10,11 +10,16 @@ const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 @export var map_loader_path: NodePath = ^"../MapLoader"
 @export var debug_overlay_controller_path: NodePath = ^"../DebugOverlayController"
 @export var bsp_data: BspModuleDataScript = BspModuleDataScript.new()
+@export var bsp_enabled_on_ready: bool = true
 
 var _authored_map_data: MapDataScript
 var _authored_debug_visible: bool = false
 var _has_authored_debug_visible: bool = false
 var _is_bsp_enabled: bool = false
+
+func _ready() -> void:
+	if bsp_enabled_on_ready:
+		call_deferred("set_bsp_enabled", true)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_debug_overlay"):

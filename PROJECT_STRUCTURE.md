@@ -26,7 +26,7 @@ res://src/core/event_bus.gd       Global event bus autoload.
 ```text
 res://src/debug/bsp_module_data.gd          Runtime-only BSP generation parameters and generated BSP state.
 res://src/debug/bsp_room_processor.gd       Stateless BSP room, wall, door, ground, and debug MapData compiler.
-res://src/debug/bsp_debug_map_controller.gd F12 controller that swaps main.tscn between authored and generated BSP maps.
+res://src/debug/bsp_debug_map_controller.gd Starts main.tscn in generated BSP debug map mode; F12 restores authored map.
 ```
 
 ## Main Scene Composition

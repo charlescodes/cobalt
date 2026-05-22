@@ -8,6 +8,7 @@ const InteractionLogPanelScript := preload("res://src/ui/interaction_log_panel.g
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
+const BspDebugMapControllerScript := preload("res://src/debug/bsp_debug_map_controller.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -29,6 +30,11 @@ func run(ctx) -> bool:
 	ctx.root().add_child(main)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
+	var bsp_debug_map_controller := main.get_node_or_null("BspDebugMapController") as BspDebugMapControllerScript
+	if bsp_debug_map_controller != null and bsp_debug_map_controller.is_bsp_enabled():
+		bsp_debug_map_controller.set_bsp_enabled(false)
+		await ctx.tree.process_frame
+		await ctx.tree.physics_frame
 
 	var camera := main.get_node_or_null("CameraRig/PitchPivot/Camera3D") as Camera3D
 	var interaction_controller := main.get_node_or_null("InteractionController") as InteractionControllerScript
