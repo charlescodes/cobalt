@@ -41,6 +41,7 @@ class BspDoor:
 	var partition_id: StringName = &""
 	var position: Vector3 = Vector3.ZERO
 	var width_m: float = 1.0
+	var is_exterior_exit: bool = false
 
 @export var map_id: String = "bsp_debug"
 @export var building_size_m: Vector2 = Vector2(18.0, 14.0)
@@ -49,6 +50,7 @@ class BspDoor:
 @export var seed: int = 1337
 @export_range(0.0, 8.0, 0.25) var ground_buffer_m: float = 2.0
 @export_range(0.5, 3.0, 0.1) var door_width_m: float = 1.0
+@export var exterior_exit_side: StringName = &"south"
 @export_range(0.25, 8.0, 0.05) var wall_height_m: float = 2.2
 @export_range(0.05, 2.0, 0.01) var wall_thickness_m: float = 0.18
 @export_range(0.05, 1.0, 0.01) var ground_thickness_m: float = 0.1

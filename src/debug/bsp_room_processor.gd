@@ -11,6 +11,10 @@ const SPLIT_X: int = 0
 const SPLIT_Z: int = 1
 const EPSILON: float = 0.001
 const SPLIT_STEP_M: float = 0.5
+const PERIMETER_NORTH: StringName = &"perimeter_north"
+const PERIMETER_EAST: StringName = &"perimeter_east"
+const PERIMETER_SOUTH: StringName = &"perimeter_south"
+const PERIMETER_WEST: StringName = &"perimeter_west"
 
 static func generate(data: BspModuleDataScript) -> BspModuleDataScript:
 	var source := data if data != null else BspModuleDataScript.new()
@@ -29,6 +33,7 @@ static func generate(data: BspModuleDataScript) -> BspModuleDataScript:
 	result.doors.clear()
 	_gather_rooms(root, result.rooms)
 	_gather_partitions(root, result)
+	_add_exterior_exit(result)
 	return result
 
 static func compile_to_walls(data: BspModuleDataScript) -> Array[WallSegmentDataScript]:
@@ -184,6 +189,102 @@ static func _gather_partitions(node: BspModuleDataScript.BspNode, data: BspModul
 	_gather_partitions(node.left_child, data)
 	_gather_partitions(node.right_child, data)
 
+static func _add_exterior_exit(data: BspModuleDataScript) -> void:
+	if data.rooms.is_empty():
+		return
+
+	var bounds := _building_bounds(data)
+	var side := _normalized_exit_side(data.exterior_exit_side)
+	var exit_room := _best_exit_room(data.rooms, bounds, side)
+	if exit_room == null:
+		return
+
+	var door := BspModuleDataScript.BspDoor.new()
+	door.id = StringName("exit_%02d" % data.doors.size())
+	door.partition_id = _perimeter_id_for_side(side)
+	door.width_m = data.door_width_m
+	door.is_exterior_exit = true
+	door.position = _exit_position_for_room(exit_room, bounds, side, door.width_m)
+	data.doors.append(door)
+
+static func _normalized_exit_side(side: StringName) -> StringName:
+	match side:
+		PERIMETER_NORTH, &"north":
+			return &"north"
+		PERIMETER_EAST, &"east":
+			return &"east"
+		PERIMETER_WEST, &"west":
+			return &"west"
+		_:
+			return &"south"
+
+static func _best_exit_room(
+	rooms: Array[BspModuleDataScript.BspRoom],
+	bounds: Rect2,
+	side: StringName
+) -> BspModuleDataScript.BspRoom:
+	var best_room: BspModuleDataScript.BspRoom
+	var best_score := INF
+	for room in rooms:
+		if not _room_touches_exterior_side(room, bounds, side):
+			continue
+
+		var center := room.bounds.position + (room.bounds.size * 0.5)
+		var score := absf(center.x) if side == &"north" or side == &"south" else absf(center.y)
+		if score < best_score:
+			best_room = room
+			best_score = score
+
+	return best_room
+
+static func _room_touches_exterior_side(
+	room: BspModuleDataScript.BspRoom,
+	bounds: Rect2,
+	side: StringName
+) -> bool:
+	match side:
+		&"north":
+			return absf(room.bounds.position.y - bounds.position.y) <= EPSILON
+		&"east":
+			return absf(room.bounds.end.x - bounds.end.x) <= EPSILON
+		&"west":
+			return absf(room.bounds.position.x - bounds.position.x) <= EPSILON
+		_:
+			return absf(room.bounds.end.y - bounds.end.y) <= EPSILON
+
+static func _exit_position_for_room(
+	room: BspModuleDataScript.BspRoom,
+	bounds: Rect2,
+	side: StringName,
+	door_width_m: float
+) -> Vector3:
+	var half_width := door_width_m * 0.5
+	var room_center := room.bounds.position + (room.bounds.size * 0.5)
+	match side:
+		&"north":
+			var north_x := _clamp_ordered(room_center.x, room.bounds.position.x + half_width, room.bounds.end.x - half_width)
+			return Vector3(north_x, 0.0, bounds.position.y)
+		&"east":
+			var east_z := _clamp_ordered(room_center.y, room.bounds.position.y + half_width, room.bounds.end.y - half_width)
+			return Vector3(bounds.end.x, 0.0, east_z)
+		&"west":
+			var west_z := _clamp_ordered(room_center.y, room.bounds.position.y + half_width, room.bounds.end.y - half_width)
+			return Vector3(bounds.position.x, 0.0, west_z)
+		_:
+			var south_x := _clamp_ordered(room_center.x, room.bounds.position.x + half_width, room.bounds.end.x - half_width)
+			return Vector3(south_x, 0.0, bounds.end.y)
+
+static func _perimeter_id_for_side(side: StringName) -> StringName:
+	match side:
+		&"north":
+			return PERIMETER_NORTH
+		&"east":
+			return PERIMETER_EAST
+		&"west":
+			return PERIMETER_WEST
+		_:
+			return PERIMETER_SOUTH
+
 static func _default_door_position(
 	node: BspModuleDataScript.BspNode,
 	rooms: Array[BspModuleDataScript.BspRoom],
@@ -266,10 +367,10 @@ static func _raw_walls(data: BspModuleDataScript) -> Array[Dictionary]:
 	var x1 := bounds.position.x + bounds.size.x
 	var z0 := bounds.position.y
 	var z1 := bounds.position.y + bounds.size.y
-	walls.append(_raw_wall(&"", Vector3(x0, 0.0, z0), Vector3(x1, 0.0, z0)))
-	walls.append(_raw_wall(&"", Vector3(x1, 0.0, z0), Vector3(x1, 0.0, z1)))
-	walls.append(_raw_wall(&"", Vector3(x1, 0.0, z1), Vector3(x0, 0.0, z1)))
-	walls.append(_raw_wall(&"", Vector3(x0, 0.0, z1), Vector3(x0, 0.0, z0)))
+	walls.append(_raw_wall(PERIMETER_NORTH, Vector3(x0, 0.0, z0), Vector3(x1, 0.0, z0)))
+	walls.append(_raw_wall(PERIMETER_EAST, Vector3(x1, 0.0, z0), Vector3(x1, 0.0, z1)))
+	walls.append(_raw_wall(PERIMETER_SOUTH, Vector3(x1, 0.0, z1), Vector3(x0, 0.0, z1)))
+	walls.append(_raw_wall(PERIMETER_WEST, Vector3(x0, 0.0, z1), Vector3(x0, 0.0, z0)))
 
 	for partition in data.partitions:
 		walls.append(_raw_wall(partition.id, partition.start_position, partition.end_position))
@@ -321,9 +422,6 @@ static func _doors_for_partition(
 	partition_id: StringName
 ) -> Array[BspModuleDataScript.BspDoor]:
 	var doors: Array[BspModuleDataScript.BspDoor] = []
-	if partition_id == &"":
-		return doors
-
 	for door in data.doors:
 		if door.partition_id == partition_id:
 			doors.append(door)
@@ -397,6 +495,12 @@ static func _npc_spawn_position(
 ) -> Vector3:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(maxi(data.seed + 9151, 0))
+	var exterior_exit := _exterior_exit(data)
+	if exterior_exit != null:
+		var exterior_position: Variant = _npc_external_spawn_position(data, walls, rng, exterior_exit)
+		if exterior_position is Vector3:
+			return exterior_position as Vector3
+
 	var ground_bounds := _ground_bounds(data)
 	var margin := maxf(data.actor_size_m.x, data.actor_size_m.z) * 0.5
 	var pc_position := _player_spawn_position(data)
@@ -413,6 +517,138 @@ static func _npc_spawn_position(
 			return position
 
 	return Vector3(ground_bounds.position.x + margin, 0.0, ground_bounds.position.y + margin)
+
+static func _exterior_exit(data: BspModuleDataScript) -> BspModuleDataScript.BspDoor:
+	for door in data.doors:
+		if door.is_exterior_exit:
+			return door
+	return null
+
+static func _npc_external_spawn_position(
+	data: BspModuleDataScript,
+	walls: Array[WallSegmentDataScript],
+	rng: RandomNumberGenerator,
+	exterior_exit: BspModuleDataScript.BspDoor
+) -> Variant:
+	var building_bounds := _building_bounds(data)
+	var ground_bounds := _ground_bounds(data)
+	var margin := maxf(data.actor_size_m.x, data.actor_size_m.z) * 0.5
+	var pc_position := _player_spawn_position(data)
+	var side := _side_for_perimeter_id(exterior_exit.partition_id)
+
+	for _attempt in range(data.npc_spawn_attempts):
+		var position := _random_external_position(data, rng, exterior_exit.position, side, margin, building_bounds, ground_bounds)
+		if position.distance_to(pc_position) < 1.0:
+			continue
+		if _building_bounds(data).has_point(Vector2(position.x, position.z)):
+			continue
+		if _distance_to_walls(position, walls) >= data.npc_wall_clearance_m:
+			return position
+
+	var fallback := _fallback_external_position(data, exterior_exit.position, side, margin, building_bounds, ground_bounds)
+	return fallback if not building_bounds.has_point(Vector2(fallback.x, fallback.z)) else null
+
+static func _random_external_position(
+	data: BspModuleDataScript,
+	rng: RandomNumberGenerator,
+	exit_position: Vector3,
+	side: StringName,
+	margin: float,
+	building_bounds: Rect2,
+	ground_bounds: Rect2
+) -> Vector3:
+	var lateral_span := maxf(data.ground_buffer_m, data.door_width_m)
+	match side:
+		&"north":
+			return Vector3(
+				_rand_range_ordered(rng, exit_position.x - lateral_span, exit_position.x + lateral_span, ground_bounds.position.x + margin, ground_bounds.end.x - margin),
+				0.0,
+				_rand_range_ordered(rng, ground_bounds.position.y + margin, building_bounds.position.y - margin)
+			)
+		&"east":
+			return Vector3(
+				_rand_range_ordered(rng, building_bounds.end.x + margin, ground_bounds.end.x - margin),
+				0.0,
+				_rand_range_ordered(rng, exit_position.z - lateral_span, exit_position.z + lateral_span, ground_bounds.position.y + margin, ground_bounds.end.y - margin)
+			)
+		&"west":
+			return Vector3(
+				_rand_range_ordered(rng, ground_bounds.position.x + margin, building_bounds.position.x - margin),
+				0.0,
+				_rand_range_ordered(rng, exit_position.z - lateral_span, exit_position.z + lateral_span, ground_bounds.position.y + margin, ground_bounds.end.y - margin)
+			)
+		_:
+			return Vector3(
+				_rand_range_ordered(rng, exit_position.x - lateral_span, exit_position.x + lateral_span, ground_bounds.position.x + margin, ground_bounds.end.x - margin),
+				0.0,
+				_rand_range_ordered(rng, building_bounds.end.y + margin, ground_bounds.end.y - margin)
+			)
+
+static func _fallback_external_position(
+	data: BspModuleDataScript,
+	exit_position: Vector3,
+	side: StringName,
+	margin: float,
+	building_bounds: Rect2,
+	ground_bounds: Rect2
+) -> Vector3:
+	var offset := maxf(data.npc_wall_clearance_m + margin, data.door_width_m)
+	match side:
+		&"north":
+			return Vector3(
+				_clamp_ordered(exit_position.x, ground_bounds.position.x + margin, ground_bounds.end.x - margin),
+				0.0,
+				_clamp_ordered(building_bounds.position.y - offset, ground_bounds.position.y + margin, building_bounds.position.y - margin)
+			)
+		&"east":
+			return Vector3(
+				_clamp_ordered(building_bounds.end.x + offset, building_bounds.end.x + margin, ground_bounds.end.x - margin),
+				0.0,
+				_clamp_ordered(exit_position.z, ground_bounds.position.y + margin, ground_bounds.end.y - margin)
+			)
+		&"west":
+			return Vector3(
+				_clamp_ordered(building_bounds.position.x - offset, ground_bounds.position.x + margin, building_bounds.position.x - margin),
+				0.0,
+				_clamp_ordered(exit_position.z, ground_bounds.position.y + margin, ground_bounds.end.y - margin)
+			)
+		_:
+			return Vector3(
+				_clamp_ordered(exit_position.x, ground_bounds.position.x + margin, ground_bounds.end.x - margin),
+				0.0,
+				_clamp_ordered(building_bounds.end.y + offset, building_bounds.end.y + margin, ground_bounds.end.y - margin)
+			)
+
+static func _side_for_perimeter_id(perimeter_id: StringName) -> StringName:
+	match perimeter_id:
+		PERIMETER_NORTH:
+			return &"north"
+		PERIMETER_EAST:
+			return &"east"
+		PERIMETER_WEST:
+			return &"west"
+		_:
+			return &"south"
+
+static func _rand_range_ordered(
+	rng: RandomNumberGenerator,
+	min_value: float,
+	max_value: float,
+	clamp_min: float = -INF,
+	clamp_max: float = INF
+) -> float:
+	var clamp_low := minf(clamp_min, clamp_max)
+	var clamp_high := maxf(clamp_min, clamp_max)
+	var low := maxf(minf(min_value, max_value), clamp_low)
+	var high := minf(maxf(min_value, max_value), clamp_high)
+	if high < low:
+		var midpoint := (low + high) * 0.5
+		low = midpoint
+		high = midpoint
+	return rng.randf_range(low, high) if high > low else low
+
+static func _clamp_ordered(value: float, min_value: float, max_value: float) -> float:
+	return clampf(value, minf(min_value, max_value), maxf(min_value, max_value))
 
 static func _distance_to_walls(position: Vector3, walls: Array[WallSegmentDataScript]) -> float:
 	var best := INF
@@ -443,6 +679,7 @@ static func _copy_config(source: BspModuleDataScript) -> BspModuleDataScript:
 	result.seed = source.seed
 	result.ground_buffer_m = source.ground_buffer_m
 	result.door_width_m = source.door_width_m
+	result.exterior_exit_side = source.exterior_exit_side
 	result.wall_height_m = source.wall_height_m
 	result.wall_thickness_m = source.wall_thickness_m
 	result.ground_thickness_m = source.ground_thickness_m

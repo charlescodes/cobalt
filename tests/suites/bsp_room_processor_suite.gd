@@ -40,6 +40,12 @@ func run(ctx) -> bool:
 
 	if first.partitions.is_empty() or first.doors.is_empty():
 		return ctx.fail("BSP generation did not produce internal partitions and default doors.")
+	var exterior_exit_count := 0
+	for door in first.doors:
+		if door.is_exterior_exit:
+			exterior_exit_count += 1
+	if exterior_exit_count != 1:
+		return ctx.fail("BSP generation should produce exactly one exterior exit.")
 
 	var walls: Array[WallSegmentDataScript] = BspRoomProcessorScript.compile_to_walls(first)
 	if walls.size() <= 4:
@@ -82,6 +88,8 @@ func run(ctx) -> bool:
 	)
 	if not ground_bounds.has_point(Vector2(npc.position.x, npc.position.z)):
 		return ctx.fail("BSP NPC spawn is outside the buffered ground.")
+	if building_bounds.has_point(Vector2(npc.position.x, npc.position.z)):
+		return ctx.fail("BSP NPC spawn should be outside the generated building.")
 	if _distance_to_walls(npc.position, map_data.static_walls) < data.npc_wall_clearance_m:
 		return ctx.fail("BSP NPC spawn is too close to a generated wall.")
 

@@ -61,6 +61,28 @@ func run(ctx) -> bool:
 	if not startup_debug_log_panel.visible or not startup_navigation_debug_overlay.visible:
 		main.free()
 		return ctx.fail("Startup BSP debug mode should show debug log and navigation overlays.")
+	var startup_generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	var startup_pc := startup_generated_map.get_node_or_null("WorldObjects/pc_001") as BlockoutObjectViewScript if startup_generated_map != null else null
+	var startup_npc := startup_generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript if startup_generated_map != null else null
+	if startup_pc == null or startup_npc == null:
+		main.free()
+		return ctx.fail("Startup BSP debug map did not instantiate PC and NPC views.")
+	var startup_navigation_map := navigation_region.get_navigation_map()
+	await ctx.wait_for_scene_navigation_map(startup_navigation_map)
+	var startup_bsp_path_result := MoveTargetResolverScript.navigation_path_result(
+		startup_navigation_map,
+		startup_pc.object_data.position,
+		startup_npc.object_data.position
+	)
+	if not bool(startup_bsp_path_result.get("ok", false)):
+		main.free()
+		return ctx.fail(
+			"Startup BSP debug map did not produce a path from PC to exterior NPC. reason=%s iteration=%s"
+			% [
+				startup_bsp_path_result.get("reason", &""),
+				str(startup_bsp_path_result.get("navigation_map_iteration", 0)),
+			]
+		)
 	startup_bsp_debug_map_controller.set_bsp_enabled(false)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame

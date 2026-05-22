@@ -40,6 +40,7 @@ Runtime source of truth:
 - Grounds are also generated as static collision bodies and include a child `GroundMoveTarget` `Area3D` for movement targeting.
 - `MapLoader.rebake_navigation()` configures the `NavigationMesh` to parse static colliders and bakes the `NavigationRegion3D`.
 - Walls block movement because the native navmesh bakes around static collision. Do not reintroduce logical wall cells or grid blocking flags.
+- BSP debug buildings must include at least one exterior exit carved into the perimeter wall so interior rooms can connect to buffered exterior ground.
 
 ### Movement Validation
 
