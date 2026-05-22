@@ -4,6 +4,7 @@ extends Node
 @export var debug_log_path: NodePath = ^"../InteractionUI/DebugLogPanel"
 @export var navigation_overlay_path: NodePath = ^"../NavigationDebugOverlay"
 @export var debug_visible_on_ready: bool = false
+@export var handle_toggle_input: bool = false
 
 var _debug_visible: bool = false
 
@@ -11,6 +12,8 @@ func _ready() -> void:
 	set_debug_visible(debug_visible_on_ready)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not handle_toggle_input:
+		return
 	if event.is_action_pressed("toggle_debug_overlay"):
 		set_debug_visible(not _debug_visible)
 		var viewport := get_viewport()

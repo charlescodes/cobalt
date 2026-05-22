@@ -12,6 +12,7 @@ const MoveTargetResolverScript := preload("res://src/movement/move_target_resolv
 const MovementControllerScript := preload("res://src/movement/movement_controller.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
+const BspDebugMapControllerScript := preload("res://src/debug/bsp_debug_map_controller.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -98,6 +99,10 @@ func run(ctx) -> bool:
 	if debug_overlay_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing DebugOverlayController.")
+	var bsp_debug_map_controller := main.get_node_or_null("BspDebugMapController") as BspDebugMapControllerScript
+	if bsp_debug_map_controller == null:
+		main.free()
+		return ctx.fail("Main scene is missing BspDebugMapController.")
 	debug_overlay_controller.set_debug_visible(true)
 	if not debug_log_panel.visible or not navigation_debug_overlay.visible:
 		main.free()
@@ -200,6 +205,54 @@ func run(ctx) -> bool:
 		if main_interaction_menu.visible:
 			main.free()
 			return ctx.fail("InteractionMenu did not close from a main scene cancel request.")
+
+	var authored_map_data := map_loader.map_data
+	bsp_debug_map_controller.set_bsp_enabled(true)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if not bsp_debug_map_controller.is_bsp_enabled():
+		main.free()
+		return ctx.fail("BspDebugMapController did not enable the generated BSP map.")
+	if map_loader.map_data == authored_map_data:
+		main.free()
+		return ctx.fail("BspDebugMapController did not swap MapLoader.map_data.")
+	if map_loader.map_data.map_id != "bsp_debug":
+		main.free()
+		return ctx.fail("BSP debug map has the wrong map id.")
+	if map_loader.map_data.grounds.size() != 1:
+		main.free()
+		return ctx.fail("BSP debug map should contain one buffered ground.")
+	if map_loader.map_data.static_walls.size() <= 4:
+		main.free()
+		return ctx.fail("BSP debug map did not produce internal wall fragments.")
+	if map_loader.map_data.world_objects.size() != 2:
+		main.free()
+		return ctx.fail("BSP debug map should contain PC and NPC objects.")
+	var bsp_generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if bsp_generated_map == null:
+		main.free()
+		return ctx.fail("BSP debug map did not rebuild GeneratedMap.")
+	if bsp_generated_map.get_node_or_null("WorldObjects/pc_001") as BlockoutObjectViewScript == null:
+		main.free()
+		return ctx.fail("BSP debug map did not instantiate the PC.")
+	if bsp_generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript == null:
+		main.free()
+		return ctx.fail("BSP debug map did not instantiate the NPC.")
+
+	bsp_debug_map_controller.set_bsp_enabled(false)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if bsp_debug_map_controller.is_bsp_enabled():
+		main.free()
+		return ctx.fail("BspDebugMapController did not disable the generated BSP map.")
+	if map_loader.map_data != authored_map_data:
+		main.free()
+		return ctx.fail("BspDebugMapController did not restore the authored map data.")
+	var restored_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	var restored_walls := restored_map.get_node_or_null("StaticWalls") as Node3D if restored_map != null else null
+	if restored_walls == null or restored_walls.get_child_count() != 2:
+		main.free()
+		return ctx.fail("BspDebugMapController did not restore the authored generated map.")
 
 	main.free()
 	return true

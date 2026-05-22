@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=13 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://src/ui/debug_log_panel.gd" id="15_f144a"]
 [ext_resource type="Script" path="res://src/ui/navigation_debug_overlay.gd" id="16_t70pm"]
 [ext_resource type="Script" path="res://src/ui/debug_overlay_controller.gd" id="17_2cgpl"]
+[ext_resource type="Script" path="res://src/debug/bsp_debug_map_controller.gd" id="18_v3rki"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_main"]
 geometry_parsed_geometry_type = 1
@@ -60,3 +61,6 @@ fov = 55.0
 
 [node name="DebugOverlayController" type="Node" parent="."]
 script = ExtResource("17_2cgpl")
+
+[node name="BspDebugMapController" type="Node" parent="."]
+script = ExtResource("18_v3rki")

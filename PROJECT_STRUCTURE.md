@@ -21,6 +21,14 @@ res://scenes/main.tscn            Main playable 3D blockout scene.
 res://src/core/event_bus.gd       Global event bus autoload.
 ```
 
+## Debug Map Generation
+
+```text
+res://src/debug/bsp_module_data.gd          Runtime-only BSP generation parameters and generated BSP state.
+res://src/debug/bsp_room_processor.gd       Stateless BSP room, wall, door, ground, and debug MapData compiler.
+res://src/debug/bsp_debug_map_controller.gd F12 controller that swaps main.tscn between authored and generated BSP maps.
+```
+
 ## Main Scene Composition
 
 `res://scenes/main.tscn` currently contains:
@@ -31,6 +39,7 @@ NavigationRegion3D                Native navmesh owner for generated map collisi
 MapLoader                         Loads authored MapData and rebakes navigation.
 InteractionController             Camera raycasts, hover, context menus, and movement targeting.
 MovementController                EventBus movement listener and nav-agent movement coordinator.
+BspDebugMapController             F12 runtime-only BSP debug map toggle.
 InteractionUI                     CanvasLayer containing interaction UI panels.
 InteractionUI/InteractionMenu     Context action menu.
 InteractionUI/InteractionLogPanel Examine output panel.
@@ -117,6 +126,8 @@ res://tests/suites/main_scene_raycast_suite.gd
                                              Main-scene raycast and targeting coverage.
 res://tests/suites/main_scene_suite.gd      Main scene composition coverage.
 res://tests/suites/map_builder_suite.gd     Map generation and collision coverage.
+res://tests/suites/bsp_room_processor_suite.gd
+                                             BSP generation, wall carving, buffered ground, and actor spawn coverage.
 res://tests/suites/movement_controller_suite.gd
                                              Movement controller coverage.
 res://tests/suites/native_navigation_suite.gd
