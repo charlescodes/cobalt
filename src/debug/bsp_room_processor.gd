@@ -40,7 +40,7 @@ static func compile_to_walls(data: BspModuleDataScript) -> Array[WallSegmentData
 	if data == null:
 		return []
 
-	var source := data if data.root_node != null else generate(data)
+	var source := _generated_source(data)
 	var raw_walls := _raw_walls(source)
 	var walls: Array[WallSegmentDataScript] = []
 	for raw_wall in raw_walls:
@@ -49,7 +49,7 @@ static func compile_to_walls(data: BspModuleDataScript) -> Array[WallSegmentData
 	return walls
 
 static func compile_to_map_data(data: BspModuleDataScript) -> MapDataScript:
-	var generated := generate(data)
+	var generated := _generated_source(data)
 	var grounds: Array[GroundDataScript] = [_ground_data(generated)]
 	var walls: Array[WallSegmentDataScript] = compile_to_walls(generated)
 	var objects: Array[WorldObjectDataScript] = [
@@ -57,6 +57,283 @@ static func compile_to_map_data(data: BspModuleDataScript) -> MapDataScript:
 		_npc_data(generated, walls),
 	]
 	return MapDataScript.new(generated.map_id, grounds, walls, objects)
+
+static func room_at_position(
+	data: BspModuleDataScript,
+	position: Vector3
+) -> BspModuleDataScript.BspRoom:
+	var source := _generated_source(data)
+	var point := Vector2(position.x, position.z)
+	for room in source.rooms:
+		if _rect_has_point_inclusive(room.bounds, point):
+			return room
+
+	return null
+
+static func exterior_route_room_ids(
+	data: BspModuleDataScript,
+	start_room_id: StringName
+) -> Array[StringName]:
+	var source := _generated_source(data)
+	var start_room := _room_by_id(source, start_room_id)
+	var exit_room := _exterior_exit_room(source)
+	if start_room == null or exit_room == null:
+		var empty_route: Array[StringName] = []
+		return empty_route
+
+	if start_room.id == exit_room.id:
+		var direct_route: Array[StringName] = [start_room.id]
+		return direct_route
+
+	var adjacency := _room_adjacency(source)
+	var frontier: Array[StringName] = [start_room.id]
+	var visited := {start_room.id: true}
+	var previous := {}
+
+	while not frontier.is_empty():
+		var current: StringName = frontier.pop_front()
+		var neighbors: Array = adjacency.get(current, [])
+		for neighbor_variant in neighbors:
+			var neighbor: StringName = neighbor_variant
+			if visited.has(neighbor):
+				continue
+
+			visited[neighbor] = true
+			previous[neighbor] = current
+			if neighbor == exit_room.id:
+				return _reconstruct_room_route(start_room.id, exit_room.id, previous)
+			frontier.append(neighbor)
+
+	var empty_route: Array[StringName] = []
+	return empty_route
+
+static func exterior_route_points_for_room(
+	data: BspModuleDataScript,
+	start_room_id: StringName
+) -> PackedVector3Array:
+	var source := _generated_source(data)
+	var room_ids := exterior_route_room_ids(source, start_room_id)
+	var points := PackedVector3Array()
+	if room_ids.is_empty():
+		return points
+
+	for room_index in range(room_ids.size()):
+		var room := _room_by_id(source, room_ids[room_index])
+		if room != null:
+			points.append(room.center_position())
+
+		if room_index >= room_ids.size() - 1:
+			continue
+
+		var door := _door_between_rooms(source, room_ids[room_index], room_ids[room_index + 1])
+		if door != null:
+			points.append(door.position)
+
+	var exit_door := _exterior_exit_for_room(source, room_ids[room_ids.size() - 1])
+	if exit_door != null:
+		points.append(exit_door.position)
+		points.append(_outside_exit_anchor(source, exit_door))
+
+	return points
+
+static func exterior_route_points_for_position(
+	data: BspModuleDataScript,
+	position: Vector3
+) -> PackedVector3Array:
+	var source := _generated_source(data)
+	var room := room_at_position(source, position)
+	if room == null:
+		return PackedVector3Array()
+
+	return exterior_route_points_for_room(source, room.id)
+
+static func compile_interest_sockets(data: BspModuleDataScript) -> Array[Dictionary]:
+	var source := _generated_source(data)
+	var sockets: Array[Dictionary] = []
+	for door in source.doors:
+		sockets.append({
+			"id": door.id,
+			"kind": &"exterior_exit_socket" if door.is_exterior_exit else &"door_socket",
+			"position": door.position,
+			"width_m": door.width_m,
+			"room_ids": _door_room_ids(source, door),
+		})
+
+	var player_position := _player_spawn_position(source)
+	var player_room := room_at_position(source, player_position)
+	sockets.append({
+		"id": &"pc_spawn_socket",
+		"kind": &"object_socket",
+		"object_kind": &"player_character",
+		"position": player_position,
+		"room_id": player_room.id if player_room != null else &"",
+	})
+
+	var walls: Array[WallSegmentDataScript] = compile_to_walls(source)
+	var npc_position := _npc_spawn_position(source, walls)
+	sockets.append({
+		"id": &"npc_spawn_socket",
+		"kind": &"object_socket",
+		"object_kind": &"non_player_character",
+		"position": npc_position,
+		"room_id": &"exterior",
+	})
+
+	return sockets
+
+static func _generated_source(data: BspModuleDataScript) -> BspModuleDataScript:
+	var source := data if data != null else BspModuleDataScript.new()
+	return source if source.root_node != null else generate(source)
+
+static func _room_by_id(
+	data: BspModuleDataScript,
+	room_id: StringName
+) -> BspModuleDataScript.BspRoom:
+	for room in data.rooms:
+		if room.id == room_id:
+			return room
+
+	return null
+
+static func _room_adjacency(data: BspModuleDataScript) -> Dictionary:
+	var adjacency := {}
+	for room in data.rooms:
+		adjacency[room.id] = []
+
+	for partition in data.partitions:
+		if partition.left_room_id == &"" or partition.right_room_id == &"":
+			continue
+		if not adjacency.has(partition.left_room_id) or not adjacency.has(partition.right_room_id):
+			continue
+
+		(adjacency[partition.left_room_id] as Array).append(partition.right_room_id)
+		(adjacency[partition.right_room_id] as Array).append(partition.left_room_id)
+
+	return adjacency
+
+static func _reconstruct_room_route(
+	start_room_id: StringName,
+	exit_room_id: StringName,
+	previous: Dictionary
+) -> Array[StringName]:
+	var route: Array[StringName] = []
+	var cursor := exit_room_id
+	while cursor != &"":
+		route.push_front(cursor)
+		if cursor == start_room_id:
+			return route
+
+		cursor = previous.get(cursor, &"")
+
+	var empty_route: Array[StringName] = []
+	return empty_route
+
+static func _door_between_rooms(
+	data: BspModuleDataScript,
+	from_room_id: StringName,
+	to_room_id: StringName
+) -> BspModuleDataScript.BspDoor:
+	for door in data.doors:
+		if door.is_exterior_exit:
+			continue
+
+		var room_ids := _door_room_ids(data, door)
+		if room_ids.has(from_room_id) and room_ids.has(to_room_id):
+			return door
+
+	return null
+
+static func _exterior_exit_room(data: BspModuleDataScript) -> BspModuleDataScript.BspRoom:
+	var exterior_exit := _exterior_exit(data)
+	if exterior_exit == null:
+		return null
+
+	return _room_for_exterior_exit(data, exterior_exit)
+
+static func _exterior_exit_for_room(
+	data: BspModuleDataScript,
+	room_id: StringName
+) -> BspModuleDataScript.BspDoor:
+	for door in data.doors:
+		if not door.is_exterior_exit:
+			continue
+
+		var room := _room_for_exterior_exit(data, door)
+		if room != null and room.id == room_id:
+			return door
+
+	return null
+
+static func _room_for_exterior_exit(
+	data: BspModuleDataScript,
+	exterior_exit: BspModuleDataScript.BspDoor
+) -> BspModuleDataScript.BspRoom:
+	var bounds := _building_bounds(data)
+	var side := _side_for_perimeter_id(exterior_exit.partition_id)
+	for room in data.rooms:
+		if not _room_touches_exterior_side(room, bounds, side):
+			continue
+		match side:
+			&"north", &"south":
+				if _scalar_in_range(exterior_exit.position.x, room.bounds.position.x, room.bounds.end.x):
+					return room
+			_:
+				if _scalar_in_range(exterior_exit.position.z, room.bounds.position.y, room.bounds.end.y):
+					return room
+
+	return null
+
+static func _door_room_ids(
+	data: BspModuleDataScript,
+	door: BspModuleDataScript.BspDoor
+) -> Array[StringName]:
+	if door.is_exterior_exit:
+		var exterior_room := _room_for_exterior_exit(data, door)
+		var exterior_room_ids: Array[StringName] = [&"exterior"]
+		if exterior_room != null:
+			exterior_room_ids.push_front(exterior_room.id)
+		return exterior_room_ids
+
+	var partition := _partition_by_id(data, door.partition_id)
+	if partition == null:
+		var empty_room_ids: Array[StringName] = []
+		return empty_room_ids
+
+	var room_ids: Array[StringName] = []
+	if partition.left_room_id != &"":
+		room_ids.append(partition.left_room_id)
+	if partition.right_room_id != &"":
+		room_ids.append(partition.right_room_id)
+	return room_ids
+
+static func _partition_by_id(
+	data: BspModuleDataScript,
+	partition_id: StringName
+) -> BspModuleDataScript.BspPartition:
+	for partition in data.partitions:
+		if partition.id == partition_id:
+			return partition
+
+	return null
+
+static func _outside_exit_anchor(
+	data: BspModuleDataScript,
+	exterior_exit: BspModuleDataScript.BspDoor
+) -> Vector3:
+	var building_bounds := _building_bounds(data)
+	var ground_bounds := _ground_bounds(data)
+	var margin := maxf(data.actor_size_m.x, data.actor_size_m.z) * 0.5
+	var side := _side_for_perimeter_id(exterior_exit.partition_id)
+	return _fallback_external_position(data, exterior_exit.position, side, margin, building_bounds, ground_bounds)
+
+static func _rect_has_point_inclusive(rect: Rect2, point: Vector2) -> bool:
+	return (
+		_scalar_in_range(point.x, rect.position.x, rect.end.x)
+		and _scalar_in_range(point.y, rect.position.y, rect.end.y)
+	)
+
+static func _scalar_in_range(value: float, start: float, end: float) -> bool:
+	return value >= minf(start, end) - EPSILON and value <= maxf(start, end) + EPSILON
 
 static func _split_node(
 	node: BspModuleDataScript.BspNode,

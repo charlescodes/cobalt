@@ -1,19 +1,29 @@
 class_name NavigationDebugOverlay
 extends Node3D
 
+const BspModuleDataScript := preload("res://src/debug/bsp_module_data.gd")
+const BspRoomProcessorScript := preload("res://src/debug/bsp_room_processor.gd")
+
 const PATH_ROOT_NAME: StringName = &"PathDebug"
 const MARKER_ROOT_NAME: StringName = &"MarkerDebug"
+const BSP_ROOT_NAME: StringName = &"BspInterestDebug"
 const PATH_LINE_NAME: StringName = &"PathLine"
 const DESTINATION_MARKER_NAME: StringName = &"DestinationMarker"
 const FAILURE_MARKER_NAME: StringName = &"FailureMarker"
 const DRAW_Y_OFFSET_M: float = 0.06
+const BSP_DRAW_Y_OFFSET_M: float = 0.08
+const BSP_ROUTE_Y_OFFSET_M: float = 0.14
 
 @export var waypoint_radius_m: float = 0.08
 @export var destination_radius_m: float = 0.12
 @export var failure_radius_m: float = 0.14
+@export var show_bsp_interest_debug: bool = true
+@export var show_bsp_exit_route: bool = true
 
 var _path_root: Node3D
 var _marker_root: Node3D
+var _bsp_root: Node3D
+var _bsp_data: BspModuleDataScript
 var _last_requested_position: Vector3 = Vector3.ZERO
 var _has_last_requested_position: bool = false
 
@@ -21,7 +31,30 @@ func _ready() -> void:
 	visible = false
 	_path_root = _get_or_create_root(PATH_ROOT_NAME)
 	_marker_root = _get_or_create_root(MARKER_ROOT_NAME)
+	_bsp_root = _get_or_create_root(BSP_ROOT_NAME)
 	_connect_events()
+
+func set_bsp_debug_data(data: BspModuleDataScript) -> void:
+	_bsp_data = data
+	_redraw_bsp_interest_debug()
+
+func clear_bsp_debug_data() -> void:
+	_bsp_data = null
+	_clear_bsp_interest_debug()
+
+func set_bsp_interest_visible(is_visible: bool) -> void:
+	if show_bsp_interest_debug == is_visible:
+		return
+
+	show_bsp_interest_debug = is_visible
+	_redraw_bsp_interest_debug()
+
+func set_bsp_exit_route_visible(is_visible: bool) -> void:
+	if show_bsp_exit_route == is_visible:
+		return
+
+	show_bsp_exit_route = is_visible
+	_redraw_bsp_interest_debug()
 
 func _on_move_requested(_actor: Node, _actor_data: Resource, destination_data: Resource) -> void:
 	var destination_position: Variant = _position_from_resource(destination_data)
@@ -123,8 +156,200 @@ func _new_marker(marker_name: String, position: Vector3, radius_m: float, color:
 	marker.material_override = _material(color)
 	return marker
 
+func _redraw_bsp_interest_debug() -> void:
+	_clear_bsp_interest_debug()
+	if _bsp_data == null or not show_bsp_interest_debug:
+		return
+
+	var data := _bsp_data if _bsp_data.root_node != null else BspRoomProcessorScript.generate(_bsp_data)
+	_draw_bsp_rooms(data)
+	_draw_bsp_walls(data)
+	_draw_bsp_sockets(data)
+	if show_bsp_exit_route:
+		_draw_bsp_exit_route(data)
+
+func _draw_bsp_rooms(data: BspModuleDataScript) -> void:
+	var rooms_root := _new_debug_root("Rooms")
+	for room in data.rooms:
+		var room_root := Node3D.new()
+		room_root.name = "Room_%s" % _debug_name(room.id)
+		rooms_root.add_child(room_root)
+		_add_rect_outline(
+			room_root,
+			room.bounds,
+			Color(0.2, 0.75, 1.0, 0.82),
+			0.045,
+			0.025,
+			BSP_DRAW_Y_OFFSET_M
+		)
+
+func _draw_bsp_walls(data: BspModuleDataScript) -> void:
+	var walls_root := _new_debug_root("Walls")
+	var walls := BspRoomProcessorScript.compile_to_walls(data)
+	for wall_index in range(walls.size()):
+		walls_root.add_child(_new_segment_bar(
+			"Wall_%02d" % wall_index,
+			walls[wall_index].start_position,
+			walls[wall_index].end_position,
+			0.08,
+			0.035,
+			Color(1.0, 0.36, 0.22, 0.9),
+			BSP_DRAW_Y_OFFSET_M + 0.025
+		))
+
+func _draw_bsp_sockets(data: BspModuleDataScript) -> void:
+	var sockets_root := _new_debug_root("Sockets")
+	var sockets := BspRoomProcessorScript.compile_interest_sockets(data)
+	for socket in sockets:
+		var kind := socket.get("kind", &"") as StringName
+		var position := socket.get("position", Vector3.ZERO) as Vector3
+		var socket_id := socket.get("id", &"socket") as StringName
+		if kind == &"object_socket":
+			sockets_root.add_child(_new_socket_box(socket_id, position, _socket_color(kind, socket)))
+			continue
+
+		var width_m := float(socket.get("width_m", 1.0))
+		sockets_root.add_child(_new_socket_disc(socket_id, position, maxf(width_m * 0.32, 0.18), _socket_color(kind, socket)))
+
+func _draw_bsp_exit_route(data: BspModuleDataScript) -> void:
+	var player_position: Variant = null
+	for socket in BspRoomProcessorScript.compile_interest_sockets(data):
+		if socket.get("object_kind", &"") == &"player_character":
+			player_position = socket.get("position")
+			break
+
+	if not (player_position is Vector3):
+		return
+
+	var route_points := BspRoomProcessorScript.exterior_route_points_for_position(data, player_position as Vector3)
+	if route_points.size() < 2:
+		return
+
+	var route_root := _new_debug_root("ExitRoute")
+	for point_index in range(route_points.size() - 1):
+		route_root.add_child(_new_segment_bar(
+			"RouteSegment_%02d" % point_index,
+			route_points[point_index],
+			route_points[point_index + 1],
+			0.07,
+			0.035,
+			Color(0.4, 1.0, 0.5, 0.95),
+			BSP_ROUTE_Y_OFFSET_M
+		))
+	for point_index in range(route_points.size()):
+		route_root.add_child(_new_marker(
+			"RoutePoint_%02d" % point_index,
+			route_points[point_index] + Vector3(0.0, BSP_ROUTE_Y_OFFSET_M, 0.0),
+			0.08,
+			Color(0.5, 1.0, 0.55, 0.95)
+		))
+
+func _add_rect_outline(
+	parent: Node3D,
+	rect: Rect2,
+	color: Color,
+	thickness_m: float,
+	height_m: float,
+	y_offset_m: float
+) -> void:
+	var x0 := rect.position.x
+	var x1 := rect.end.x
+	var z0 := rect.position.y
+	var z1 := rect.end.y
+	var corners := [
+		Vector3(x0, 0.0, z0),
+		Vector3(x1, 0.0, z0),
+		Vector3(x1, 0.0, z1),
+		Vector3(x0, 0.0, z1),
+	]
+	for side_index in range(corners.size()):
+		parent.add_child(_new_segment_bar(
+			"Bounds_%02d" % side_index,
+			corners[side_index],
+			corners[(side_index + 1) % corners.size()],
+			thickness_m,
+			height_m,
+			color,
+			y_offset_m
+		))
+
+func _new_segment_bar(
+	segment_name: String,
+	start: Vector3,
+	end: Vector3,
+	thickness_m: float,
+	height_m: float,
+	color: Color,
+	y_offset_m: float
+) -> MeshInstance3D:
+	var segment := MeshInstance3D.new()
+	segment.name = segment_name
+	var delta := end - start
+	delta.y = 0.0
+	var length := maxf(delta.length(), thickness_m)
+	segment.position = Vector3(
+		(start.x + end.x) * 0.5,
+		y_offset_m,
+		(start.z + end.z) * 0.5
+	)
+	if delta.length_squared() > 0.000001:
+		segment.rotation.y = atan2(delta.x, delta.z)
+
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(thickness_m, height_m, length)
+	segment.mesh = mesh
+	segment.material_override = _material(color)
+	return segment
+
+func _new_socket_disc(
+	socket_id: StringName,
+	position: Vector3,
+	radius_m: float,
+	color: Color
+) -> MeshInstance3D:
+	var marker := MeshInstance3D.new()
+	marker.name = "Socket_%s" % _debug_name(socket_id)
+	marker.position = position + Vector3(0.0, BSP_ROUTE_Y_OFFSET_M, 0.0)
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = radius_m
+	cylinder.bottom_radius = radius_m
+	cylinder.height = 0.04
+	cylinder.radial_segments = 20
+	marker.mesh = cylinder
+	marker.material_override = _material(color)
+	return marker
+
+func _new_socket_box(
+	socket_id: StringName,
+	position: Vector3,
+	color: Color
+) -> MeshInstance3D:
+	var marker := MeshInstance3D.new()
+	marker.name = "Socket_%s" % _debug_name(socket_id)
+	marker.position = position + Vector3(0.0, BSP_ROUTE_Y_OFFSET_M, 0.0)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.42, 0.04, 0.42)
+	marker.mesh = mesh
+	marker.material_override = _material(color)
+	return marker
+
+func _socket_color(kind: StringName, socket: Dictionary) -> Color:
+	if kind == &"exterior_exit_socket":
+		return Color(0.2, 1.0, 0.45, 0.95)
+	if kind == &"object_socket":
+		if socket.get("object_kind", &"") == &"player_character":
+			return Color(0.35, 0.55, 1.0, 0.95)
+		return Color(0.72, 0.72, 0.76, 0.95)
+	return Color(1.0, 0.78, 0.18, 0.95)
+
 func _clear_path() -> void:
 	for child in _path_root.get_children():
+		child.free()
+
+func _clear_bsp_interest_debug() -> void:
+	if _bsp_root == null:
+		_bsp_root = _get_or_create_root(BSP_ROOT_NAME)
+	for child in _bsp_root.get_children():
 		child.free()
 
 func _clear_failure_marker() -> void:
@@ -171,6 +396,18 @@ func _get_or_create_root(root_name: StringName) -> Node3D:
 	add_child(root)
 	return root
 
+func _new_debug_root(root_name: String) -> Node3D:
+	if _bsp_root == null:
+		_bsp_root = _get_or_create_root(BSP_ROOT_NAME)
+
+	var root := Node3D.new()
+	root.name = root_name
+	_bsp_root.add_child(root)
+	return root
+
+func _debug_name(id: StringName) -> String:
+	return String(id).replace("/", "_")
+
 func _connect_events() -> void:
 	var event_bus := _get_event_bus()
 	if event_bus == null:
@@ -189,6 +426,8 @@ func _material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if color.a < 1.0 else BaseMaterial3D.TRANSPARENCY_DISABLED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	material.no_depth_test = true
 	return material
 

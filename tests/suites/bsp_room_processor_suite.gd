@@ -47,6 +47,34 @@ func run(ctx) -> bool:
 	if exterior_exit_count != 1:
 		return ctx.fail("BSP generation should produce exactly one exterior exit.")
 
+	var route_room_ids := BspRoomProcessorScript.exterior_route_room_ids(first, first.rooms[0].id)
+	if route_room_ids.is_empty() or route_room_ids[0] != first.rooms[0].id:
+		return ctx.fail("BSP exterior room route did not start from the requested room.")
+	var route_points := BspRoomProcessorScript.exterior_route_points_for_room(first, first.rooms[0].id)
+	if route_points.size() < 2:
+		return ctx.fail("BSP exterior room route did not produce drawable route points.")
+	var first_room_lookup := BspRoomProcessorScript.room_at_position(first, first.rooms[0].center_position())
+	if first_room_lookup == null or first_room_lookup.id != first.rooms[0].id:
+		return ctx.fail("BSP room lookup did not resolve a room center.")
+
+	var interest_sockets := BspRoomProcessorScript.compile_interest_sockets(first)
+	var door_socket_count := 0
+	var object_socket_count := 0
+	var exit_socket_count := 0
+	for socket in interest_sockets:
+		var socket_position: Variant = socket.get("position")
+		if not (socket_position is Vector3):
+			return ctx.fail("BSP interest socket is missing a world position.")
+		match socket.get("kind", &""):
+			&"door_socket":
+				door_socket_count += 1
+			&"object_socket":
+				object_socket_count += 1
+			&"exterior_exit_socket":
+				exit_socket_count += 1
+	if door_socket_count == 0 or object_socket_count < 2 or exit_socket_count != 1:
+		return ctx.fail("BSP interest sockets should describe doors, spawns, and one exterior exit.")
+
 	var walls: Array[WallSegmentDataScript] = BspRoomProcessorScript.compile_to_walls(first)
 	if walls.size() <= 4:
 		return ctx.fail("BSP compilation did not produce internal wall fragments.")

@@ -63,6 +63,9 @@ func run(ctx) -> bool:
 	if not startup_debug_log_panel.visible or not startup_bsp_debug_panel.visible or not startup_navigation_debug_overlay.visible:
 		main.free()
 		return ctx.fail("Startup BSP debug mode should show debug log and navigation overlays.")
+	if startup_navigation_debug_overlay.get_node_or_null("BspInterestDebug/Sockets") == null:
+		main.free()
+		return ctx.fail("Startup BSP debug mode should draw BSP interest sockets.")
 	var startup_generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
 	var startup_pc := startup_generated_map.get_node_or_null("WorldObjects/pc_001") as BlockoutObjectViewScript if startup_generated_map != null else null
 	var startup_npc := startup_generated_map.get_node_or_null("WorldObjects/npc_001") as BlockoutObjectViewScript if startup_generated_map != null else null

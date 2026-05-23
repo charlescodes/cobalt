@@ -8,13 +8,16 @@ const BspRoomProcessorScript := preload("res://src/debug/bsp_room_processor.gd")
 const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
+const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
 
 @export var map_loader_path: NodePath = ^"../MapLoader"
 @export var debug_overlay_controller_path: NodePath = ^"../DebugOverlayController"
+@export var navigation_overlay_path: NodePath = ^"../NavigationDebugOverlay"
 @export var bsp_data: BspModuleDataScript = BspModuleDataScript.new()
 @export var bsp_enabled_on_ready: bool = true
 
 var _authored_map_data: MapDataScript
+var _generated_bsp_data: BspModuleDataScript
 var _authored_debug_visible: bool = false
 var _has_authored_debug_visible: bool = false
 var _is_bsp_enabled: bool = false
@@ -45,17 +48,25 @@ func set_bsp_enabled(enabled: bool) -> void:
 		_load_bsp_map(map_loader)
 	else:
 		map_loader.map_data = _authored_map_data
+		_generated_bsp_data = null
 
 	if not enabled:
 		map_loader.load_map()
 	_set_debug_overlay_for_bsp(enabled)
+	_set_navigation_overlay_bsp_data(_generated_bsp_data if enabled else null)
 	_is_bsp_enabled = enabled
-	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, _resolved_bsp_data())
+	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, get_bsp_debug_data())
 
 func is_bsp_enabled() -> bool:
 	return _is_bsp_enabled
 
 func get_bsp_data() -> BspModuleDataScript:
+	return _resolved_bsp_data()
+
+func get_bsp_debug_data() -> BspModuleDataScript:
+	if _generated_bsp_data != null:
+		return _generated_bsp_data
+
 	return _resolved_bsp_data()
 
 func apply_bsp_parameters(
@@ -73,7 +84,8 @@ func apply_bsp_parameters(
 		var map_loader := _resolve_map_loader()
 		if map_loader != null:
 			_load_bsp_map(map_loader)
-	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, data)
+		_set_navigation_overlay_bsp_data(_generated_bsp_data)
+	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, get_bsp_debug_data())
 
 func _resolve_map_loader() -> MapLoaderScript:
 	var configured_loader := get_node_or_null(map_loader_path) as MapLoaderScript
@@ -89,14 +101,29 @@ func _resolve_debug_overlay_controller() -> DebugOverlayControllerScript:
 
 	return get_parent().get_node_or_null("DebugOverlayController") as DebugOverlayControllerScript if get_parent() != null else null
 
+func _resolve_navigation_overlay() -> NavigationDebugOverlayScript:
+	var configured_overlay := get_node_or_null(navigation_overlay_path) as NavigationDebugOverlayScript
+	if configured_overlay != null:
+		return configured_overlay
+
+	return get_parent().get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript if get_parent() != null else null
+
 func _resolved_bsp_data() -> BspModuleDataScript:
 	if bsp_data == null:
 		bsp_data = BspModuleDataScript.new()
 	return bsp_data
 
 func _load_bsp_map(map_loader: MapLoaderScript) -> void:
-	map_loader.map_data = BspRoomProcessorScript.compile_to_map_data(_resolved_bsp_data())
+	_generated_bsp_data = BspRoomProcessorScript.generate(_resolved_bsp_data())
+	map_loader.map_data = BspRoomProcessorScript.compile_to_map_data(_generated_bsp_data)
 	map_loader.load_map()
+
+func _set_navigation_overlay_bsp_data(data: BspModuleDataScript) -> void:
+	var navigation_overlay := _resolve_navigation_overlay()
+	if navigation_overlay == null:
+		return
+
+	navigation_overlay.set_bsp_debug_data(data)
 
 func _set_debug_overlay_for_bsp(enabled: bool) -> void:
 	var debug_overlay_controller := _resolve_debug_overlay_controller()
