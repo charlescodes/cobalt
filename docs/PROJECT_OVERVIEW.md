@@ -48,6 +48,7 @@ Current data resources:
 - `WallSegmentData`: start/end `Vector3` endpoints, wall height, thickness, and color.
 - `GroundData`: static ground id, center position, dimensions, and color.
 - `MapData`: map id plus ground, static wall, and world-object resource arrays.
+- `ManualOverrideLayer`: object-id keyed manual curation overrides applied after procedural generation.
 
 The main blockout content is authored as `res://data/maps/main_blockout_map.tres`.
 
@@ -58,6 +59,7 @@ Current stateless resolver classes:
 - `InteractionActionResolver`: decides which actions a target exposes and builds examine output.
 - `MoveTargetResolver`: validates move sources/destinations and asks `NavigationServer3D.map_get_path()` for native paths.
 - `WallVisualResolver`: converts wall segment resources into visual endpoints, center, length, and rotation.
+- `MapPipelineCompiler`: runs ordered `MapGenerator` resources and applies manual overrides before scene building.
 - `MapBuilder`: builds a generated scene subtree from `MapData` without storing game state.
 - `BspRoomProcessor`: generates BSP debug buildings, compiles walls/grounds/actors, and owns stateless edit helpers for room picking, manual doors, and split resizing.
 - `EditorSnappingResolver`: provides 10cm editor snapping plus optional context snaps such as wall-segment projection and slope elevation.
@@ -69,7 +71,7 @@ Keep gameplay rules in this style: resources and nodes provide inputs, processor
 Important node scripts:
 
 - `BlockoutObjectView`: renders a world object as a primitive box, creates its `InteractionTarget`, creates hover highlighting, and composes a `NavigationAgent3D`.
-- `MapLoader`: scene adapter that calls `MapBuilder`, then rebakes the configured `NavigationRegion3D`.
+- `MapLoader`: scene adapter that compiles optional generator pipelines, calls `MapBuilder`, then rebakes the configured `NavigationRegion3D`.
 - `InteractionTarget`: reusable `Area3D` wrapper for hover/click targeting.
 - `HoverHighlighter`: creates transparent shell meshes around hovered targets.
 - `InteractionController`: raycasts from the camera and coordinates hover, context menus, examine actions, and move targeting.

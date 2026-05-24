@@ -42,6 +42,15 @@ Runtime source of truth:
 - Walls block movement because the native navmesh bakes around static collision. Do not reintroduce logical wall cells or grid blocking flags.
 - BSP debug buildings must include at least one exterior exit carved into the perimeter wall so interior rooms can connect to buffered exterior ground.
 
+### Generator Pipeline
+
+- Procedural world layers are `MapGenerator` resources. A generator receives the current `MapData` and returns the next `MapData`.
+- `MapPipelineCompiler` is the stateless pipeline runner. It copies the base map, runs enabled generators in order, then applies `ManualOverrideLayer`.
+- `MapBuilder` remains the scene-instantiation boundary. It builds `GeneratedMap/StaticGrounds`, `GeneratedMap/StaticWalls`, and `GeneratedMap/WorldObjects` from the final compiled `MapData`.
+- `MapLoader` may use either direct authored `map_data` or a generator pipeline. The compiled result is exposed as `compiled_map_data`/`get_compiled_map_data()` and is what gets built and baked.
+- Manual generated-object curation is represented as a `ManualOverrideLayer` keyed by `WorldObjectData.object_id`. Regenerating procedural modules should apply this layer last so object moves are not lost.
+- `BspBuildingGenerator` wraps BSP room/door partition generation for pipeline use. `LandscapeScatterGenerator` adds seeded tree and rock props with spacing rejection.
+
 ### BSP Debug Editing
 
 - BSP debug mode is runtime-only. `BspDebugMapController` generates `_generated_bsp_data` from parameter inputs, swaps it into `MapLoader`, and restores the authored map when debug mode is disabled.

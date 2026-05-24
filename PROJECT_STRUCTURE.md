@@ -76,6 +76,8 @@ Current sample map resource. Contains ground data, static wall segments, player-
 ```text
 res://src/maps/map_data.gd             Map id plus ground, wall, and object arrays.
 res://src/maps/ground_data.gd           Static ground id, position, size, and color.
+res://src/maps/manual_override_layer.gd Manual override layer for curated generated-object moves.
+res://src/maps/manual_object_override.gd Per-object manual override resource.
 res://src/walls/wall_segment_data.gd   Static wall endpoints, height, thickness, and color.
 res://src/objects/world_object_data.gd World object id, kind, position, size, color, and hoverability.
 res://src/movement/move_target_data.gd Exact Vector3 destination selected by ground raycasts.
@@ -85,6 +87,12 @@ res://src/movement/move_target_data.gd Exact Vector3 destination selected by gro
 
 ```text
 res://src/maps/map_builder.gd                  Builds generated scene nodes from MapData.
+res://src/maps/map_pipeline_compiler.gd        Runs MapGenerator modules and applies manual overrides.
+res://src/maps/generators/map_generator.gd     Base procedural generation module resource.
+res://src/maps/generators/bsp_building_generator.gd
+                                                BSP building module that outputs generated grounds/walls/actors.
+res://src/maps/generators/landscape_scatter_generator.gd
+                                                Seeded landscape prop scatter module.
 res://src/walls/wall_visual_resolver.gd        Derives wall visual center, length, and rotation.
 res://src/interaction/interaction_action_resolver.gd
                                                 Resolves context actions and examine output.
@@ -148,6 +156,7 @@ res://tests/suites/main_scene_raycast_suite.gd
                                              Main-scene raycast and targeting coverage.
 res://tests/suites/main_scene_suite.gd      Main scene composition coverage.
 res://tests/suites/map_builder_suite.gd     Map generation and collision coverage.
+res://tests/suites/map_pipeline_suite.gd    Generator pipeline, scatter, and manual override coverage.
 res://tests/suites/bsp_room_processor_suite.gd
                                              BSP generation, wall carving, edit helpers, buffered ground, and actor spawn coverage.
 res://tests/suites/bsp_debug_editor_suite.gd
