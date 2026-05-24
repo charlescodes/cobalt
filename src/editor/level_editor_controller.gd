@@ -1,6 +1,7 @@
 class_name LevelEditorController
 extends Node
 
+const EditorSnappingResolverScript := preload("res://src/editor/editor_snapping_resolver.gd")
 const EditorToolScript := preload("res://src/editor/tools/editor_tool.gd")
 
 @export var camera_path: NodePath = ^"../CameraRig/PitchPivot/Camera3D"
@@ -8,12 +9,14 @@ const EditorToolScript := preload("res://src/editor/tools/editor_tool.gd")
 @export var active_method_name: StringName = &"is_bsp_enabled"
 @export var panel_path: NodePath = ^"../InteractionUI/BspDebugPanel"
 @export var tool_overlay_path: NodePath
+@export var editor_debug_overlay_path: NodePath = ^"../NavigationDebugOverlay"
 @export var default_tool_id: StringName = &"select"
 
 var _camera: Camera3D
 var _active_source: Node
 var _panel: Node
 var _tool_overlay: Control
+var _editor_debug_overlay: Node
 var _tools: Dictionary = {}
 var _active_tool_id: StringName = &"select"
 var _active_tool: EditorToolScript
@@ -27,6 +30,8 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_resolve_nodes()
+	if not is_editor_active():
+		_clear_editor_snap_overlay()
 	if _tool_overlay != null and _active_tool != null:
 		_active_tool.draw_overlay(_tool_overlay)
 
@@ -41,9 +46,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		var motion_position: Variant = _ground_point_from_screen(motion.position)
 		if motion_position is Vector3 and _active_tool != null:
 			var modifiers := _modifiers_from_event(event)
+			_update_editor_snap_overlay(motion_position as Vector3, modifiers)
 			_active_tool.on_mouse_motion(motion_position as Vector3, modifiers)
 			if _should_capture_mouse_motion(modifiers):
 				_mark_input_handled()
+		else:
+			_clear_editor_snap_overlay()
 		return
 
 	if not (event is InputEventMouseButton):
@@ -58,6 +66,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var modifiers := _modifiers_from_event(event)
+	_update_editor_snap_overlay(world_position as Vector3, modifiers)
 	if mouse_event.pressed:
 		_active_tool.on_left_click_down(world_position as Vector3, modifiers)
 	else:
@@ -103,6 +112,7 @@ func set_active_tool(tool_id: StringName) -> bool:
 	_active_tool_id = tool_id
 	_active_tool = next_tool
 	_active_tool.activate(self)
+	_clear_editor_snap_overlay()
 	return true
 
 func is_editor_active() -> bool:
@@ -162,6 +172,8 @@ func _resolve_nodes() -> void:
 				_panel.connect(&"edit_mode_changed", mode_callable)
 	if _tool_overlay == null and not tool_overlay_path.is_empty():
 		_tool_overlay = get_node_or_null(tool_overlay_path) as Control
+	if _editor_debug_overlay == null and not editor_debug_overlay_path.is_empty():
+		_editor_debug_overlay = get_node_or_null(editor_debug_overlay_path)
 
 func _on_panel_edit_mode_changed(mode: StringName) -> void:
 	set_active_tool(mode)
@@ -189,6 +201,27 @@ func _modifiers_from_event(event: InputEvent) -> Dictionary:
 func _should_capture_mouse_motion(modifiers: Dictionary) -> bool:
 	var button_mask := int(modifiers.get(&"button_mask", 0))
 	return (button_mask & MOUSE_BUTTON_MASK_LEFT) != 0
+
+func _update_editor_snap_overlay(raw_position: Vector3, modifiers: Dictionary) -> void:
+	if _active_tool == null or not _active_tool.uses_snapping_grid():
+		_clear_editor_snap_overlay()
+		return
+	if _editor_debug_overlay == null:
+		_editor_debug_overlay = get_node_or_null(editor_debug_overlay_path)
+		if _editor_debug_overlay == null:
+			return
+
+	var step := _active_tool.get_snapping_step()
+	var context := _active_tool.get_snapping_context(raw_position, modifiers)
+	var snapped_position := EditorSnappingResolverScript.snap_with_context(raw_position, context, step)
+	if _editor_debug_overlay.has_method(&"set_editor_snap_grid_cursor"):
+		_editor_debug_overlay.call(&"set_editor_snap_grid_cursor", raw_position, snapped_position, step)
+
+func _clear_editor_snap_overlay() -> void:
+	if _editor_debug_overlay == null:
+		return
+	if _editor_debug_overlay.has_method(&"clear_editor_snap_grid"):
+		_editor_debug_overlay.call(&"clear_editor_snap_grid")
 
 func _mark_input_handled() -> void:
 	var viewport := get_viewport()

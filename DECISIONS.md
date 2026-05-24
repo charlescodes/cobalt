@@ -54,6 +54,13 @@ Runtime source of truth:
 - Resizing moves a shared BSP split, not an isolated room rectangle. Resize attempts that would violate `min_room_size_m` are rejected.
 - After accepted edits, BSP editor tools commit through `BspDebugMapController`, which recompiles to `MapData`, reloads the generated map, rebakes navigation, and refreshes `NavigationDebugOverlay`.
 
+### Editor Snapping
+
+- Editor placement previews use `EditorSnappingResolver.snap_vector3()` for a 10cm default subgrid. This is editor behavior only; authored/runtime data remains freeform `Vector3`.
+- Context-sensitive snapping, such as nearest wall-segment projection or slope/elevation adjustment, belongs in `EditorSnappingResolver.snap_with_context()` or related stateless helpers.
+- `EditorTool` implementations opt into snap-grid visualization with `uses_snapping_grid()`, `get_snapping_step()`, and `get_snapping_context()`. `LevelEditorController` may render the visual preview, but it still dispatches raw continuous hit positions to tools.
+- `NavigationDebugOverlay` may draw the subtle editor snap point cloud around the snapped cursor for active placement tools. It must remain visual-only and must not become a placement rule surface.
+
 ### Movement Validation
 
 - `MoveTargetResolver` is the stateless movement rule resolver.

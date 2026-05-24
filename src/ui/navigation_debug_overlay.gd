@@ -7,22 +7,27 @@ const BspRoomProcessorScript := preload("res://src/debug/bsp_room_processor.gd")
 const PATH_ROOT_NAME: StringName = &"PathDebug"
 const MARKER_ROOT_NAME: StringName = &"MarkerDebug"
 const BSP_ROOT_NAME: StringName = &"BspInterestDebug"
+const EDITOR_SNAP_ROOT_NAME: StringName = &"EditorSnapDebug"
 const PATH_LINE_NAME: StringName = &"PathLine"
 const DESTINATION_MARKER_NAME: StringName = &"DestinationMarker"
 const FAILURE_MARKER_NAME: StringName = &"FailureMarker"
 const DRAW_Y_OFFSET_M: float = 0.06
 const BSP_DRAW_Y_OFFSET_M: float = 0.08
 const BSP_ROUTE_Y_OFFSET_M: float = 0.14
+const EDITOR_SNAP_DRAW_Y_OFFSET_M: float = 0.16
 
 @export var waypoint_radius_m: float = 0.08
 @export var destination_radius_m: float = 0.12
 @export var failure_radius_m: float = 0.14
 @export var show_bsp_interest_debug: bool = true
 @export var show_bsp_exit_route: bool = true
+@export var show_editor_snap_grid: bool = true
+@export_range(0.2, 2.0, 0.1) var editor_snap_grid_radius_m: float = 0.6
 
 var _path_root: Node3D
 var _marker_root: Node3D
 var _bsp_root: Node3D
+var _editor_snap_root: Node3D
 var _bsp_data: BspModuleDataScript
 var _selected_bsp_room_id: StringName = &""
 var _last_requested_position: Vector3 = Vector3.ZERO
@@ -33,6 +38,7 @@ func _ready() -> void:
 	_path_root = _get_or_create_root(PATH_ROOT_NAME)
 	_marker_root = _get_or_create_root(MARKER_ROOT_NAME)
 	_bsp_root = _get_or_create_root(BSP_ROOT_NAME)
+	_editor_snap_root = _get_or_create_root(EDITOR_SNAP_ROOT_NAME)
 	_connect_events()
 
 func set_bsp_debug_data(data: BspModuleDataScript) -> void:
@@ -69,6 +75,29 @@ func set_bsp_exit_route_visible(is_visible: bool) -> void:
 
 	show_bsp_exit_route = is_visible
 	_redraw_bsp_interest_debug()
+
+func set_editor_snap_grid_cursor(
+	_raw_position: Vector3,
+	snapped_position: Vector3,
+	step_m: float = 0.1
+) -> void:
+	clear_editor_snap_grid()
+	if not show_editor_snap_grid or step_m <= 0.0:
+		return
+
+	if _editor_snap_root == null:
+		_editor_snap_root = _get_or_create_root(EDITOR_SNAP_ROOT_NAME)
+
+	var cloud := _new_snap_point_cloud(snapped_position, step_m)
+	if cloud != null:
+		_editor_snap_root.add_child(cloud)
+	_editor_snap_root.add_child(_new_snap_cursor_marker(snapped_position))
+
+func clear_editor_snap_grid() -> void:
+	if _editor_snap_root == null:
+		_editor_snap_root = _get_or_create_root(EDITOR_SNAP_ROOT_NAME)
+	for child in _editor_snap_root.get_children():
+		child.free()
 
 func _on_move_requested(_actor: Node, _actor_data: Resource, destination_data: Resource) -> void:
 	var destination_position: Variant = _position_from_resource(destination_data)
@@ -363,6 +392,50 @@ func _new_room_fill(rect: Rect2, color: Color) -> MeshInstance3D:
 	fill.mesh = mesh
 	fill.material_override = _material(color)
 	return fill
+
+func _new_snap_point_cloud(center: Vector3, step_m: float) -> MultiMeshInstance3D:
+	var point_span := maxi(1, int(floor(editor_snap_grid_radius_m / step_m)))
+	var point_count := (point_span * 2 + 1) * (point_span * 2 + 1)
+	if point_count <= 0:
+		return null
+
+	var point_mesh := SphereMesh.new()
+	point_mesh.radius = 0.012
+	point_mesh.height = 0.024
+	point_mesh.radial_segments = 6
+	point_mesh.rings = 3
+
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = point_mesh
+	multimesh.instance_count = point_count
+
+	var point_index := 0
+	for x_index in range(-point_span, point_span + 1):
+		for z_index in range(-point_span, point_span + 1):
+			var point_position := Vector3(
+				center.x + (float(x_index) * step_m),
+				center.y + EDITOR_SNAP_DRAW_Y_OFFSET_M,
+				center.z + (float(z_index) * step_m)
+			)
+			multimesh.set_instance_transform(point_index, Transform3D(Basis.IDENTITY, point_position))
+			point_index += 1
+
+	var cloud := MultiMeshInstance3D.new()
+	cloud.name = "PointCloud"
+	cloud.multimesh = multimesh
+	cloud.material_override = _material(Color(0.65, 0.95, 1.0, 0.2))
+	return cloud
+
+func _new_snap_cursor_marker(position: Vector3) -> MeshInstance3D:
+	var marker := MeshInstance3D.new()
+	marker.name = "SnapCursor"
+	marker.position = position + Vector3(0.0, EDITOR_SNAP_DRAW_Y_OFFSET_M + 0.005, 0.0)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.07, 0.018, 0.07)
+	marker.mesh = mesh
+	marker.material_override = _material(Color(0.95, 1.0, 1.0, 0.55))
+	return marker
 
 func _socket_color(kind: StringName, socket: Dictionary) -> Color:
 	if kind == &"exterior_exit_socket":

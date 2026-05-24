@@ -53,6 +53,21 @@ func run(ctx) -> bool:
 		return ctx.fail("NavigationDebugOverlay did not hide BSP interest highlights.")
 	overlay.set_bsp_interest_visible(true)
 
+	overlay.set_editor_snap_grid_cursor(Vector3(1.04, 0.0, 1.04), Vector3(1.0, 0.0, 1.0), 0.1)
+	var snap_cloud := overlay.get_node_or_null("EditorSnapDebug/PointCloud") as MultiMeshInstance3D
+	var snap_cursor := overlay.get_node_or_null("EditorSnapDebug/SnapCursor") as MeshInstance3D
+	if snap_cloud == null or snap_cloud.multimesh == null or snap_cloud.multimesh.instance_count < 25:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay did not draw an editor snapping point cloud.")
+	if snap_cursor == null:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay did not draw the editor snapping cursor marker.")
+	overlay.clear_editor_snap_grid()
+	var snap_root := overlay.get_node_or_null("EditorSnapDebug") as Node3D
+	if snap_root == null or snap_root.get_child_count() != 0:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay did not clear the editor snapping point cloud.")
+
 	var destination_data := MoveTargetDataScript.new(Vector3(1.5, 0.0, 1.0))
 	root_event_bus.emit_signal(&"move_requested", overlay, null, destination_data)
 	var destination_marker := overlay.get_node_or_null("MarkerDebug/DestinationMarker") as MeshInstance3D

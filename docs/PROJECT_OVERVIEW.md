@@ -60,6 +60,7 @@ Current stateless resolver classes:
 - `WallVisualResolver`: converts wall segment resources into visual endpoints, center, length, and rotation.
 - `MapBuilder`: builds a generated scene subtree from `MapData` without storing game state.
 - `BspRoomProcessor`: generates BSP debug buildings, compiles walls/grounds/actors, and owns stateless edit helpers for room picking, manual doors, and split resizing.
+- `EditorSnappingResolver`: provides 10cm editor snapping plus optional context snaps such as wall-segment projection and slope elevation.
 
 Keep gameplay rules in this style: resources and nodes provide inputs, processors return answers, and major outcomes move through `EventBus`.
 
@@ -81,7 +82,7 @@ Important node scripts:
 - `LevelEditorController`: handles editor activation, ground-plane camera projection, panel mode sync, and dispatch to the active `EditorTool`.
 - `BspLevelEditorToolProvider`: wires BSP editor context plus `BspRoomSelectTool`, `BspDoorTool`, and `BspResizeTool` into the generic editor controller.
 - `BspDebugPanel`: exposes BSP generation parameters, overlay toggles, and edit mode controls.
-- `NavigationDebugOverlay`: renders movement markers plus BSP room bounds, wall highlights, sockets, selected-room fill, and exit-route debug geometry.
+- `NavigationDebugOverlay`: renders movement markers, BSP debug geometry, and visual-only editor snap-grid point clouds for active placement tools.
 
 ## Current Player Flow
 

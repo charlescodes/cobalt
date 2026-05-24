@@ -29,6 +29,9 @@ func on_left_click_down(raycast_hit: Vector3, _modifiers: Dictionary) -> void:
 
 	toggle_manual_door_at_position(raycast_hit)
 
+func uses_snapping_grid() -> bool:
+	return true
+
 func toggle_manual_door_at_position(position: Vector3) -> bool:
 	if _context == null:
 		return false

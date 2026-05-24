@@ -28,6 +28,8 @@ res://src/debug/bsp_module_data.gd          Runtime-only BSP generation paramete
 res://src/debug/bsp_room_processor.gd       Stateless BSP room, wall, door, ground, and debug MapData compiler.
 res://src/debug/bsp_debug_map_controller.gd Starts main.tscn in generated BSP debug map mode; F12 restores authored map.
 res://src/editor/level_editor_controller.gd Generic level-editor input coordinator and active EditorTool dispatcher.
+res://src/editor/editor_snapping_resolver.gd
+                                             Stateless 10cm editor snapping and contextual snap helpers.
 res://src/editor/tools/editor_tool.gd       Base editor tool interface.
 res://src/editor/tools/bsp_level_editor_tool_provider.gd
                                              Registers BSP Select/Door/Resize editor tools.
@@ -87,6 +89,7 @@ res://src/walls/wall_visual_resolver.gd        Derives wall visual center, lengt
 res://src/interaction/interaction_action_resolver.gd
                                                 Resolves context actions and examine output.
 res://src/movement/move_target_resolver.gd     Validates move sources, destinations, and native nav paths.
+res://src/editor/editor_snapping_resolver.gd   Snaps editor preview positions to 10cm and optional context surfaces.
 ```
 
 Rule logic belongs here or in new stateless processors. Do not move tactical rules into scene nodes.
@@ -121,7 +124,7 @@ res://src/ui/interaction_log_panel.gd Examine output panel and interaction log t
 res://src/ui/camera_compass.gd        Small HUD compass that draws camera heading.
 res://src/ui/bsp_debug_panel.gd       Runtime BSP width/depth/min-room/depth/seed controls plus Select/Door/Resize edit modes.
 res://src/ui/navigation_debug_overlay.gd
-                                      Movement path markers plus BSP rooms, walls, sockets, selected-room, and exit-route overlays.
+                                      Movement path markers plus BSP rooms, walls, sockets, selected-room, exit-route, and editor snap-grid overlays.
 ```
 
 ## Walls and Navigation Geometry
@@ -149,6 +152,8 @@ res://tests/suites/bsp_room_processor_suite.gd
                                              BSP generation, wall carving, edit helpers, buffered ground, and actor spawn coverage.
 res://tests/suites/bsp_debug_editor_suite.gd
                                              BSP debug panel/editor/overlay integration coverage.
+res://tests/suites/editor_snapping_resolver_suite.gd
+                                             10cm editor snapping and contextual snap coverage.
 res://tests/suites/movement_controller_suite.gd
                                              Movement controller coverage.
 res://tests/suites/native_navigation_suite.gd

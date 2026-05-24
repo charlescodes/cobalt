@@ -144,6 +144,11 @@ func _verify_editor_input_dispatch(
 	if not bool(recording_tool.last_modifiers.get(&"shift", false)):
 		return ctx.fail("Level editor did not forward input modifiers to the active tool.")
 
+	recording_tool.snapping_grid_enabled = true
+	editor._unhandled_input(motion_event)
+	if main.get_node_or_null("NavigationDebugOverlay/EditorSnapDebug/PointCloud") == null:
+		return ctx.fail("Level editor did not update the editor snapping overlay for placement tools.")
+
 	var down_event := InputEventMouseButton.new()
 	down_event.position = screen_position
 	down_event.global_position = screen_position
