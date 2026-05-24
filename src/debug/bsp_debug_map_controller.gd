@@ -69,6 +69,23 @@ func get_bsp_debug_data() -> BspModuleDataScript:
 
 	return _resolved_bsp_data()
 
+func get_generated_bsp_data() -> BspModuleDataScript:
+	return _generated_bsp_data
+
+func commit_generated_bsp_edits() -> bool:
+	if not _is_bsp_enabled or _generated_bsp_data == null:
+		return false
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null:
+		return false
+
+	map_loader.map_data = BspRoomProcessorScript.compile_to_map_data(_generated_bsp_data)
+	map_loader.load_map()
+	_set_navigation_overlay_bsp_data(_generated_bsp_data)
+	emit_signal(&"bsp_debug_map_changed", _is_bsp_enabled, _generated_bsp_data)
+	return true
+
 func apply_bsp_parameters(
 	building_size_m: Vector2,
 	min_room_size_m: float,

@@ -15,6 +15,7 @@ const MovementControllerScript := preload("res://src/movement/movement_controlle
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const BspDebugMapControllerScript := preload("res://src/debug/bsp_debug_map_controller.gd")
+const BspDebugEditorControllerScript := preload("res://src/debug/bsp_debug_editor_controller.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -45,6 +46,10 @@ func run(ctx) -> bool:
 	if startup_bsp_debug_map_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing BspDebugMapController.")
+	var startup_bsp_debug_editor_controller := main.get_node_or_null("BspDebugEditorController") as BspDebugEditorControllerScript
+	if startup_bsp_debug_editor_controller == null:
+		main.free()
+		return ctx.fail("Main scene is missing BspDebugEditorController.")
 	if not startup_bsp_debug_map_controller.is_bsp_enabled():
 		main.free()
 		return ctx.fail("Main scene should start in BSP debug map mode.")

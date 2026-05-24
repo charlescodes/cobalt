@@ -8,6 +8,7 @@ const MovementControllerSuiteScript := preload("res://tests/suites/movement_cont
 const WallLayoutSuiteScript := preload("res://tests/suites/wall_layout_suite.gd")
 const MapBuilderSuiteScript := preload("res://tests/suites/map_builder_suite.gd")
 const BspRoomProcessorSuiteScript := preload("res://tests/suites/bsp_room_processor_suite.gd")
+const BspDebugEditorSuiteScript := preload("res://tests/suites/bsp_debug_editor_suite.gd")
 const InteractionUiSuiteScript := preload("res://tests/suites/interaction_ui_suite.gd")
 const NavigationDebugOverlaySuiteScript := preload("res://tests/suites/navigation_debug_overlay_suite.gd")
 const MainSceneSuiteScript := preload("res://tests/suites/main_scene_suite.gd")
@@ -46,6 +47,7 @@ func _build_suites() -> Array[RefCounted]:
 		WallLayoutSuiteScript.new(),
 		MapBuilderSuiteScript.new(),
 		BspRoomProcessorSuiteScript.new(),
+		BspDebugEditorSuiteScript.new(),
 		InteractionUiSuiteScript.new(),
 		NavigationDebugOverlaySuiteScript.new(),
 		MainSceneSuiteScript.new(),

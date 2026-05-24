@@ -24,6 +24,7 @@ var _path_root: Node3D
 var _marker_root: Node3D
 var _bsp_root: Node3D
 var _bsp_data: BspModuleDataScript
+var _selected_bsp_room_id: StringName = &""
 var _last_requested_position: Vector3 = Vector3.ZERO
 var _has_last_requested_position: bool = false
 
@@ -36,11 +37,24 @@ func _ready() -> void:
 
 func set_bsp_debug_data(data: BspModuleDataScript) -> void:
 	_bsp_data = data
+	if _bsp_data == null:
+		_selected_bsp_room_id = &""
 	_redraw_bsp_interest_debug()
 
 func clear_bsp_debug_data() -> void:
 	_bsp_data = null
+	_selected_bsp_room_id = &""
 	_clear_bsp_interest_debug()
+
+func set_selected_bsp_room_id(room_id: StringName) -> void:
+	if _selected_bsp_room_id == room_id:
+		return
+
+	_selected_bsp_room_id = room_id
+	_redraw_bsp_interest_debug()
+
+func get_selected_bsp_room_id() -> StringName:
+	return _selected_bsp_room_id
 
 func set_bsp_interest_visible(is_visible: bool) -> void:
 	if show_bsp_interest_debug == is_visible:
@@ -174,12 +188,15 @@ func _draw_bsp_rooms(data: BspModuleDataScript) -> void:
 		var room_root := Node3D.new()
 		room_root.name = "Room_%s" % _debug_name(room.id)
 		rooms_root.add_child(room_root)
+		var is_selected := room.id == _selected_bsp_room_id
+		if is_selected:
+			room_root.add_child(_new_room_fill(room.bounds, Color(0.45, 0.7, 1.0, 0.22)))
 		_add_rect_outline(
 			room_root,
 			room.bounds,
-			Color(0.2, 0.75, 1.0, 0.82),
-			0.045,
-			0.025,
+			Color(0.95, 0.95, 0.28, 0.95) if is_selected else Color(0.2, 0.75, 1.0, 0.82),
+			0.08 if is_selected else 0.045,
+			0.035 if is_selected else 0.025,
 			BSP_DRAW_Y_OFFSET_M
 		)
 
@@ -333,9 +350,25 @@ func _new_socket_box(
 	marker.material_override = _material(color)
 	return marker
 
+func _new_room_fill(rect: Rect2, color: Color) -> MeshInstance3D:
+	var fill := MeshInstance3D.new()
+	fill.name = "SelectedRoomFill"
+	fill.position = Vector3(
+		rect.position.x + (rect.size.x * 0.5),
+		BSP_DRAW_Y_OFFSET_M - 0.025,
+		rect.position.y + (rect.size.y * 0.5)
+	)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(rect.size.x, 0.018, rect.size.y)
+	fill.mesh = mesh
+	fill.material_override = _material(color)
+	return fill
+
 func _socket_color(kind: StringName, socket: Dictionary) -> Color:
 	if kind == &"exterior_exit_socket":
 		return Color(0.2, 1.0, 0.45, 0.95)
+	if bool(socket.get("is_manual", false)):
+		return Color(1.0, 0.35, 0.95, 0.95)
 	if kind == &"object_socket":
 		if socket.get("object_kind", &"") == &"player_character":
 			return Color(0.35, 0.55, 1.0, 0.95)

@@ -1,9 +1,15 @@
 class_name BspDebugPanel
 extends PanelContainer
 
+signal edit_mode_changed(mode: StringName)
+
 const BspDebugMapControllerScript := preload("res://src/debug/bsp_debug_map_controller.gd")
 const BspModuleDataScript := preload("res://src/debug/bsp_module_data.gd")
 const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
+
+const MODE_SELECT: StringName = &"select"
+const MODE_DOOR: StringName = &"door"
+const MODE_RESIZE: StringName = &"resize"
 
 @export var controller_path: NodePath = ^"../../BspDebugMapController"
 @export var navigation_overlay_path: NodePath = ^"../../NavigationDebugOverlay"
@@ -18,9 +24,14 @@ var _depth_spin_box: SpinBox
 var _seed_spin_box: SpinBox
 var _interest_check_box: CheckBox
 var _route_check_box: CheckBox
+var _mode_button_group: ButtonGroup
+var _select_button: Button
+var _door_button: Button
+var _resize_button: Button
 var _width_value_label: Label
 var _depth_value_label: Label
 var _min_room_value_label: Label
+var _edit_mode: StringName = MODE_SELECT
 var _is_syncing: bool = false
 
 func _ready() -> void:
@@ -50,7 +61,7 @@ func _configure_layout() -> void:
 	offset_left = -316.0
 	offset_top = 76.0
 	offset_right = -16.0
-	offset_bottom = 378.0
+	offset_bottom = 414.0
 
 func _configure_style() -> void:
 	var panel_style := StyleBoxFlat.new()
@@ -81,6 +92,14 @@ func _build_controls() -> void:
 	title.text = "BSP DEBUG"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rows.add_child(title)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 6)
+	rows.add_child(mode_row)
+	_mode_button_group = ButtonGroup.new()
+	_select_button = _add_mode_button(mode_row, "Select", MODE_SELECT, true)
+	_door_button = _add_mode_button(mode_row, "Door", MODE_DOOR, false)
+	_resize_button = _add_mode_button(mode_row, "Resize", MODE_RESIZE, false)
 
 	var overlay_row := HBoxContainer.new()
 	overlay_row.add_theme_constant_override("separation", 8)
@@ -168,6 +187,23 @@ func _add_slider(parent: VBoxContainer, min_value: float, max_value: float, step
 	parent.add_child(slider)
 	return slider
 
+func _add_mode_button(
+	parent: HBoxContainer,
+	label_text: String,
+	mode: StringName,
+	is_pressed: bool
+) -> Button:
+	var button := Button.new()
+	button.text = label_text
+	button.toggle_mode = true
+	button.button_group = _mode_button_group
+	button.button_pressed = is_pressed
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.set_meta(&"bsp_edit_mode", mode)
+	parent.add_child(button)
+	button.toggled.connect(_on_mode_button_toggled.bind(button))
+	return button
+
 func _sync_from_controller() -> void:
 	if _controller == null:
 		visible = false
@@ -207,6 +243,29 @@ func _on_value_changed(_value: float) -> void:
 func _on_bsp_debug_map_changed(_enabled: bool, _data: Resource) -> void:
 	_sync_from_controller()
 
+func get_edit_mode() -> StringName:
+	return _edit_mode
+
+func set_edit_mode(mode: StringName) -> void:
+	if mode != MODE_SELECT and mode != MODE_DOOR and mode != MODE_RESIZE:
+		return
+	if _edit_mode == mode:
+		return
+
+	_edit_mode = mode
+	_sync_mode_buttons()
+	emit_signal(&"edit_mode_changed", _edit_mode)
+
+func _on_mode_button_toggled(is_pressed: bool, button: Button) -> void:
+	if not is_pressed:
+		return
+
+	var mode_value: Variant = button.get_meta(&"bsp_edit_mode")
+	if mode_value is StringName:
+		set_edit_mode(mode_value)
+	else:
+		set_edit_mode(StringName(str(mode_value)))
+
 func _on_interest_toggled(is_pressed: bool) -> void:
 	if _navigation_overlay != null:
 		_navigation_overlay.set_bsp_interest_visible(is_pressed)
@@ -229,6 +288,14 @@ func _update_value_labels() -> void:
 		_depth_value_label.text = "Depth %.0fm" % _depth_slider.value
 	if _min_room_value_label != null:
 		_min_room_value_label.text = "Min Room %.1fm" % _min_room_slider.value
+
+func _sync_mode_buttons() -> void:
+	if _select_button != null:
+		_select_button.set_pressed_no_signal(_edit_mode == MODE_SELECT)
+	if _door_button != null:
+		_door_button.set_pressed_no_signal(_edit_mode == MODE_DOOR)
+	if _resize_button != null:
+		_resize_button.set_pressed_no_signal(_edit_mode == MODE_RESIZE)
 
 func _resolve_controller() -> BspDebugMapControllerScript:
 	return get_node_or_null(controller_path) as BspDebugMapControllerScript

@@ -28,6 +28,7 @@ class BspPartition:
 	extends RefCounted
 
 	var id: StringName = &""
+	var node_id: StringName = &""
 	var axis: int = -1
 	var start_position: Vector3 = Vector3.ZERO
 	var end_position: Vector3 = Vector3.ZERO
@@ -42,6 +43,7 @@ class BspDoor:
 	var position: Vector3 = Vector3.ZERO
 	var width_m: float = 1.0
 	var is_exterior_exit: bool = false
+	var is_manual: bool = false
 
 @export var map_id: String = "bsp_debug"
 @export var building_size_m: Vector2 = Vector2(18.0, 14.0)

@@ -75,6 +75,42 @@ func run(ctx) -> bool:
 	if door_socket_count == 0 or object_socket_count < 2 or exit_socket_count != 1:
 		return ctx.fail("BSP interest sockets should describe doors, spawns, and one exterior exit.")
 
+	var edit_data := BspRoomProcessorScript.generate(data)
+	var manual_add := _add_first_manual_door(edit_data)
+	if not bool(manual_add.get("ok", false)):
+		return ctx.fail("BSP manual door helper did not find a valid selected-room wall.")
+	if BspRoomProcessorScript.manual_door_count(edit_data) != 1:
+		return ctx.fail("BSP manual door add did not mark exactly one manual door.")
+	var manual_room_id := manual_add.get("room_id", &"") as StringName
+	var manual_position := manual_add.get("position", Vector3.ZERO) as Vector3
+	var remove_result := BspRoomProcessorScript.toggle_manual_door_at_position(edit_data, manual_room_id, manual_position)
+	if not bool(remove_result.get("ok", false)) or remove_result.get("action", &"") != &"removed":
+		return ctx.fail("BSP manual door toggle did not remove an existing manual door.")
+	if BspRoomProcessorScript.manual_door_count(edit_data) != 0:
+		return ctx.fail("BSP manual door removal left manual doors behind.")
+	var endpoint_position := manual_add.get("endpoint_position", Vector3.ZERO) as Vector3
+	var endpoint_result := BspRoomProcessorScript.toggle_manual_door_at_position(edit_data, manual_room_id, endpoint_position)
+	if bool(endpoint_result.get("ok", false)):
+		return ctx.fail("BSP manual door placement should reject side endpoints.")
+	var duplicate_data := BspRoomProcessorScript.generate(data)
+	var duplicate_result := _attempt_generated_door_duplicate(duplicate_data)
+	if bool(duplicate_result.get("ok", false)):
+		return ctx.fail("BSP manual door placement should reject generated-door overlap.")
+
+	var resize_data := BspRoomProcessorScript.generate(data)
+	var resize_result := _resize_first_shared_side(resize_data)
+	if not bool(resize_result.get("ok", false)):
+		return ctx.fail("BSP shared split resize did not find a valid 1m move.")
+	for resized_room in resize_data.rooms:
+		if resized_room.bounds.size.x < resize_data.min_room_size_m - 0.001:
+			return ctx.fail("BSP split resize produced a room below minimum width.")
+		if resized_room.bounds.size.y < resize_data.min_room_size_m - 0.001:
+			return ctx.fail("BSP split resize produced a room below minimum depth.")
+	var reject_resize_data := BspRoomProcessorScript.generate(data)
+	var reject_resize_result := _resize_first_shared_side_past_minimum(reject_resize_data)
+	if bool(reject_resize_result.get("ok", false)):
+		return ctx.fail("BSP split resize should reject moves past minimum room size.")
+
 	var walls: Array[WallSegmentDataScript] = BspRoomProcessorScript.compile_to_walls(first)
 	if walls.size() <= 4:
 		return ctx.fail("BSP compilation did not produce internal wall fragments.")
@@ -152,3 +188,97 @@ func _point_to_segment_distance_2d(point: Vector2, start: Vector2, end: Vector2)
 		return point.distance_to(start)
 	var t := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
 	return point.distance_to(start + (segment * t))
+
+func _add_first_manual_door(data: BspModuleDataScript) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if not bool(side_info.get("ok", false)):
+				continue
+			var positions := _door_candidate_positions(room, side)
+			for position in positions:
+				var result := BspRoomProcessorScript.toggle_manual_door_at_position(data, room.id, position)
+				if bool(result.get("ok", false)) and result.get("action", &"") == &"added":
+					result["room_id"] = room.id
+					result["endpoint_position"] = _side_endpoint_position(room, side)
+					return result
+
+	return {"ok": false}
+
+func _attempt_generated_door_duplicate(data: BspModuleDataScript) -> Dictionary:
+	for socket in BspRoomProcessorScript.compile_interest_sockets(data):
+		if socket.get("kind", &"") != &"door_socket" or bool(socket.get("is_manual", false)):
+			continue
+		var room_ids: Array = socket.get("room_ids", [])
+		if room_ids.is_empty():
+			continue
+		return BspRoomProcessorScript.toggle_manual_door_at_position(
+			data,
+			room_ids[0] as StringName,
+			socket.get("position", Vector3.ZERO) as Vector3
+		)
+
+	return {"ok": false, "reason": &"no_generated_door"}
+
+func _resize_first_shared_side(data: BspModuleDataScript) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if not bool(side_info.get("ok", false)) or bool(side_info.get("is_perimeter", false)):
+				continue
+			var center := side_info.get("position", room.center_position()) as Vector3
+			for delta in [1.0, -1.0]:
+				var target := center
+				if int(side_info.get("axis", -1)) == BspRoomProcessorScript.SPLIT_X:
+					target.x += delta
+				else:
+					target.z += delta
+				var result := BspRoomProcessorScript.resize_room_side_to_position(data, room.id, side, target)
+				if bool(result.get("ok", false)):
+					return result
+
+	return {"ok": false}
+
+func _resize_first_shared_side_past_minimum(data: BspModuleDataScript) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if not bool(side_info.get("ok", false)) or bool(side_info.get("is_perimeter", false)):
+				continue
+			var target := side_info.get("position", room.center_position()) as Vector3
+			if int(side_info.get("axis", -1)) == BspRoomProcessorScript.SPLIT_X:
+				target.x += 1000.0
+			else:
+				target.z += 1000.0
+			return BspRoomProcessorScript.resize_room_side_to_position(data, room.id, side, target)
+
+	return {"ok": false, "reason": &"no_shared_side"}
+
+func _door_candidate_positions(room: BspModuleDataScript.BspRoom, side: StringName) -> Array[Vector3]:
+	var positions: Array[Vector3] = []
+	var x0 := room.bounds.position.x
+	var x1 := room.bounds.end.x
+	var z0 := room.bounds.position.y
+	var z1 := room.bounds.end.y
+	for ratio in [0.25, 0.75, 0.5]:
+		match side:
+			&"north":
+				positions.append(Vector3(lerpf(x0, x1, ratio), 0.0, z0))
+			&"east":
+				positions.append(Vector3(x1, 0.0, lerpf(z0, z1, ratio)))
+			&"west":
+				positions.append(Vector3(x0, 0.0, lerpf(z0, z1, ratio)))
+			_:
+				positions.append(Vector3(lerpf(x0, x1, ratio), 0.0, z1))
+	return positions
+
+func _side_endpoint_position(room: BspModuleDataScript.BspRoom, side: StringName) -> Vector3:
+	match side:
+		&"north":
+			return Vector3(room.bounds.position.x, 0.0, room.bounds.position.y)
+		&"east":
+			return Vector3(room.bounds.end.x, 0.0, room.bounds.position.y)
+		&"west":
+			return Vector3(room.bounds.position.x, 0.0, room.bounds.end.y)
+		_:
+			return Vector3(room.bounds.end.x, 0.0, room.bounds.end.y)
