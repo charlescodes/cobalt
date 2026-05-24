@@ -1,6 +1,6 @@
 # COBALT Project Overview
 
-Last reviewed: 2026-05-19
+Last reviewed: 2026-05-24
 
 COBALT is a Godot 4.4 3D isometric RPG prototype focused on core tactical interaction and free-form navigation systems. It was migrated from the earlier Blightroot hex-grid prototype, but active gameplay code now uses continuous `Vector3` positions and Godot native navigation.
 
@@ -20,6 +20,9 @@ At startup, it contains:
 - `InteractionController`: handles camera raycasts, hover state, context menu requests, examine actions, and movement targeting.
 - `MovementController`: listens for movement requests and drives active nav-agent movement.
 - `InteractionUI`: contains the context menu and examine output panel.
+- `BspDebugMapController`: starts the scene in generated BSP debug-map mode and can restore the authored map.
+- `BspDebugEditorController`: coordinates runtime-only BSP room selection, manual doors, and split resizing in debug mode.
+- `NavigationDebugOverlay`: draws movement debug paths plus BSP room/wall/socket/exit-route overlays while debug mode is visible.
 - `CameraRig`: provides an angled isometric-style camera with pan, orbit, and zoom controls.
 - `SunLight`: simple directional lighting for the blockout scene.
 
@@ -55,6 +58,7 @@ Current stateless resolver classes:
 - `MoveTargetResolver`: validates move sources/destinations and asks `NavigationServer3D.map_get_path()` for native paths.
 - `WallVisualResolver`: converts wall segment resources into visual endpoints, center, length, and rotation.
 - `MapBuilder`: builds a generated scene subtree from `MapData` without storing game state.
+- `BspRoomProcessor`: generates BSP debug buildings, compiles walls/grounds/actors, and owns stateless edit helpers for room picking, manual doors, and split resizing.
 
 Keep gameplay rules in this style: resources and nodes provide inputs, processors return answers, and major outcomes move through `EventBus`.
 
@@ -72,6 +76,10 @@ Important node scripts:
 - `InteractionMenu`: shows available actions near the cursor.
 - `InteractionLogPanel`: displays the latest examine output and toggles with `toggle_interaction_log`.
 - `CameraRig`: handles mouse-driven camera control.
+- `BspDebugMapController`: swaps the generated BSP debug map into `MapLoader`, restores the authored map, and commits runtime BSP edits.
+- `BspDebugEditorController`: handles BSP debug Select/Door/Resize modes through ground-plane camera projection.
+- `BspDebugPanel`: exposes BSP generation parameters, overlay toggles, and edit mode controls.
+- `NavigationDebugOverlay`: renders movement markers plus BSP room bounds, wall highlights, sockets, selected-room fill, and exit-route debug geometry.
 
 ## Current Player Flow
 
@@ -128,6 +136,7 @@ src/ui/                    Context menu and examine log panel
 src/camera/                Isometric camera rig
 src/maps/                  Map resources, builder, and scene loader
 src/walls/                 Wall data, collision generation, and visual helpers
+src/debug/                 Runtime BSP debug map generation and editing
 ```
 
 Removed during the navigation migration:
@@ -162,6 +171,8 @@ Current test coverage includes:
 - movement starts, rejects busy actors, updates actor data, completes, and reports failures;
 - wall layout creates primitive visuals and static collision;
 - map builder creates typed map content, ground targets, static collision, and object views;
+- BSP debug generation creates connected buildings, exterior exits, editable room-side metadata, manual doors, and split-resize helpers;
+- BSP debug editor selects rooms, adds/removes manual doors, protects generated doors, resizes shared splits, and redraws overlays;
 - main scene loads with nav region, generated map content, controllers, UI, camera, and light;
 - interaction raycasts support hover, menu, examine, target filtering, exact ground-hit destination capture, and `move_requested` payloads.
 
