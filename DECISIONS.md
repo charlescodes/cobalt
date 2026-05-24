@@ -47,11 +47,12 @@ Runtime source of truth:
 - BSP debug mode is runtime-only. `BspDebugMapController` generates `_generated_bsp_data` from parameter inputs, swaps it into `MapLoader`, and restores the authored map when debug mode is disabled.
 - Manual BSP edits mutate only the current generated BSP data. Changing seed/parameters or regenerating the debug map discards manual room and door edits.
 - `BspRoomProcessor` remains the stateless rule surface for BSP edit geometry: room lookup, nearest side selection, 1m door snapping, generated-door protection, and shared split resizing.
-- `BspDebugEditorController` is the scene coordinator for edit input. It uses ground-plane camera projection and only captures left-click/drag behavior while BSP debug mode is active and the BSP panel mode is `Select`, `Door`, or `Resize`.
+- `LevelEditorController` is the generic scene coordinator for editor input. It uses ground-plane camera projection, syncs panel edit-mode ids, and dispatches continuous `Vector3` hits to the active `EditorTool`.
+- BSP editor behavior is registered through `BspLevelEditorToolProvider`. `BspRoomSelectTool`, `BspDoorTool`, and `BspResizeTool` own Select/Door/Resize behavior; BSP structural rules must not live in `LevelEditorController`.
 - `BspDebugPanel` owns the edit mode controls. Select mode chooses a room, Door mode toggles manual doors for the selected room, and Resize mode drags shared BSP split walls in 1m increments.
 - Generated default doors and the generated exterior exit are protected from Door-mode removal. Manual doors are marked with `BspDoor.is_manual` and can be removed by clicking them again.
 - Resizing moves a shared BSP split, not an isolated room rectangle. Resize attempts that would violate `min_room_size_m` are rejected.
-- After accepted edits, the debug controller recompiles to `MapData`, reloads the generated map, rebakes navigation, and refreshes `NavigationDebugOverlay`.
+- After accepted edits, BSP editor tools commit through `BspDebugMapController`, which recompiles to `MapData`, reloads the generated map, rebakes navigation, and refreshes `NavigationDebugOverlay`.
 
 ### Movement Validation
 

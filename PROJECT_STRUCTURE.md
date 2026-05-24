@@ -27,8 +27,14 @@ res://src/core/event_bus.gd       Global event bus autoload.
 res://src/debug/bsp_module_data.gd          Runtime-only BSP generation parameters and generated BSP state.
 res://src/debug/bsp_room_processor.gd       Stateless BSP room, wall, door, ground, and debug MapData compiler.
 res://src/debug/bsp_debug_map_controller.gd Starts main.tscn in generated BSP debug map mode; F12 restores authored map.
-res://src/debug/bsp_debug_editor_controller.gd
-                                             Runtime-only BSP debug room selection, manual doors, and split resizing.
+res://src/editor/level_editor_controller.gd Generic level-editor input coordinator and active EditorTool dispatcher.
+res://src/editor/tools/editor_tool.gd       Base editor tool interface.
+res://src/editor/tools/bsp_level_editor_tool_provider.gd
+                                             Registers BSP Select/Door/Resize editor tools.
+res://src/editor/tools/bsp_room_select_tool.gd
+res://src/editor/tools/bsp_door_tool.gd
+res://src/editor/tools/bsp_resize_tool.gd
+                                             Runtime BSP room selection, manual doors, and split resizing tools.
 ```
 
 ## Main Scene Composition
@@ -42,7 +48,9 @@ MapLoader                         Loads authored MapData and rebakes navigation.
 InteractionController             Camera raycasts, hover, context menus, and movement targeting.
 MovementController                EventBus movement listener and nav-agent movement coordinator.
 BspDebugMapController             F12 runtime-only BSP debug map toggle.
-BspDebugEditorController          BSP debug edit-mode input coordinator.
+LevelEditorController             Generic level-editor input coordinator.
+LevelEditorController/BspLevelEditorToolProvider
+                                  BSP editor tool registrar.
 InteractionUI                     CanvasLayer containing interaction UI panels.
 InteractionUI/InteractionMenu     Context action menu.
 InteractionUI/InteractionLogPanel Examine output panel.
@@ -91,6 +99,8 @@ res://src/interaction/interaction_controller.gd
                                            Camera raycasts, hover state, context menus, and targeting flow.
 res://src/movement/movement_controller.gd EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd            Camera pan, orbit, and zoom behavior.
+res://src/editor/level_editor_controller.gd
+                                           Generic level-editor input, ground projection, and active tool lifecycle.
 ```
 
 These nodes may coordinate runtime behavior, but durable gameplay rules should remain in resources or stateless processors.

@@ -103,6 +103,33 @@ static func nearest_room_side(
 	best["ok"] = true
 	return best
 
+static func nearest_resizable_room_side(
+	data: BspModuleDataScript,
+	position: Vector3,
+	max_distance_m: float = SIDE_PICK_DISTANCE_M
+) -> Dictionary:
+	var source := _generated_source(data)
+	var best := {}
+	var best_distance := INF
+	for room in source.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var candidate := _room_side_result(source, room, side, position)
+			if (candidate.get("partition_id", &"") as StringName) == &"":
+				continue
+			if bool(candidate.get("is_perimeter", false)):
+				continue
+
+			var distance := float(candidate.get("distance_m", INF))
+			if distance < best_distance:
+				best = candidate
+				best_distance = distance
+
+	if best.is_empty() or best_distance > max_distance_m:
+		return _failure_result(&"side_not_found")
+
+	best["ok"] = true
+	return best
+
 static func room_side_info(
 	data: BspModuleDataScript,
 	room_id: StringName,

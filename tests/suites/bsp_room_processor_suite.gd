@@ -101,6 +101,10 @@ func run(ctx) -> bool:
 	var resize_result := _resize_first_shared_side(resize_data)
 	if not bool(resize_result.get("ok", false)):
 		return ctx.fail("BSP shared split resize did not find a valid 1m move.")
+	var wide_pick_data := BspRoomProcessorScript.generate(data)
+	var wide_pick_result := _pick_first_shared_side_from_offset_position(wide_pick_data)
+	if not bool(wide_pick_result.get("ok", false)):
+		return ctx.fail("BSP resize side picking did not tolerate projected wall-click offset.")
 	for resized_room in resize_data.rooms:
 		if resized_room.bounds.size.x < resize_data.min_room_size_m - 0.001:
 			return ctx.fail("BSP split resize produced a room below minimum width.")
@@ -236,6 +240,28 @@ func _resize_first_shared_side(data: BspModuleDataScript) -> Dictionary:
 				var result := BspRoomProcessorScript.resize_room_side_to_position(data, room.id, side, target)
 				if bool(result.get("ok", false)):
 					return result
+
+	return {"ok": false}
+
+func _pick_first_shared_side_from_offset_position(data: BspModuleDataScript) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if not bool(side_info.get("ok", false)) or bool(side_info.get("is_perimeter", false)):
+				continue
+
+			var probe := side_info.get("position", room.center_position()) as Vector3
+			if int(side_info.get("axis", -1)) == BspRoomProcessorScript.SPLIT_X:
+				probe.x += 1.5
+			else:
+				probe.z += 1.5
+
+			var result := BspRoomProcessorScript.nearest_resizable_room_side(data, probe, 2.5)
+			if (
+				bool(result.get("ok", false))
+				and result.get("partition_id", &"") == side_info.get("partition_id", &"")
+			):
+				return result
 
 	return {"ok": false}
 

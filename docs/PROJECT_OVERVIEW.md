@@ -21,7 +21,8 @@ At startup, it contains:
 - `MovementController`: listens for movement requests and drives active nav-agent movement.
 - `InteractionUI`: contains the context menu and examine output panel.
 - `BspDebugMapController`: starts the scene in generated BSP debug-map mode and can restore the authored map.
-- `BspDebugEditorController`: coordinates runtime-only BSP room selection, manual doors, and split resizing in debug mode.
+- `LevelEditorController`: generic runtime editor input coordinator for ground-plane mouse projection and active tool dispatch.
+- `BspLevelEditorToolProvider`: registers BSP Select/Door/Resize editor tools for the current debug editor UI.
 - `NavigationDebugOverlay`: draws movement debug paths plus BSP room/wall/socket/exit-route overlays while debug mode is visible.
 - `CameraRig`: provides an angled isometric-style camera with pan, orbit, and zoom controls.
 - `SunLight`: simple directional lighting for the blockout scene.
@@ -77,7 +78,8 @@ Important node scripts:
 - `InteractionLogPanel`: displays the latest examine output and toggles with `toggle_interaction_log`.
 - `CameraRig`: handles mouse-driven camera control.
 - `BspDebugMapController`: swaps the generated BSP debug map into `MapLoader`, restores the authored map, and commits runtime BSP edits.
-- `BspDebugEditorController`: handles BSP debug Select/Door/Resize modes through ground-plane camera projection.
+- `LevelEditorController`: handles editor activation, ground-plane camera projection, panel mode sync, and dispatch to the active `EditorTool`.
+- `BspLevelEditorToolProvider`: wires BSP editor context plus `BspRoomSelectTool`, `BspDoorTool`, and `BspResizeTool` into the generic editor controller.
 - `BspDebugPanel`: exposes BSP generation parameters, overlay toggles, and edit mode controls.
 - `NavigationDebugOverlay`: renders movement markers plus BSP room bounds, wall highlights, sockets, selected-room fill, and exit-route debug geometry.
 

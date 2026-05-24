@@ -1,11 +1,15 @@
 extends RefCounted
 
-const BspDebugEditorControllerScript := preload("res://src/debug/bsp_debug_editor_controller.gd")
 const BspDebugMapControllerScript := preload("res://src/debug/bsp_debug_map_controller.gd")
 const BspDebugPanelScript := preload("res://src/ui/bsp_debug_panel.gd")
 const BspModuleDataScript := preload("res://src/debug/bsp_module_data.gd")
 const BspRoomProcessorScript := preload("res://src/debug/bsp_room_processor.gd")
+const BspDoorToolScript := preload("res://src/editor/tools/bsp_door_tool.gd")
+const BspResizeToolScript := preload("res://src/editor/tools/bsp_resize_tool.gd")
+const BspRoomSelectToolScript := preload("res://src/editor/tools/bsp_room_select_tool.gd")
+const LevelEditorControllerScript := preload("res://src/editor/level_editor_controller.gd")
 const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
+const RecordingEditorToolScript := preload("res://tests/support/recording_editor_tool.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -19,13 +23,20 @@ func run(ctx) -> bool:
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
 
-	var editor := main.get_node_or_null("BspDebugEditorController") as BspDebugEditorControllerScript
+	var editor := main.get_node_or_null("LevelEditorController") as LevelEditorControllerScript
 	var controller := main.get_node_or_null("BspDebugMapController") as BspDebugMapControllerScript
 	var overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
 	var panel := main.get_node_or_null("InteractionUI/BspDebugPanel") as BspDebugPanelScript
 	if editor == null or controller == null or overlay == null or panel == null:
 		main.free()
-		return ctx.fail("Main scene is missing BSP debug editor nodes.")
+		return ctx.fail("Main scene is missing level editor nodes.")
+
+	var select_tool := editor.get_tool(BspDebugPanelScript.MODE_SELECT) as BspRoomSelectToolScript
+	var door_tool := editor.get_tool(BspDebugPanelScript.MODE_DOOR) as BspDoorToolScript
+	var resize_tool := editor.get_tool(BspDebugPanelScript.MODE_RESIZE) as BspResizeToolScript
+	if select_tool == null or door_tool == null or resize_tool == null:
+		main.free()
+		return ctx.fail("Level editor did not register BSP editor tools.")
 
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -39,26 +50,29 @@ func run(ctx) -> bool:
 		return ctx.fail("BSP debug editor did not receive generated BSP data.")
 
 	var selected_room := data.rooms[0]
-	if not editor.select_room_at_position(selected_room.center_position()):
+	if not select_tool.select_room_at_position(selected_room.center_position()):
 		main.free()
-		return ctx.fail("BSP debug editor did not select a room by position.")
+		return ctx.fail("BSP room select tool did not select a room by position.")
 	if overlay.get_selected_bsp_room_id() != selected_room.id:
 		main.free()
 		return ctx.fail("BSP debug overlay did not track the selected room id.")
 	if overlay.get_node_or_null("BspInterestDebug/Rooms/Room_%s/SelectedRoomFill" % String(selected_room.id)) == null:
 		main.free()
 		return ctx.fail("BSP debug overlay did not draw selected room fill.")
+	if not _verify_editor_input_dispatch(ctx, main, editor, selected_room.center_position()):
+		main.free()
+		return false
 
 	panel.set_edit_mode(BspDebugPanelScript.MODE_DOOR)
 	await ctx.tree.process_frame
 	if editor.get_edit_mode() != BspDebugPanelScript.MODE_DOOR:
 		main.free()
-		return ctx.fail("BSP debug editor did not sync Door mode from the panel.")
+		return ctx.fail("Level editor did not sync Door mode from the panel.")
 
-	var door_add := _add_manual_door_with_editor(editor, controller)
+	var door_add := _add_manual_door_with_editor(select_tool, door_tool, controller)
 	if not bool(door_add.get("ok", false)):
 		main.free()
-		return ctx.fail("BSP debug editor did not add a manual door.")
+		return ctx.fail("BSP door tool did not add a manual door.")
 	if BspRoomProcessorScript.manual_door_count(controller.get_generated_bsp_data()) != 1:
 		main.free()
 		return ctx.fail("BSP debug editor manual door add did not mutate generated BSP data.")
@@ -69,28 +83,28 @@ func run(ctx) -> bool:
 	var manual_door := _first_manual_door(controller.get_generated_bsp_data())
 	if manual_door == null:
 		main.free()
-		return ctx.fail("BSP debug editor could not find the manual door it added.")
-	if not editor.toggle_manual_door_at_position(manual_door.position):
+		return ctx.fail("BSP door tool could not find the manual door it added.")
+	if not door_tool.toggle_manual_door_at_position(manual_door.position):
 		main.free()
-		return ctx.fail("BSP debug editor did not remove an existing manual door.")
+		return ctx.fail("BSP door tool did not remove an existing manual door.")
 	if BspRoomProcessorScript.manual_door_count(controller.get_generated_bsp_data()) != 0:
 		main.free()
 		return ctx.fail("BSP debug editor removed a manual door but count did not update.")
 
-	var protected_remove := _attempt_generated_door_remove_with_editor(editor, controller)
+	var protected_remove := _attempt_generated_door_remove_with_editor(select_tool, door_tool, controller)
 	if bool(protected_remove.get("ok", false)):
 		main.free()
-		return ctx.fail("BSP debug editor should not remove or replace generated doors.")
+		return ctx.fail("BSP door tool should not remove or replace generated doors.")
 
 	panel.set_edit_mode(BspDebugPanelScript.MODE_RESIZE)
 	await ctx.tree.process_frame
 	if editor.get_edit_mode() != BspDebugPanelScript.MODE_RESIZE:
 		main.free()
-		return ctx.fail("BSP debug editor did not sync Resize mode from the panel.")
-	var resize_result := _resize_shared_side_with_editor(editor, controller)
+		return ctx.fail("Level editor did not sync Resize mode from the panel.")
+	var resize_result := _resize_shared_side_with_editor(select_tool, resize_tool, controller)
 	if not bool(resize_result.get("ok", false)):
 		main.free()
-		return ctx.fail("BSP debug editor did not resize a shared room side.")
+		return ctx.fail("BSP resize tool did not resize a shared room side.")
 	for room in controller.get_generated_bsp_data().rooms:
 		if room.bounds.size.x < controller.get_generated_bsp_data().min_room_size_m - 0.001:
 			main.free()
@@ -102,17 +116,66 @@ func run(ctx) -> bool:
 	main.free()
 	return true
 
+func _verify_editor_input_dispatch(
+	ctx,
+	main: Node,
+	editor: LevelEditorControllerScript,
+	world_position: Vector3
+) -> bool:
+	var camera := main.get_node_or_null("CameraRig/PitchPivot/Camera3D") as Camera3D
+	if camera == null:
+		return ctx.fail("Level editor input dispatch test could not find the camera.")
+
+	var recording_tool := RecordingEditorToolScript.new()
+	editor.register_tool(&"recording_test", recording_tool)
+	if not editor.set_active_tool(&"recording_test"):
+		return ctx.fail("Level editor did not activate a registered test tool.")
+
+	var screen_position := camera.unproject_position(world_position)
+	var motion_event := InputEventMouseMotion.new()
+	motion_event.position = screen_position
+	motion_event.global_position = screen_position
+	motion_event.shift_pressed = true
+	editor._unhandled_input(motion_event)
+	if recording_tool.motion_count != 1:
+		return ctx.fail("Level editor did not forward mouse motion to the active tool.")
+	if recording_tool.last_hit.distance_to(world_position) > 0.05:
+		return ctx.fail("Level editor did not pass the projected ground hit to the active tool.")
+	if not bool(recording_tool.last_modifiers.get(&"shift", false)):
+		return ctx.fail("Level editor did not forward input modifiers to the active tool.")
+
+	var down_event := InputEventMouseButton.new()
+	down_event.position = screen_position
+	down_event.global_position = screen_position
+	down_event.button_index = MOUSE_BUTTON_LEFT
+	down_event.pressed = true
+	editor._unhandled_input(down_event)
+	if recording_tool.left_down_count != 1:
+		return ctx.fail("Level editor did not forward left click down to the active tool.")
+
+	var up_event := InputEventMouseButton.new()
+	up_event.position = screen_position
+	up_event.global_position = screen_position
+	up_event.button_index = MOUSE_BUTTON_LEFT
+	up_event.pressed = false
+	editor._unhandled_input(up_event)
+	if recording_tool.left_up_count != 1:
+		return ctx.fail("Level editor did not forward left click up to the active tool.")
+
+	return true
+
 func _add_manual_door_with_editor(
-	editor: BspDebugEditorControllerScript,
+	select_tool: BspRoomSelectToolScript,
+	door_tool: BspDoorToolScript,
 	controller: BspDebugMapControllerScript
 ) -> Dictionary:
 	var data := controller.get_generated_bsp_data()
 	for room in data.rooms:
-		if not editor.select_room_at_position(room.center_position()):
+		if not select_tool.select_room_at_position(room.center_position()):
 			continue
 		for side in [&"north", &"east", &"south", &"west"]:
 			for position in _door_candidate_positions(room, side):
-				if editor.toggle_manual_door_at_position(position):
+				if door_tool.toggle_manual_door_at_position(position):
 					return {
 						"ok": true,
 						"room_id": room.id,
@@ -120,7 +183,8 @@ func _add_manual_door_with_editor(
 	return {"ok": false}
 
 func _attempt_generated_door_remove_with_editor(
-	editor: BspDebugEditorControllerScript,
+	select_tool: BspRoomSelectToolScript,
+	door_tool: BspDoorToolScript,
 	controller: BspDebugMapControllerScript
 ) -> Dictionary:
 	var data := controller.get_generated_bsp_data()
@@ -133,16 +197,19 @@ func _attempt_generated_door_remove_with_editor(
 		var room := _room_by_id(data, room_ids[0] as StringName)
 		if room == null:
 			continue
-		editor.select_room_at_position(room.center_position())
+		select_tool.select_room_at_position(room.center_position())
 		var before_count := BspRoomProcessorScript.manual_door_count(data)
-		var changed := editor.toggle_manual_door_at_position(socket.get("position", Vector3.ZERO) as Vector3)
+		var changed := door_tool.toggle_manual_door_at_position(
+			socket.get("position", Vector3.ZERO) as Vector3
+		)
 		return {
 			"ok": changed or BspRoomProcessorScript.manual_door_count(data) != before_count,
 		}
 	return {"ok": false}
 
 func _resize_shared_side_with_editor(
-	editor: BspDebugEditorControllerScript,
+	select_tool: BspRoomSelectToolScript,
+	resize_tool: BspResizeToolScript,
 	controller: BspDebugMapControllerScript
 ) -> Dictionary:
 	var data := controller.get_generated_bsp_data()
@@ -151,7 +218,7 @@ func _resize_shared_side_with_editor(
 			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
 			if not bool(side_info.get("ok", false)) or bool(side_info.get("is_perimeter", false)):
 				continue
-			editor.select_room_at_position(room.center_position())
+			select_tool.select_room_at_position(room.center_position())
 			var center := side_info.get("position", room.center_position()) as Vector3
 			for delta in [1.0, -1.0]:
 				var target := center
@@ -159,7 +226,7 @@ func _resize_shared_side_with_editor(
 					target.x += delta
 				else:
 					target.z += delta
-				if editor.resize_selected_side_to_position(side, target):
+				if resize_tool.resize_selected_side_to_position(side, target):
 					return {
 						"ok": true,
 						"room_id": room.id,
