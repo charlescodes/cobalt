@@ -1,6 +1,6 @@
 # COBALT Project Overview
 
-Last reviewed: 2026-05-24
+Last reviewed: 2026-05-25
 
 COBALT is a Godot 4.4 3D isometric RPG prototype focused on core tactical interaction and free-form navigation systems. It was migrated from the earlier Blightroot hex-grid prototype, but active gameplay code now uses continuous `Vector3` positions and Godot native navigation.
 
@@ -23,7 +23,7 @@ At startup, it contains:
 - `BspDebugMapController`: starts the scene in generated BSP debug-map mode and can restore the authored map.
 - `LevelEditorController`: generic runtime editor input coordinator for ground-plane mouse projection and active tool dispatch.
 - `BspLevelEditorToolProvider`: registers BSP Select/Door/Resize editor tools for the current debug editor UI.
-- `NavigationDebugOverlay`: draws movement debug paths plus BSP room/wall/socket/exit-route overlays while debug mode is visible.
+- `NavigationDebugOverlay`: draws movement debug paths plus BSP room/wall/socket/exit-route, editor snap-grid, and BSP editor-hover overlays while debug mode is visible.
 - `CameraRig`: provides an angled isometric-style camera with pan, orbit, and zoom controls.
 - `SunLight`: simple directional lighting for the blockout scene.
 
@@ -84,7 +84,7 @@ Important node scripts:
 - `LevelEditorController`: handles editor activation, ground-plane camera projection, panel mode sync, and dispatch to the active `EditorTool`.
 - `BspLevelEditorToolProvider`: wires BSP editor context plus `BspRoomSelectTool`, `BspDoorTool`, and `BspResizeTool` into the generic editor controller.
 - `BspDebugPanel`: exposes BSP generation parameters, overlay toggles, and edit mode controls.
-- `NavigationDebugOverlay`: renders movement markers, BSP debug geometry, and visual-only editor snap-grid point clouds for active placement tools.
+- `NavigationDebugOverlay`: renders movement markers, BSP debug geometry, visual-only editor snap-grid point clouds, and BSP editor-hover highlights for active editing tools.
 
 ## Current Player Flow
 
@@ -127,6 +127,7 @@ Maps are represented as `MapData` resources. `MapBuilder` creates ground and wal
 
 ```text
 ARCHITECTURE.md            Project-specific Codex and architecture rules
+COBALT_DSL.md              Compact architecture DSL, backlog taxonomy, and node-role portability context
 DECISIONS.md               Current architecture decisions, deferred work, and handoff notes
 project.godot              Godot project config and autoloads
 scenes/main.tscn           Current playable blockout scene
@@ -177,7 +178,7 @@ Current test coverage includes:
 - wall layout creates primitive visuals and static collision;
 - map builder creates typed map content, ground targets, static collision, and object views;
 - BSP debug generation creates connected buildings, exterior exits, editable room-side metadata, manual doors, and split-resize helpers;
-- BSP debug editor selects rooms, adds/removes manual doors, protects generated doors, resizes shared splits, and redraws overlays;
+- BSP debug editor selects rooms, locks modal room context in Door/Resize modes, adds/removes manual doors at 10cm wall offsets, protects generated doors, resizes shared splits at 10cm increments, highlights hovered split targets, and redraws overlays;
 - main scene loads with nav region, generated map content, controllers, UI, camera, and light;
 - interaction raycasts support hover, menu, examine, target filtering, exact ground-hit destination capture, and `move_requested` payloads.
 
@@ -193,11 +194,23 @@ Current test coverage includes:
 - `EventBus.movement_step_reached` still exists but is not emitted by the continuous nav movement flow.
 - Tests are a custom headless smoke/integration runner rather than a full unit test framework.
 
-## Sensible Next Steps
+## Backlog Funnel
 
-1. Add visible feedback for move targeting, invalid destinations, and failed movement reasons.
-2. Add an occupancy/reservation resolver so actors cannot stop on occupied destinations.
-3. Extend movement rules with costs, range limits, or action points before adding combat.
-4. Add a lightweight authoring workflow for additional `.tres` map resources.
-5. Decide whether `movement_step_reached` should be removed or repurposed for continuous movement milestones.
-6. Keep new gameplay rules in stateless processors and keep scene nodes focused on presentation and coordination.
+Use `COBALT_DSL.md` and `DECISIONS.md` to decorate future work before implementation:
+
+- `BUG`: broken current behavior or regression.
+- `ARCH-DEBT`: architecture drift likely to produce compounding technical debt.
+- `FOUNDATION`: implementation infrastructure that improves feature velocity or reproducibility.
+- `REGRESSION-GUARD`: tests/refactors that protect existing contracts.
+- `FEATURE`: new player-facing or authoring capability.
+- `ORG`: documentation, naming, project structure, portability, and context quality.
+
+Sensible next items by funnel:
+
+1. `BUG`: add visible feedback for move targeting, invalid destinations, and failed movement reasons.
+2. `FOUNDATION`: add a fixture-driven headless scenario runner before broadening complex generated test cases.
+3. `FEATURE`: add an occupancy/reservation resolver so actors cannot stop on occupied destinations.
+4. `FEATURE`: extend movement rules with costs, range limits, or action points before adding combat.
+5. `ARCH-DEBT`: define persistence for BSP editor edits before treating runtime debug edits as production authoring.
+6. `REGRESSION-GUARD`: decide whether `movement_step_reached` should be removed or repurposed for continuous movement milestones.
+7. `ORG`: keep node-role names and file maps current so future Godot node-type changes remain portable.

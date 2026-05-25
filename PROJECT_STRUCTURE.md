@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 Purpose: quick-reference file map for future context windows. Keep this updated when scenes, controllers, processors, resources, or tests move.
 
@@ -8,6 +8,7 @@ Purpose: quick-reference file map for future context windows. Keep this updated 
 
 ```text
 res://ARCHITECTURE.md             Non-negotiable project architecture rules.
+res://COBALT_DSL.md               Compact project DSL for feature funnels, node roles, backlog tags, and foundation work.
 res://DECISIONS.md                Current architectural decisions, deferred behavior, and watch items.
 res://PROJECT_STRUCTURE.md        This path map.
 res://docs/PROJECT_OVERVIEW.md    Narrative runtime overview and current gameplay snapshot.
@@ -36,7 +37,7 @@ res://src/editor/tools/bsp_level_editor_tool_provider.gd
 res://src/editor/tools/bsp_room_select_tool.gd
 res://src/editor/tools/bsp_door_tool.gd
 res://src/editor/tools/bsp_resize_tool.gd
-                                             Runtime BSP room selection, manual doors, and split resizing tools.
+                                             Runtime BSP room selection, manual doors, split resizing, modal room context, and hover target tools.
 ```
 
 ## Main Scene Composition
@@ -132,7 +133,7 @@ res://src/ui/interaction_log_panel.gd Examine output panel and interaction log t
 res://src/ui/camera_compass.gd        Small HUD compass that draws camera heading.
 res://src/ui/bsp_debug_panel.gd       Runtime BSP width/depth/min-room/depth/seed controls plus Select/Door/Resize edit modes.
 res://src/ui/navigation_debug_overlay.gd
-                                      Movement path markers plus BSP rooms, walls, sockets, selected-room, exit-route, and editor snap-grid overlays.
+                                      Movement path markers plus BSP rooms, walls, sockets, selected-room, exit-route, editor snap-grid, and BSP editor-hover overlays.
 ```
 
 ## Walls and Navigation Geometry

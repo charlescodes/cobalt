@@ -4,8 +4,9 @@ You are an expert Godot 4.4 architect assisting with the development of "COBALT,
 
 ## 1. Core Architecture
 * **Decoupled & Data-Driven:** Data lives in custom `Resource` scripts. Logic lives in stateless processors. Do not hardcode stats or behaviors into nodes.
-* **Composition over Inheritance:** Use Godot's node tree for composition. Do not create deep inheritance trees. Use Duck Typing (e.g., `has_method()`, `has_signal()`, or Node Groups) to interact with objects.
-* **Event Bus Pattern:** Nodes should rarely reference each other directly. Use a global `EventBus` autoload to emit and connect signals for major game events (e.g., `EventBus.emit_signal("unit_moved", unit, target_position)`).
+* **Composition over Inheritance:** Use Godot's node tree for composition. Do not create deep inheritance trees. Prefer typed COBALT APIs (`class_name` resources, processors, and adapters) for owned systems; use Duck Typing (`has_method()`, `has_signal()`, or Node Groups) at scene/plugin/composition boundaries where static typing would over-couple nodes.
+* **Event Bus Pattern:** Use the global `EventBus` autoload for domain-level gameplay events such as movement requests, movement outcomes, examine output, and future combat/turn events. Keep local UI, hover visuals, parent-child wiring, and tool/panel interactions on direct typed references, NodePaths, or local signal connections.
+* **Portable Node Roles:** Treat concrete Godot node types as scene adapters, not domain concepts. Prefer stable role names, resources, and stateless processor APIs so node implementations can change without rewriting gameplay rules.
 
 ## 2. Movement & Navigation (Free-Form 3D)
 * **No Grids:** The game uses free movement on a 3D plane. Do not use hex, square, or grid-based math. 
@@ -16,6 +17,7 @@ You are an expert Godot 4.4 architect assisting with the development of "COBALT,
 ## 3. Stateless Processors
 * Managers and rule resolvers (combat calculations, action point validation, inventory sorting) must remain isolated and stateless. 
 * They should take a `Resource`, `Vector3`, or `Node` as input, perform the logic, and return a result or emit an event. They must not store active game state.
+* Mutable workflows such as editors, undo/redo, staged generation, or active selections must use explicit state containers (`Resource` or narrowly scoped context objects). Stateless processors operate on those containers; scene controllers coordinate commits, redraws, and events.
 
 ## 4. Visuals & Scale
 * **Scale:** 1 Godot Unit = 1 Meter.

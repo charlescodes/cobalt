@@ -1,8 +1,8 @@
 # COBALT Decisions
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
-Purpose: preserve durable project decisions and known follow-up work across long Codex sessions. Treat `ARCHITECTURE.md` as the project law; this file records current accepted architecture choices and regression guards.
+Purpose: preserve durable project decisions and known follow-up work across long Codex sessions. Treat `ARCHITECTURE.md` as the project law; this file records current accepted architecture choices and regression guards. Treat `COBALT_DSL.md` as the compact planning/context DSL for backlog funneling, node-role portability, and pre-coding decomposition.
 
 ## Current State
 
@@ -15,6 +15,12 @@ Runtime source of truth:
 - `res://scenes/main.tscn` is the playable blockout scene.
 - `res://data/maps/main_blockout_map.tres` is the current authored sample map.
 - `EventBus` is the only autoload and is configured in `res://project.godot`.
+
+## Boundary Rules
+
+- Prefer typed COBALT APIs for owned systems: `class_name` resources, stateless processors, and scene adapters. Use duck typing and node groups at composition/plugin/scene edges where a hard type would over-couple nodes.
+- Use `EventBus` for domain-level gameplay events. Keep UI button flow, hover visuals, editor panel/tool wiring, and parent-child adapter coordination local through typed references, NodePaths, or local signal connections.
+- Stateless processors may operate on explicit mutable state containers for workflows that need state, such as runtime editors, undo/redo history, staged generation, or active selections. The container owns the state; processors own the rules; controllers coordinate commits and redraws.
 
 ## Key Architectural Decisions
 
@@ -55,10 +61,12 @@ Runtime source of truth:
 
 - BSP debug mode is runtime-only. `BspDebugMapController` generates `_generated_bsp_data` from parameter inputs, swaps it into `MapLoader`, and restores the authored map when debug mode is disabled.
 - Manual BSP edits mutate only the current generated BSP data. Changing seed/parameters or regenerating the debug map discards manual room and door edits.
-- `BspRoomProcessor` remains the stateless rule surface for BSP edit geometry: room lookup, nearest side selection, 1m door snapping, generated-door protection, and shared split resizing.
+- `BspRoomProcessor` remains the stateless rule surface for BSP edit geometry: room lookup, nearest side selection, 10cm editor snapping for doors/splits, generated-door protection, and shared split resizing.
 - `LevelEditorController` is the generic scene coordinator for editor input. It uses ground-plane camera projection, syncs panel edit-mode ids, and dispatches continuous `Vector3` hits to the active `EditorTool`.
 - BSP editor behavior is registered through `BspLevelEditorToolProvider`. `BspRoomSelectTool`, `BspDoorTool`, and `BspResizeTool` own Select/Door/Resize behavior; BSP structural rules must not live in `LevelEditorController`.
-- `BspDebugPanel` owns the edit mode controls. Select mode chooses a room, Door mode toggles manual doors for the selected room, and Resize mode drags shared BSP split walls in 1m increments.
+- `BspDebugPanel` owns the edit mode controls. Select mode chooses a room, Door mode toggles manual doors for the locked room context, and Resize mode drags shared BSP split walls in 10cm increments.
+- Door and Resize modes enforce a modal active room context. Clicking outside the locked room context or pressing cancel clears the context before a different room can be selected.
+- `BspResizeTool` publishes hovered resizable split/wall targets to `NavigationDebugOverlay`, which renders a visual-only hover primitive.
 - Generated default doors and the generated exterior exit are protected from Door-mode removal. Manual doors are marked with `BspDoor.is_manual` and can be removed by clicking them again.
 - Resizing moves a shared BSP split, not an isolated room rectangle. Resize attempts that would violate `min_room_size_m` are rejected.
 - After accepted edits, BSP editor tools commit through `BspDebugMapController`, which recompiles to `MapData`, reloads the generated map, rebakes navigation, and refreshes `NavigationDebugOverlay`.
@@ -69,6 +77,7 @@ Runtime source of truth:
 - Context-sensitive snapping, such as nearest wall-segment projection or slope/elevation adjustment, belongs in `EditorSnappingResolver.snap_with_context()` or related stateless helpers.
 - `EditorTool` implementations opt into snap-grid visualization with `uses_snapping_grid()`, `get_snapping_step()`, and `get_snapping_context()`. `LevelEditorController` may render the visual preview, but it still dispatches raw continuous hit positions to tools.
 - `NavigationDebugOverlay` may draw the subtle editor snap point cloud around the snapped cursor for active placement tools. It must remain visual-only and must not become a placement rule surface.
+- BSP resize hover highlights are also visual-only. They preview which split/wall target the active tool will use, but the rule decision remains in `BspRoomProcessor` and the active editor tool.
 
 ### Movement Validation
 
@@ -122,6 +131,63 @@ These are intentional gaps, not regressions from the refactor:
 - `EventBus.movement_step_reached` still exists but is not currently emitted by the continuous nav movement flow.
 - Failed movement reasons are emitted, but there is no player-facing invalid-destination feedback yet.
 - Native navigation baking is local/simple; broader map streaming or multi-region navigation is not designed yet.
+
+## Backlog Funnels
+
+Use these buckets to decorate future backlog items so later context windows can move into pre-coding faster.
+
+### BUG / Regression
+
+Current or likely broken behavior that should be fixed before adding new surface area:
+
+- Movement failure reasons are emitted but not visible to the player.
+- Invalid destination targeting has debug markers but no player-facing feedback contract yet.
+- `EventBus.movement_step_reached` exists but is unused by the continuous movement flow.
+
+### ARCH-DEBT / Architecture Misstep
+
+Design drift that can create compounding debt if left unbounded:
+
+- Do not let BSP/debug editor rules migrate from `BspRoomProcessor` into `LevelEditorController` or UI panels.
+- Keep editor snap overlays visual-only; committed geometry must keep using stateless snapping/rule helpers.
+- Runtime BSP edits are intentionally volatile. Before treating the BSP editor as production authoring, define persistence through resources or a manual override layer instead of controller state.
+- `NavigationDebugOverlay` is accumulating path, BSP, route, snap, and editor-hover rendering responsibilities; split only when responsibilities start blocking changes or tests.
+
+### FOUNDATION / Implementation Infrastructure
+
+Infrastructure that improves feature velocity or reproducibility without directly changing player-facing behavior:
+
+- Add a fixture-driven headless scenario runner before broadening movement, editor, or combat scenario coverage.
+- Define a mutable editor state-container pattern before implementing undo/redo or persistent BSP editing.
+- Tighten typed boundaries for owned COBALT systems while keeping duck-typed fallbacks at scene/composition edges.
+- Keep deterministic file/resource fixtures as the default test corpus before considering a portable database for generated cases or telemetry.
+
+### REGRESSION-GUARD / Refactor
+
+Tests or refactors that protect existing contracts:
+
+- Keep coverage that deleted grid/pathfinder/animator code stays deleted.
+- Keep coverage for 10cm editor snapping matching committed BSP door and split geometry.
+- Add focused coverage when invalid movement feedback becomes player-facing.
+- Add a small node-role glossary before changing main scene node types or replacing major scene adapters.
+
+### FEATURE / Gameplay Or Authoring
+
+Player-facing or authoring work that is not yet implemented:
+
+- Visible move-target preview, invalid destination marker, and movement failure messaging.
+- Occupancy/reservation resolver so actors cannot stop on occupied destinations.
+- Movement range/action-point rules before combat movement costs.
+- Combat, dialogue, quests, inventory, party management, saves, AI behavior, and content authoring workflows.
+
+### ORG / Preferred Organization
+
+Lower-risk organization that improves portability and future context quality:
+
+- Keep `COBALT_DSL.md` updated with canonical node roles, backlog tags, and subsystem funnels.
+- Introduce stable node-role names before new systems depend on concrete Godot node classes.
+- Keep `PROJECT_STRUCTURE.md` in sync whenever scripts, scenes, tests, or resources move.
+- Prefer one focused test suite per subsystem or feature funnel.
 
 ## Watch Items
 
