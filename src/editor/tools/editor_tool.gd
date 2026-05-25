@@ -16,6 +16,9 @@ func on_left_click_down(_raycast_hit: Vector3, _modifiers: Dictionary) -> void:
 func on_left_click_up(_raycast_hit: Vector3, _modifiers: Dictionary) -> void:
 	pass
 
+func on_cancel(_modifiers: Dictionary) -> void:
+	pass
+
 func draw_overlay(_overlay_node: Control) -> void:
 	pass
 

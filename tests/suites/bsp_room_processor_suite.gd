@@ -96,11 +96,34 @@ func run(ctx) -> bool:
 	var duplicate_result := _attempt_generated_door_duplicate(duplicate_data)
 	if bool(duplicate_result.get("ok", false)):
 		return ctx.fail("BSP manual door placement should reject generated-door overlap.")
+	var fine_door_data := BspRoomProcessorScript.generate(data)
+	var fine_door_result := _add_first_fine_manual_door(fine_door_data)
+	if not bool(fine_door_result.get("ok", false)):
+		return ctx.fail("BSP manual door placement did not accept a valid 10cm offset.")
+	if not _is_tenth_meter_distance(
+		fine_door_result.get("start", Vector3.ZERO) as Vector3,
+		fine_door_result.get("position", Vector3.ZERO) as Vector3
+	):
+		return ctx.fail("BSP manual door placement did not snap the wall offset to 10cm.")
+	if _is_meter_distance(
+		fine_door_result.get("start", Vector3.ZERO) as Vector3,
+		fine_door_result.get("position", Vector3.ZERO) as Vector3
+	):
+		return ctx.fail("BSP manual door placement is still snapping offsets to whole meters.")
 
 	var resize_data := BspRoomProcessorScript.generate(data)
 	var resize_result := _resize_first_shared_side(resize_data)
 	if not bool(resize_result.get("ok", false)):
 		return ctx.fail("BSP shared split resize did not find a valid 1m move.")
+	var fine_resize_data := BspRoomProcessorScript.generate(data)
+	var fine_resize_result := _resize_first_shared_side_by_delta(fine_resize_data, 0.3)
+	if not bool(fine_resize_result.get("ok", false)):
+		return ctx.fail("BSP shared split resize did not accept a valid 10cm move.")
+	var fine_split_position := float(fine_resize_result.get("split_position", INF))
+	if not _is_tenth_meter_scalar(fine_split_position):
+		return ctx.fail("BSP shared split resize did not snap split position to 10cm.")
+	if _is_meter_scalar(fine_split_position):
+		return ctx.fail("BSP shared split resize is still snapping split positions to whole meters.")
 	var wide_pick_data := BspRoomProcessorScript.generate(data)
 	var wide_pick_result := _pick_first_shared_side_from_offset_position(wide_pick_data)
 	if not bool(wide_pick_result.get("ok", false)):
@@ -224,6 +247,38 @@ func _attempt_generated_door_duplicate(data: BspModuleDataScript) -> Dictionary:
 
 	return {"ok": false, "reason": &"no_generated_door"}
 
+func _add_first_fine_manual_door(data: BspModuleDataScript) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if not bool(side_info.get("ok", false)):
+				continue
+
+			var start := side_info.get("start", Vector3.ZERO) as Vector3
+			var end := side_info.get("end", Vector3.ZERO) as Vector3
+			var direction := end - start
+			direction.y = 0.0
+			var length := direction.length()
+			if length <= data.door_width_m + 0.4:
+				continue
+
+			direction = direction.normalized()
+			for offset_m in [1.3, 1.7, 2.3, length - 1.3, length - 1.7]:
+				if offset_m <= data.door_width_m * 0.5 or offset_m >= length - (data.door_width_m * 0.5):
+					continue
+
+				var result := BspRoomProcessorScript.toggle_manual_door_at_position(
+					data,
+					room.id,
+					start + (direction * offset_m)
+				)
+				if bool(result.get("ok", false)) and result.get("action", &"") == &"added":
+					result["start"] = start
+					result["room_id"] = room.id
+					return result
+
+	return {"ok": false}
+
 func _resize_first_shared_side(data: BspModuleDataScript) -> Dictionary:
 	for room in data.rooms:
 		for side in [&"north", &"east", &"south", &"west"]:
@@ -237,6 +292,25 @@ func _resize_first_shared_side(data: BspModuleDataScript) -> Dictionary:
 					target.x += delta
 				else:
 					target.z += delta
+				var result := BspRoomProcessorScript.resize_room_side_to_position(data, room.id, side, target)
+				if bool(result.get("ok", false)):
+					return result
+
+	return {"ok": false}
+
+func _resize_first_shared_side_by_delta(data: BspModuleDataScript, delta_m: float) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if not bool(side_info.get("ok", false)) or bool(side_info.get("is_perimeter", false)):
+				continue
+			var center := side_info.get("position", room.center_position()) as Vector3
+			for sign in [1.0, -1.0]:
+				var target := center
+				if int(side_info.get("axis", -1)) == BspRoomProcessorScript.SPLIT_X:
+					target.x += delta_m * sign
+				else:
+					target.z += delta_m * sign
 				var result := BspRoomProcessorScript.resize_room_side_to_position(data, room.id, side, target)
 				if bool(result.get("ok", false)):
 					return result
@@ -308,3 +382,15 @@ func _side_endpoint_position(room: BspModuleDataScript.BspRoom, side: StringName
 			return Vector3(room.bounds.position.x, 0.0, room.bounds.end.y)
 		_:
 			return Vector3(room.bounds.end.x, 0.0, room.bounds.end.y)
+
+func _is_tenth_meter_scalar(value: float) -> bool:
+	return absf(value - snappedf(value, 0.1)) <= 0.001
+
+func _is_meter_scalar(value: float) -> bool:
+	return absf(value - snappedf(value, 1.0)) <= 0.001
+
+func _is_tenth_meter_distance(start: Vector3, position: Vector3) -> bool:
+	return _is_tenth_meter_scalar(start.distance_to(position))
+
+func _is_meter_distance(start: Vector3, position: Vector3) -> bool:
+	return _is_meter_scalar(start.distance_to(position))

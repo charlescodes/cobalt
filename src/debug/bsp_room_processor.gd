@@ -2,6 +2,7 @@ class_name BspRoomProcessor
 extends RefCounted
 
 const BspModuleDataScript := preload("res://src/debug/bsp_module_data.gd")
+const EditorSnappingResolverScript := preload("res://src/editor/editor_snapping_resolver.gd")
 const GroundDataScript := preload("res://src/maps/ground_data.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const WallSegmentDataScript := preload("res://src/walls/wall_segment_data.gd")
@@ -11,7 +12,7 @@ const SPLIT_X: int = 0
 const SPLIT_Z: int = 1
 const EPSILON: float = 0.001
 const SPLIT_STEP_M: float = 0.5
-const EDIT_SNAP_M: float = 1.0
+const EDIT_SNAP_M: float = EditorSnappingResolverScript.DEFAULT_STEP_M
 const SIDE_PICK_DISTANCE_M: float = 0.75
 const PERIMETER_NORTH: StringName = &"perimeter_north"
 const PERIMETER_EAST: StringName = &"perimeter_east"
@@ -123,6 +124,37 @@ static func nearest_resizable_room_side(
 			if distance < best_distance:
 				best = candidate
 				best_distance = distance
+
+	if best.is_empty() or best_distance > max_distance_m:
+		return _failure_result(&"side_not_found")
+
+	best["ok"] = true
+	return best
+
+static func nearest_resizable_room_side_for_room(
+	data: BspModuleDataScript,
+	room_id: StringName,
+	position: Vector3,
+	max_distance_m: float = SIDE_PICK_DISTANCE_M
+) -> Dictionary:
+	var source := _generated_source(data)
+	var room := _room_by_id(source, room_id)
+	if room == null:
+		return _failure_result(&"room_not_found")
+
+	var best := {}
+	var best_distance := INF
+	for side in [&"north", &"east", &"south", &"west"]:
+		var candidate := _room_side_result(source, room, side, position)
+		if (candidate.get("partition_id", &"") as StringName) == &"":
+			continue
+		if bool(candidate.get("is_perimeter", false)):
+			continue
+
+		var distance := float(candidate.get("distance_m", INF))
+		if distance < best_distance:
+			best = candidate
+			best_distance = distance
 
 	if best.is_empty() or best_distance > max_distance_m:
 		return _failure_result(&"side_not_found")
@@ -386,16 +418,24 @@ static func _room_side_result(
 	var closest := _closest_point_on_segment_2d(position, start, end)
 	var partition_id := _partition_id_for_room_side(data, room, side)
 	var is_perimeter := _is_perimeter_id(partition_id)
-	return {
+	var result := {
 		"ok": false,
 		"room_id": room.id,
 		"side": side,
 		"partition_id": partition_id,
 		"is_perimeter": is_perimeter,
+		"start": start,
+		"end": end,
 		"position": closest,
 		"distance_m": _distance_2d(position, closest),
 		"axis": SPLIT_X if side == &"east" or side == &"west" else SPLIT_Z,
 	}
+	var partition := _partition_by_id(data, partition_id)
+	if partition != null:
+		result["partition_start"] = partition.start_position
+		result["partition_end"] = partition.end_position
+
+	return result
 
 static func _room_side_segment(
 	room: BspModuleDataScript.BspRoom,

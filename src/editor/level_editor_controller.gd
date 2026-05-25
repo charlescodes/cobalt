@@ -41,6 +41,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			_active_tool.deactivate()
 		return
 
+	if _is_deselect_event(event):
+		if _active_tool != null:
+			_active_tool.on_cancel(_modifiers_from_event(event))
+		_clear_editor_snap_overlay()
+		_mark_input_handled()
+		return
+
 	if event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		var motion_position: Variant = _ground_point_from_screen(motion.position)
@@ -201,6 +208,20 @@ func _modifiers_from_event(event: InputEvent) -> Dictionary:
 func _should_capture_mouse_motion(modifiers: Dictionary) -> bool:
 	var button_mask := int(modifiers.get(&"button_mask", 0))
 	return (button_mask & MOUSE_BUTTON_MASK_LEFT) != 0
+
+func _is_deselect_event(event: InputEvent) -> bool:
+	if not (event is InputEventKey):
+		return false
+
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return false
+	if key_event.keycode == KEY_ESCAPE:
+		return true
+	if InputMap.has_action(&"ui_cancel") and event.is_action_pressed(&"ui_cancel"):
+		return true
+
+	return false
 
 func _update_editor_snap_overlay(raw_position: Vector3, modifiers: Dictionary) -> void:
 	if _active_tool == null or not _active_tool.uses_snapping_grid():

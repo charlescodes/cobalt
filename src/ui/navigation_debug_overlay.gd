@@ -8,6 +8,7 @@ const PATH_ROOT_NAME: StringName = &"PathDebug"
 const MARKER_ROOT_NAME: StringName = &"MarkerDebug"
 const BSP_ROOT_NAME: StringName = &"BspInterestDebug"
 const EDITOR_SNAP_ROOT_NAME: StringName = &"EditorSnapDebug"
+const BSP_EDITOR_HOVER_ROOT_NAME: StringName = &"BspEditorHoverDebug"
 const PATH_LINE_NAME: StringName = &"PathLine"
 const DESTINATION_MARKER_NAME: StringName = &"DestinationMarker"
 const FAILURE_MARKER_NAME: StringName = &"FailureMarker"
@@ -15,6 +16,7 @@ const DRAW_Y_OFFSET_M: float = 0.06
 const BSP_DRAW_Y_OFFSET_M: float = 0.08
 const BSP_ROUTE_Y_OFFSET_M: float = 0.14
 const EDITOR_SNAP_DRAW_Y_OFFSET_M: float = 0.16
+const BSP_HOVER_DRAW_Y_OFFSET_M: float = 0.22
 
 @export var waypoint_radius_m: float = 0.08
 @export var destination_radius_m: float = 0.12
@@ -28,6 +30,7 @@ var _path_root: Node3D
 var _marker_root: Node3D
 var _bsp_root: Node3D
 var _editor_snap_root: Node3D
+var _bsp_editor_hover_root: Node3D
 var _bsp_data: BspModuleDataScript
 var _selected_bsp_room_id: StringName = &""
 var _last_requested_position: Vector3 = Vector3.ZERO
@@ -39,6 +42,7 @@ func _ready() -> void:
 	_marker_root = _get_or_create_root(MARKER_ROOT_NAME)
 	_bsp_root = _get_or_create_root(BSP_ROOT_NAME)
 	_editor_snap_root = _get_or_create_root(EDITOR_SNAP_ROOT_NAME)
+	_bsp_editor_hover_root = _get_or_create_root(BSP_EDITOR_HOVER_ROOT_NAME)
 	_connect_events()
 
 func set_bsp_debug_data(data: BspModuleDataScript) -> void:
@@ -51,6 +55,7 @@ func clear_bsp_debug_data() -> void:
 	_bsp_data = null
 	_selected_bsp_room_id = &""
 	_clear_bsp_interest_debug()
+	clear_bsp_editor_hover_segment()
 
 func set_selected_bsp_room_id(room_id: StringName) -> void:
 	if _selected_bsp_room_id == room_id:
@@ -68,6 +73,8 @@ func set_bsp_interest_visible(is_visible: bool) -> void:
 
 	show_bsp_interest_debug = is_visible
 	_redraw_bsp_interest_debug()
+	if not show_bsp_interest_debug:
+		clear_bsp_editor_hover_segment()
 
 func set_bsp_exit_route_visible(is_visible: bool) -> void:
 	if show_bsp_exit_route == is_visible:
@@ -97,6 +104,38 @@ func clear_editor_snap_grid() -> void:
 	if _editor_snap_root == null:
 		_editor_snap_root = _get_or_create_root(EDITOR_SNAP_ROOT_NAME)
 	for child in _editor_snap_root.get_children():
+		child.free()
+
+func set_bsp_editor_hover_segment(target: Dictionary) -> void:
+	clear_bsp_editor_hover_segment()
+	if target.is_empty():
+		return
+	if not show_bsp_interest_debug:
+		return
+
+	var start_value: Variant = target.get(&"start")
+	var end_value: Variant = target.get(&"end")
+	if not (start_value is Vector3) or not (end_value is Vector3):
+		return
+
+	if _bsp_editor_hover_root == null:
+		_bsp_editor_hover_root = _get_or_create_root(BSP_EDITOR_HOVER_ROOT_NAME)
+
+	var segment := _new_segment_bar(
+		"HoverSegment",
+		start_value as Vector3,
+		end_value as Vector3,
+		0.14,
+		0.045,
+		Color(0.08, 1.0, 0.9, 0.95),
+		BSP_HOVER_DRAW_Y_OFFSET_M
+	)
+	_bsp_editor_hover_root.add_child(segment)
+
+func clear_bsp_editor_hover_segment() -> void:
+	if _bsp_editor_hover_root == null:
+		_bsp_editor_hover_root = _get_or_create_root(BSP_EDITOR_HOVER_ROOT_NAME)
+	for child in _bsp_editor_hover_root.get_children():
 		child.free()
 
 func _on_move_requested(_actor: Node, _actor_data: Resource, destination_data: Resource) -> void:

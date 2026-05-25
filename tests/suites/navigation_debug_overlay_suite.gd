@@ -67,6 +67,18 @@ func run(ctx) -> bool:
 	if snap_root == null or snap_root.get_child_count() != 0:
 		overlay.free()
 		return ctx.fail("NavigationDebugOverlay did not clear the editor snapping point cloud.")
+	overlay.set_bsp_editor_hover_segment({
+		&"start": Vector3(0.0, 0.0, 0.0),
+		&"end": Vector3(1.5, 0.0, 0.0),
+	})
+	if overlay.get_node_or_null("BspEditorHoverDebug/HoverSegment") as MeshInstance3D == null:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay did not draw the BSP editor hover segment.")
+	overlay.clear_bsp_editor_hover_segment()
+	var hover_root := overlay.get_node_or_null("BspEditorHoverDebug") as Node3D
+	if hover_root == null or hover_root.get_child_count() != 0:
+		overlay.free()
+		return ctx.fail("NavigationDebugOverlay did not clear the BSP editor hover segment.")
 
 	var destination_data := MoveTargetDataScript.new(Vector3(1.5, 0.0, 1.0))
 	root_event_bus.emit_signal(&"move_requested", overlay, null, destination_data)

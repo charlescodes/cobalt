@@ -12,8 +12,16 @@ func _init(context: BspEditorContextScript = null) -> void:
 func set_context(context: BspEditorContextScript) -> void:
 	_context = context
 
+func activate(_editor_controller: Node) -> void:
+	if _context != null:
+		_context.unlock_selection_context()
+
 func on_left_click_down(raycast_hit: Vector3, _modifiers: Dictionary) -> void:
 	select_room_at_position(raycast_hit)
+
+func on_cancel(_modifiers: Dictionary) -> void:
+	if _context != null:
+		_context.clear_selection_context()
 
 func select_room_at_position(position: Vector3) -> bool:
 	if _context == null:
@@ -21,12 +29,12 @@ func select_room_at_position(position: Vector3) -> bool:
 
 	var data := _context.current_bsp_data()
 	if data == null:
-		_context.set_selected_room_id(&"")
+		_context.clear_selection_context()
 		return false
 
 	var room := BspRoomProcessorScript.room_at_position(data, position)
 	if room == null:
-		_context.set_selected_room_id(&"")
+		_context.clear_selection_context()
 		return false
 
 	_context.set_selected_room_id(room.id)

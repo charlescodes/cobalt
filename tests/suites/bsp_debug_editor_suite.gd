@@ -113,6 +113,23 @@ func run(ctx) -> bool:
 			main.free()
 			return ctx.fail("BSP debug editor resize produced a room below minimum depth.")
 
+	var hover_error := _verify_resize_hover_highlight(select_tool, resize_tool, controller, overlay)
+	if hover_error != "":
+		main.free()
+		return ctx.fail(hover_error)
+	var resize_lock_error := _verify_modal_resize_locking(select_tool, resize_tool, panel, controller, overlay)
+	if resize_lock_error != "":
+		main.free()
+		return ctx.fail(resize_lock_error)
+	var door_lock_error := _verify_modal_door_locking(select_tool, door_tool, panel, controller, overlay)
+	if door_lock_error != "":
+		main.free()
+		return ctx.fail(door_lock_error)
+	var deselect_error := _verify_deselect_key_unlock(editor, select_tool, panel, controller, overlay)
+	if deselect_error != "":
+		main.free()
+		return ctx.fail(deselect_error)
+
 	main.free()
 	return true
 
@@ -239,6 +256,114 @@ func _resize_shared_side_with_editor(
 					}
 	return {"ok": false}
 
+func _verify_resize_hover_highlight(
+	select_tool: BspRoomSelectToolScript,
+	resize_tool: BspResizeToolScript,
+	controller: BspDebugMapControllerScript,
+	overlay: NavigationDebugOverlayScript
+) -> String:
+	select_tool.on_cancel({})
+	var side_info := _first_shared_side_info(controller.get_generated_bsp_data())
+	if not bool(side_info.get("ok", false)):
+		return "BSP resize hover test could not find a shared side."
+
+	resize_tool.on_mouse_motion(side_info.get("position", Vector3.ZERO) as Vector3, {})
+	if overlay.get_node_or_null("BspEditorHoverDebug/HoverSegment") == null:
+		return "BSP resize tool did not draw a wall hover highlight."
+
+	resize_tool.on_mouse_motion(Vector3(100.0, 0.0, 100.0), {})
+	if overlay.get_node_or_null("BspEditorHoverDebug/HoverSegment") != null:
+		return "BSP resize tool did not clear the wall hover highlight after leaving the wall."
+
+	return ""
+
+func _verify_modal_resize_locking(
+	select_tool: BspRoomSelectToolScript,
+	resize_tool: BspResizeToolScript,
+	panel: BspDebugPanelScript,
+	controller: BspDebugMapControllerScript,
+	overlay: NavigationDebugOverlayScript
+) -> String:
+	var data := controller.get_generated_bsp_data()
+	if data.rooms.size() < 2:
+		return "BSP modal resize lock test needs at least two rooms."
+
+	var locked_room := data.rooms[0]
+	var other_room := _different_room(data, locked_room.id)
+	if other_room == null:
+		return "BSP modal resize lock test could not find a different room."
+
+	panel.set_edit_mode(BspDebugPanelScript.MODE_SELECT)
+	select_tool.select_room_at_position(locked_room.center_position())
+	panel.set_edit_mode(BspDebugPanelScript.MODE_RESIZE)
+	if overlay.get_selected_bsp_room_id() != locked_room.id:
+		return "BSP resize mode did not preserve the active room selection."
+
+	resize_tool.begin_resize_at_position(other_room.center_position())
+	if overlay.get_selected_bsp_room_id() != &"":
+		return "BSP resize mode switched rooms or dragged the locked room instead of unlocking first."
+
+	return ""
+
+func _verify_modal_door_locking(
+	select_tool: BspRoomSelectToolScript,
+	door_tool: BspDoorToolScript,
+	panel: BspDebugPanelScript,
+	controller: BspDebugMapControllerScript,
+	overlay: NavigationDebugOverlayScript
+) -> String:
+	var data := controller.get_generated_bsp_data()
+	if data.rooms.size() < 2:
+		return "BSP modal door lock test needs at least two rooms."
+
+	var locked_room := data.rooms[0]
+	var other_room := _different_room(data, locked_room.id)
+	if other_room == null:
+		return "BSP modal door lock test could not find a different room."
+
+	panel.set_edit_mode(BspDebugPanelScript.MODE_SELECT)
+	select_tool.select_room_at_position(locked_room.center_position())
+	panel.set_edit_mode(BspDebugPanelScript.MODE_DOOR)
+	if overlay.get_selected_bsp_room_id() != locked_room.id:
+		return "BSP door mode did not preserve the active room selection."
+
+	door_tool.on_left_click_down(other_room.center_position(), {})
+	if overlay.get_selected_bsp_room_id() != &"":
+		return "BSP door mode switched rooms instead of unlocking first."
+
+	door_tool.on_left_click_down(other_room.center_position(), {})
+	if overlay.get_selected_bsp_room_id() != other_room.id:
+		return "BSP door mode did not lock a new room after the prior context was unlocked."
+
+	return ""
+
+func _verify_deselect_key_unlock(
+	editor: LevelEditorControllerScript,
+	select_tool: BspRoomSelectToolScript,
+	panel: BspDebugPanelScript,
+	controller: BspDebugMapControllerScript,
+	overlay: NavigationDebugOverlayScript
+) -> String:
+	var data := controller.get_generated_bsp_data()
+	if data.rooms.is_empty():
+		return "BSP deselect key test needs at least one room."
+
+	var locked_room := data.rooms[0]
+	panel.set_edit_mode(BspDebugPanelScript.MODE_SELECT)
+	select_tool.select_room_at_position(locked_room.center_position())
+	panel.set_edit_mode(BspDebugPanelScript.MODE_RESIZE)
+	if overlay.get_selected_bsp_room_id() != locked_room.id:
+		return "BSP deselect key test did not enter resize mode with an active room."
+
+	var key_event := InputEventKey.new()
+	key_event.keycode = KEY_ESCAPE
+	key_event.pressed = true
+	editor._unhandled_input(key_event)
+	if overlay.get_selected_bsp_room_id() != &"":
+		return "BSP deselect key did not clear the active room context."
+
+	return ""
+
 func _first_manual_door(data: BspModuleDataScript) -> BspModuleDataScript.BspDoor:
 	for door in data.doors:
 		if door.is_manual:
@@ -250,6 +375,23 @@ func _room_by_id(data: BspModuleDataScript, room_id: StringName) -> BspModuleDat
 		if room.id == room_id:
 			return room
 	return null
+
+func _different_room(
+	data: BspModuleDataScript,
+	room_id: StringName
+) -> BspModuleDataScript.BspRoom:
+	for room in data.rooms:
+		if room.id != room_id:
+			return room
+	return null
+
+func _first_shared_side_info(data: BspModuleDataScript) -> Dictionary:
+	for room in data.rooms:
+		for side in [&"north", &"east", &"south", &"west"]:
+			var side_info := BspRoomProcessorScript.room_side_info(data, room.id, side)
+			if bool(side_info.get("ok", false)) and not bool(side_info.get("is_perimeter", false)):
+				return side_info
+	return {"ok": false}
 
 func _door_candidate_positions(room: BspModuleDataScript.BspRoom, side: StringName) -> Array[Vector3]:
 	var positions: Array[Vector3] = []
