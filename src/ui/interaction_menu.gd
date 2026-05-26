@@ -10,6 +10,7 @@ var _has_pointer_capture: bool = false
 func _ready() -> void:
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	z_index = 40
 	_configure_style()
 	_ensure_layout()
 	var event_bus := _get_event_bus()

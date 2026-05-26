@@ -1,7 +1,26 @@
 extends Node
 
+const EVENT_SIGNAL_NAMES: Array[StringName] = [
+	&"hover_target_changed",
+	&"interaction_menu_requested",
+	&"interaction_inspector_requested",
+	&"interaction_action_requested",
+	&"interaction_pointer_capture_changed",
+	&"interaction_ui_cancel_requested",
+	&"interaction_targeting_started",
+	&"interaction_targeting_cancelled",
+	&"interaction_targeting_failed",
+	&"move_requested",
+	&"movement_started",
+	&"movement_step_reached",
+	&"movement_completed",
+	&"movement_failed",
+	&"examined_output",
+]
+
 signal hover_target_changed(target: Node)
 signal interaction_menu_requested(target: Node, screen_position: Vector2)
+signal interaction_inspector_requested(target: Node, screen_position: Vector2)
 signal interaction_action_requested(target: Node, action_id: StringName)
 signal interaction_pointer_capture_changed(is_captured: bool)
 signal interaction_ui_cancel_requested()
@@ -14,3 +33,6 @@ signal movement_step_reached(actor: Node, destination_data: Resource)
 signal movement_completed(actor: Node, destination_data: Resource)
 signal movement_failed(actor: Node, destination_data: Resource, reason: StringName)
 signal examined_output(target_domain: StringName, target_data: Resource, output: Dictionary)
+
+func get_event_signal_names() -> Array[StringName]:
+	return EVENT_SIGNAL_NAMES.duplicate()

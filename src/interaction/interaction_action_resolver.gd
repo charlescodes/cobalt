@@ -2,6 +2,7 @@ class_name InteractionActionResolver
 extends RefCounted
 
 const ACTION_EXAMINE: StringName = &"examine"
+const ACTION_INSPECT: StringName = &"inspect"
 const ACTION_MOVE: StringName = &"move"
 const DOMAIN_MOVE_TARGET: StringName = &"move_target"
 const DOMAIN_WORLD_OBJECT: StringName = &"world_object"
@@ -11,6 +12,12 @@ static func get_actions(target: Node) -> Array[Dictionary]:
 	var actions: Array[Dictionary] = []
 	if not _is_enabled_target(target):
 		return actions
+
+	if can_inspect(target):
+		actions.append({
+			"id": ACTION_INSPECT,
+			"label": "Inspect",
+		})
 
 	if _get_domain(target) == DOMAIN_WORLD_OBJECT:
 		if _is_player_character(target):
@@ -25,6 +32,12 @@ static func get_actions(target: Node) -> Array[Dictionary]:
 		})
 
 	return actions
+
+static func can_inspect(target: Node) -> bool:
+	if not _is_enabled_target(target):
+		return false
+
+	return _get_domain(target) != &"" or _get_data(target) != null
 
 static func can_examine(target: Node) -> bool:
 	if not _is_enabled_target(target):

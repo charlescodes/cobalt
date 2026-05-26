@@ -5,6 +5,7 @@ const InteractionControllerScript := preload("res://src/interaction/interaction_
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const InteractionLogPanelScript := preload("res://src/ui/interaction_log_panel.gd")
+const ObjectInspectorPanelScript := preload("res://src/ui/object_inspector_panel.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
@@ -41,9 +42,11 @@ func run(ctx) -> bool:
 	var interaction_ui := main.get_node_or_null("InteractionUI") as CanvasLayer
 	var interaction_menu: InteractionMenuScript
 	var interaction_log_panel: InteractionLogPanelScript
+	var object_inspector_panel: ObjectInspectorPanelScript
 	if interaction_ui != null:
 		interaction_menu = interaction_ui.get_node_or_null("InteractionMenu") as InteractionMenuScript
 		interaction_log_panel = interaction_ui.get_node_or_null("InteractionLogPanel") as InteractionLogPanelScript
+		object_inspector_panel = interaction_ui.get_node_or_null("ObjectInspectorPanel") as ObjectInspectorPanelScript
 	var navigation_region := main.get_node_or_null("NavigationRegion3D") as NavigationRegion3D
 	var generated_map: Node3D
 	var main_pc: BlockoutObjectViewScript
@@ -58,6 +61,7 @@ func run(ctx) -> bool:
 		or interaction_controller == null
 		or interaction_menu == null
 		or interaction_log_panel == null
+		or object_inspector_panel == null
 		or main_pc == null
 		or main_npc == null
 		or navigation_region == null
@@ -67,6 +71,7 @@ func run(ctx) -> bool:
 	interaction_controller._ready()
 	interaction_menu._ready()
 	interaction_log_panel._ready()
+	object_inspector_panel._ready()
 
 	var pc_target := main_pc.get_node_or_null("InteractionTarget") as InteractionTargetScript
 	var npc_target := main_npc.get_node_or_null("InteractionTarget") as InteractionTargetScript
@@ -143,6 +148,12 @@ func run(ctx) -> bool:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Player hover highlight was not cleared after hovering the NPC.")
 	if main_npc.get_node_or_null("Body/HoverShell") == null:
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "NPC hover did not apply a highlight shell.")
+	interaction_controller._request_inspector_for_current_target(camera.unproject_position(npc_hover_position))
+	await ctx.tree.process_frame
+	if not object_inspector_panel.visible or object_inspector_panel.get_inspected_target() != npc_target:
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "ObjectInspectorPanel did not open from the hovered NPC target.")
+	if object_inspector_panel.get_rendered_value("object_id") != main_npc.object_data.object_id:
+		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "ObjectInspectorPanel did not render the hovered NPC object id.")
 
 	ctx.warp_mouse_to_world(camera, pc_hover_position)
 	await ctx.tree.process_frame

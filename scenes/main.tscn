@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=19 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
@@ -15,6 +15,8 @@
 [ext_resource type="Script" path="res://src/ui/bsp_debug_panel.gd" id="20_5pwvf"]
 [ext_resource type="Script" path="res://src/editor/level_editor_controller.gd" id="21_6k10p"]
 [ext_resource type="Script" path="res://src/editor/tools/bsp_level_editor_tool_provider.gd" id="22_b6hcg"]
+[ext_resource type="Script" path="res://src/ui/event_bus_panel.gd" id="23_sffsj"]
+[ext_resource type="Script" path="res://src/ui/object_inspector_panel.gd" id="24_pkvw7"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_main"]
 geometry_parsed_geometry_type = 1
@@ -45,6 +47,12 @@ script = ExtResource("7_f8j3g")
 
 [node name="DebugLogPanel" type="PanelContainer" parent="InteractionUI"]
 script = ExtResource("15_f144a")
+
+[node name="EventBusPanel" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("23_sffsj")
+
+[node name="ObjectInspectorPanel" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("24_pkvw7")
 
 [node name="CameraCompass" type="Control" parent="InteractionUI"]
 script = ExtResource("19_6xstn")

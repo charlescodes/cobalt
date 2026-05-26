@@ -4,6 +4,8 @@ const InteractionActionResolverScript := preload("res://src/interaction/interact
 const InteractionControllerScript := preload("res://src/interaction/interaction_controller.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
+const ObjectInspectorPanelScript := preload("res://src/ui/object_inspector_panel.gd")
+const EventBusPanelScript := preload("res://src/ui/event_bus_panel.gd")
 const DebugLogPanelScript := preload("res://src/ui/debug_log_panel.gd")
 const CameraCompassScript := preload("res://src/ui/camera_compass.gd")
 const BspDebugPanelScript := preload("res://src/ui/bsp_debug_panel.gd")
@@ -143,6 +145,20 @@ func run(ctx) -> bool:
 		main.free()
 		return ctx.fail("Main scene is missing InteractionMenu.")
 	main_interaction_menu._ready()
+	var event_bus_panel := interaction_ui.get_node_or_null("EventBusPanel") as EventBusPanelScript
+	if event_bus_panel == null:
+		main.free()
+		return ctx.fail("Main scene is missing EventBusPanel.")
+	if not event_bus_panel.visible:
+		main.free()
+		return ctx.fail("EventBusPanel should be visible as a system monitor.")
+	var object_inspector_panel := interaction_ui.get_node_or_null("ObjectInspectorPanel") as ObjectInspectorPanelScript
+	if object_inspector_panel == null:
+		main.free()
+		return ctx.fail("Main scene is missing ObjectInspectorPanel.")
+	if object_inspector_panel.visible:
+		main.free()
+		return ctx.fail("ObjectInspectorPanel should stay hidden until a target is inspected.")
 	if interaction_ui.get_node_or_null("InteractionLogPanel") == null:
 		main.free()
 		return ctx.fail("Main scene is missing InteractionLogPanel.")
@@ -260,6 +276,9 @@ func run(ctx) -> bool:
 	if main_npc_target == null:
 		main.free()
 		return ctx.fail("NPC did not create an InteractionTarget.")
+	if not ctx.has_action(InteractionActionResolverScript.get_actions(main_npc_target), InteractionActionResolverScript.ACTION_INSPECT):
+		main.free()
+		return ctx.fail("NPC interaction target should expose Inspect.")
 	if ctx.has_action(InteractionActionResolverScript.get_actions(main_npc_target), InteractionActionResolverScript.ACTION_MOVE):
 		main.free()
 		return ctx.fail("NPC interaction target should not expose Move.")

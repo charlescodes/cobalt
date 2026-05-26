@@ -79,6 +79,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 				return
 
+			_request_inspector_for_current_target(mouse_event.position)
+		elif mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 			_request_menu_for_current_target(mouse_event.position)
 
 func clear_hover() -> void:
@@ -219,7 +221,29 @@ func _request_menu_for_current_target(screen_position: Vector2) -> void:
 		event_bus.emit_signal(&"interaction_menu_requested", _current_target, screen_position)
 	get_viewport().set_input_as_handled()
 
+func _request_inspector_for_current_target(screen_position: Vector2) -> void:
+	if _current_target == null or not _current_target.is_interaction_enabled():
+		return
+	if not InteractionActionResolverScript.can_inspect(_current_target):
+		return
+
+	var event_bus := _get_event_bus()
+	if event_bus != null:
+		event_bus.emit_signal(&"interaction_inspector_requested", _current_target, screen_position)
+	get_viewport().set_input_as_handled()
+
 func _handle_interaction_action_requested(target: Node, action_id: StringName) -> void:
+	if action_id == InteractionActionResolverScript.ACTION_INSPECT:
+		if not InteractionActionResolverScript.can_inspect(target):
+			return
+
+		var event_bus := _get_event_bus()
+		if event_bus != null:
+			var viewport := get_viewport()
+			var screen_position: Vector2 = viewport.get_mouse_position() if viewport != null else Vector2.ZERO
+			event_bus.emit_signal(&"interaction_inspector_requested", target, screen_position)
+		return
+
 	if action_id == InteractionActionResolverScript.ACTION_MOVE:
 		start_targeting(target, action_id)
 		return
