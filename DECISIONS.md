@@ -105,6 +105,7 @@ Update this section when a work session ends with meaningful unfinished context.
 Current focus:
 
 - Roadmap planning now centers on an Escape-driven runtime editor mode, editor tools, module libraries, procedural world-map zones, generated local maps, factions, populations, agents, and one-year world history outcomes.
+- Future roadmap scope now explicitly includes map components, procedural structures, sockets, city-block composition, world-map editor tooling, sparse region-scale generation, points of interest, and spawn placement. These are future features, not part of the first local-map editor implementation.
 
 Known state:
 
@@ -117,6 +118,7 @@ Next likely work:
 - Define the `Game`/`Editor` mode controller and Escape dev menu contract.
 - Define the first editor tool contract, probably select/inspect before placement or generation.
 - Define resource schemas for module libraries, placement descriptors, and generator presets.
+- Keep the first editor pass scoped to local map mode switching, save/load, selection, highlighting, and read-only inspection before adding composition, sockets, or generation tools.
 - Introduce richer interactable data once doors, containers, harvestables, or examine profiles need distinct behavior.
 - Add static obstacle data under `src/environment/` when authored blockers are needed beyond wall segments.
 
