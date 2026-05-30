@@ -12,6 +12,7 @@ Runtime source of truth:
 
 - `res://scenes/main.tscn` is the playable blockout scene.
 - `res://data/maps/main_blockout_map.tres` is the current authored sample map.
+- Runtime local-map editor V1 is available through an Escape dev menu in `main.tscn`.
 - `EventBus` is the only autoload and is configured in `res://project.godot`.
 - `WorldObjectData.position: Vector3` is the canonical location for current actor/object data.
 - `MoveTargetData.position: Vector3` carries exact clicked movement destinations.
@@ -28,8 +29,10 @@ Runtime source of truth:
 ### Runtime Scene Shape
 
 - `main.tscn` contains `NavigationRegion3D`, `MapLoader`, `InteractionController`, `MovementController`, `InteractionUI`, `NavigationDebugOverlay`, `DebugOverlayController`, `CameraRig`, and lighting.
+- `main.tscn` also contains runtime editor nodes: `InteractionUI/DevMenu`, `InteractionUI/EditorPanel`, `EditorSelectionController`, and `EditorModeController`.
 - `MapLoader` builds generated map content under the configured `NavigationRegion3D`.
 - `MapBuilder` creates a stable generated subtree: `GeneratedMap/StaticGrounds`, `GeneratedMap/StaticWalls`, and `GeneratedMap/WorldObjects`.
+- `MapBuilder` tags generated grounds, walls, and world objects with editor metadata so editor raycasts can map scene nodes back to source resources.
 - `BlockoutObjectView` composes primitive visuals, an `InteractionTarget`, hover highlighting, and a `NavigationAgent3D` from `WorldObjectData`.
 
 ### Environment and NavMesh Geometry
@@ -61,6 +64,11 @@ Runtime source of truth:
 
 ### Runtime Editor Mode
 
+- Runtime editor V1 is implemented under `src/editor/` as a development surface inside the playable project, not as a Godot `EditorPlugin`.
+- Escape toggles the centered dev menu. The menu switches between `game` and `editor` modes and saves/loads named maps under `res://data/editor_maps/`.
+- Entering editor mode loads an in-memory blank editor map the first time no editor map is active.
+- Editor mode disables gameplay mouse targeting and context-menu input through `InteractionController` while `EditorSelectionController` owns editor selection raycasts.
+- The V1 editor panel exposes one editor tool, `Select/Inspect`, and a read-only inspector for generated grounds, walls, and world objects.
 - The first editor surface should be an in-game development mode reached through an Escape dev menu.
 - This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
 - Game view should keep the current movement, context-menu, hover, and examine behavior.
@@ -111,12 +119,13 @@ Known state:
 
 - Static environment scripts live under `src/environment/`.
 - `src/maps/` remains responsible for map data aggregation, generation, loading, and navmesh rebaking.
+- Runtime editor scripts live under `src/editor/`.
+- `MapLoader.replace_map_data()` is the public rebuild/rebake entrypoint for editor map swaps.
 - Current object/actor data still uses `WorldObjectData`; splitting actors and props is deferred.
 
 Next likely work:
 
-- Define the `Game`/`Editor` mode controller and Escape dev menu contract.
-- Define the first editor tool contract, probably select/inspect before placement or generation.
+- Build on the implemented runtime editor V1 with actual placement/editing tools after selection/save/load has had use.
 - Define resource schemas for module libraries, placement descriptors, and generator presets.
 - Keep the first editor pass scoped to local map mode switching, save/load, selection, highlighting, and read-only inspection before adding composition, sockets, or generation tools.
 - Introduce richer interactable data once doors, containers, harvestables, or examine profiles need distinct behavior.

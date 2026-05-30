@@ -37,6 +37,14 @@ func load_map() -> Node3D:
 		_schedule_navigation_bake()
 	return generated_map
 
+func replace_map_data(next_map_data: MapDataScript, should_rebake_navigation: bool = true) -> Node3D:
+	map_data = next_map_data
+	var previous_bake_setting := bake_navigation_on_load
+	bake_navigation_on_load = should_rebake_navigation
+	var next_generated_map := load_map()
+	bake_navigation_on_load = previous_bake_setting
+	return next_generated_map
+
 func rebake_navigation() -> void:
 	_navigation_bake_pending = false
 	var navigation_region := _resolve_navigation_region()

@@ -14,6 +14,13 @@ const GENERATED_ROOT_NAME: StringName = &"GeneratedMap"
 const STATIC_GROUNDS_NAME: StringName = &"StaticGrounds"
 const STATIC_WALLS_NAME: StringName = &"StaticWalls"
 const WORLD_OBJECTS_NAME: StringName = &"WorldObjects"
+const EDITOR_SOURCE_META: StringName = &"editor_source_resource"
+const EDITOR_KIND_META: StringName = &"editor_source_kind"
+const EDITOR_INDEX_META: StringName = &"editor_source_index"
+const EDITOR_ROOT_META: StringName = &"editor_select_root"
+const EDITOR_KIND_GROUND: StringName = &"ground"
+const EDITOR_KIND_WALL: StringName = &"wall"
+const EDITOR_KIND_WORLD_OBJECT: StringName = &"world_object"
 
 static func build(map_data: MapDataScript, parent: Node3D) -> Node3D:
 	var root := Node3D.new()
@@ -50,6 +57,7 @@ static func _add_ground(parent: Node3D, ground: GroundDataScript, ground_index: 
 	body.position = ground.position
 	body.collision_layer = 1
 	body.collision_mask = 1
+	_tag_editor_selectable(body, ground, EDITOR_KIND_GROUND, ground_index, body)
 	parent.add_child(body)
 
 	var box_mesh := BoxMesh.new()
@@ -68,9 +76,9 @@ static func _add_ground(parent: Node3D, ground: GroundDataScript, ground_index: 
 	collision.shape = box_shape
 	body.add_child(collision)
 
-	_add_ground_move_target(body, ground)
+	_add_ground_move_target(body, ground, ground_index)
 
-static func _add_ground_move_target(parent: Node3D, ground: GroundDataScript) -> void:
+static func _add_ground_move_target(parent: Node3D, ground: GroundDataScript, ground_index: int) -> void:
 	var target := InteractionTargetScript.new()
 	target.name = "GroundMoveTarget"
 	target.target_domain = &"move_target"
@@ -80,6 +88,7 @@ static func _add_ground_move_target(parent: Node3D, ground: GroundDataScript) ->
 	target.collision_layer = 1
 	target.collision_mask = 0
 	target.input_ray_pickable = true
+	_tag_editor_selectable(target, ground, EDITOR_KIND_GROUND, ground_index, parent)
 	parent.add_child(target)
 
 	var collision := CollisionShape3D.new()
@@ -98,6 +107,7 @@ static func _add_wall(parent: Node3D, segment: WallSegmentDataScript, wall_index
 	wall.name = "Wall_%02d" % wall_index
 	wall.position = WallVisualResolverScript.visual_center(segment)
 	wall.rotation.y = WallVisualResolverScript.visual_rotation_y(segment)
+	_tag_editor_selectable(wall, segment, EDITOR_KIND_WALL, wall_index, wall)
 	parent.add_child(wall)
 
 	var box_mesh := BoxMesh.new()
@@ -117,6 +127,7 @@ static func _add_wall(parent: Node3D, segment: WallSegmentDataScript, wall_index
 	static_body.name = "StaticBody3D"
 	static_body.collision_layer = 1
 	static_body.collision_mask = 1
+	_tag_editor_selectable(static_body, segment, EDITOR_KIND_WALL, wall_index, wall)
 	wall.add_child(static_body)
 
 	var collision := CollisionShape3D.new()
@@ -133,7 +144,11 @@ static func _add_world_object(parent: Node3D, object_data: WorldObjectDataScript
 	var object_view := BlockoutObjectViewScript.new()
 	object_view.name = _data_name(object_data.object_id, "WorldObject_%02d" % object_index)
 	object_view.object_data = object_data
+	_tag_editor_selectable(object_view, object_data, EDITOR_KIND_WORLD_OBJECT, object_index, object_view)
 	parent.add_child(object_view)
+	var target := object_view.get_node_or_null("InteractionTarget")
+	if target != null:
+		_tag_editor_selectable(target, object_data, EDITOR_KIND_WORLD_OBJECT, object_index, object_view)
 
 static func _new_root(root_name: StringName) -> Node3D:
 	var root := Node3D.new()
@@ -154,3 +169,18 @@ static func _material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	return material
+
+static func _tag_editor_selectable(
+	node: Node,
+	source_data: Resource,
+	source_kind: StringName,
+	source_index: int,
+	select_root: Node
+) -> void:
+	if node == null:
+		return
+
+	node.set_meta(EDITOR_SOURCE_META, source_data)
+	node.set_meta(EDITOR_KIND_META, source_kind)
+	node.set_meta(EDITOR_INDEX_META, source_index)
+	node.set_meta(EDITOR_ROOT_META, select_root)

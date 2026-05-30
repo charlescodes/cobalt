@@ -9,6 +9,8 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added `AGENTS.md` as the short entrypoint to the repository documentation set.
 - Added `ROADMAP.md` as the forward-looking planning template.
 - Added `CHANGELOG.md` as the formal running history.
+- Added runtime local-map editor V1 behind an Escape dev menu, with game/editor mode switching, map save/load, select/inspect tooling, editor selection highlighting, and a read-only inspector.
+- Added editor-focused test coverage for mode switching, generated-node metadata, selection, inspector display, and MapData save/load.
 
 ### Changed
 

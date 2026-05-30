@@ -21,6 +21,10 @@ func run(ctx) -> bool:
 		"movement_completed",
 		"movement_failed",
 		"examined_output",
+		"editor_mode_changed",
+		"editor_selection_changed",
+		"editor_map_loaded",
+		"editor_map_saved",
 	]:
 		if not event_bus.has_signal(signal_name):
 			event_bus.free()
@@ -35,6 +39,10 @@ func run(ctx) -> bool:
 		return ctx.fail("toggle_debug_overlay input action is missing.")
 	if not _action_has_keycode("toggle_debug_overlay", KEY_F12):
 		return ctx.fail("toggle_debug_overlay is not bound to F12.")
+	if not InputMap.has_action("toggle_dev_menu"):
+		return ctx.fail("toggle_dev_menu input action is missing.")
+	if not _action_has_keycode("toggle_dev_menu", KEY_ESCAPE):
+		return ctx.fail("toggle_dev_menu is not bound to Escape.")
 	if ResourceLoader.exists("res://src/movement/hex_pathfinder.gd"):
 		return ctx.fail("HexPathfinder script should be deleted.")
 	if ResourceLoader.exists("res://src/walls/wall_cell_resolver.gd"):

@@ -12,6 +12,7 @@ const NavigationDebugOverlaySuiteScript := preload("res://tests/suites/navigatio
 const MainSceneSuiteScript := preload("res://tests/suites/main_scene_suite.gd")
 const MainSceneRaycastSuiteScript := preload("res://tests/suites/main_scene_raycast_suite.gd")
 const CameraSuiteScript := preload("res://tests/suites/camera_suite.gd")
+const EditorSuiteScript := preload("res://tests/suites/editor_suite.gd")
 
 func _init() -> void:
 	call_deferred("_run")
@@ -48,5 +49,6 @@ func _build_suites() -> Array[RefCounted]:
 		NavigationDebugOverlaySuiteScript.new(),
 		MainSceneSuiteScript.new(),
 		MainSceneRaycastSuiteScript.new(),
+		EditorSuiteScript.new(),
 		CameraSuiteScript.new(),
 	]

@@ -32,8 +32,8 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 ## Now
 
 - [x] Choose the first editor surface: an in-game development editor mode reached through an Escape dev menu.
-- [ ] Define the mode-switching contract between game view and editor view.
-- [ ] Define the editor tool contract for selection, placement, generation, save/load, and map reload.
+- [x] Define the mode-switching contract between game view and editor view.
+- [x] Define the V1 editor tool contract for selection, save/load, and map reload.
 - [ ] Add the first static obstacle/environment resource beyond walls and ground.
 - [ ] Keep consolidating map/environment/object language before adding larger systems.
 
@@ -65,7 +65,7 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 
 ### 1. Editor and Game View Separation
 
-Status: Planned
+Status: V1 implemented
 
 Goal: Establish a clear workflow for development tooling without polluting the playable game loop.
 

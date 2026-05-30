@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=16 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
@@ -10,6 +10,10 @@
 [ext_resource type="Script" path="res://src/ui/debug_log_panel.gd" id="15_f144a"]
 [ext_resource type="Script" path="res://src/ui/navigation_debug_overlay.gd" id="16_t70pm"]
 [ext_resource type="Script" path="res://src/ui/debug_overlay_controller.gd" id="17_2cgpl"]
+[ext_resource type="Script" path="res://src/editor/editor_mode_controller.gd" id="18_t1owe"]
+[ext_resource type="Script" path="res://src/editor/dev_menu.gd" id="19_rkju2"]
+[ext_resource type="Script" path="res://src/editor/editor_selection_controller.gd" id="20_8t7qo"]
+[ext_resource type="Script" path="res://src/editor/editor_panel.gd" id="21_qhw5i"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_main"]
 geometry_parsed_geometry_type = 1
@@ -41,6 +45,12 @@ script = ExtResource("7_f8j3g")
 [node name="DebugLogPanel" type="PanelContainer" parent="InteractionUI"]
 script = ExtResource("15_f144a")
 
+[node name="DevMenu" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("19_rkju2")
+
+[node name="EditorPanel" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("21_qhw5i")
+
 [node name="NavigationDebugOverlay" type="Node3D" parent="."]
 script = ExtResource("16_t70pm")
 
@@ -60,3 +70,9 @@ fov = 55.0
 
 [node name="DebugOverlayController" type="Node" parent="."]
 script = ExtResource("17_2cgpl")
+
+[node name="EditorSelectionController" type="Node" parent="."]
+script = ExtResource("20_8t7qo")
+
+[node name="EditorModeController" type="Node" parent="."]
+script = ExtResource("18_t1owe")

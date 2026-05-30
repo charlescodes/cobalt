@@ -15,6 +15,7 @@ var _current_target: InteractionTargetScript
 var _targeting_source: InteractionTargetScript
 var _targeting_action_id: StringName = &""
 var _is_interaction_pointer_captured: bool = false
+var _is_gameplay_input_enabled: bool = true
 
 func _ready() -> void:
 	_camera = _resolve_camera()
@@ -24,14 +25,19 @@ func _ready() -> void:
 	var action_callable := Callable(self, "_handle_interaction_action_requested")
 	var capture_callable := Callable(self, "_handle_interaction_pointer_capture_changed")
 	var cancel_callable := Callable(self, "_handle_interaction_ui_cancel_requested")
+	var mode_callable := Callable(self, "_handle_editor_mode_changed")
 	if not event_bus.is_connected(&"interaction_action_requested", action_callable):
 		event_bus.connect(&"interaction_action_requested", action_callable)
 	if not event_bus.is_connected(&"interaction_pointer_capture_changed", capture_callable):
 		event_bus.connect(&"interaction_pointer_capture_changed", capture_callable)
 	if not event_bus.is_connected(&"interaction_ui_cancel_requested", cancel_callable):
 		event_bus.connect(&"interaction_ui_cancel_requested", cancel_callable)
+	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
+		event_bus.connect(&"editor_mode_changed", mode_callable)
 
 func _input(event: InputEvent) -> void:
+	if not _is_gameplay_input_enabled:
+		return
 	if not (event is InputEventMouseButton):
 		return
 
@@ -51,6 +57,10 @@ func _input(event: InputEvent) -> void:
 			viewport.set_input_as_handled()
 
 func _physics_process(_delta: float) -> void:
+	if not _is_gameplay_input_enabled:
+		clear_hover()
+		return
+
 	if _is_interaction_pointer_captured:
 		return
 
@@ -68,6 +78,9 @@ func _physics_process(_delta: float) -> void:
 	_set_hover_target(_raycast_interaction_target(required_domain))
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not _is_gameplay_input_enabled:
+		return
+
 	if _is_interaction_pointer_captured:
 		return
 
@@ -87,10 +100,16 @@ func clear_hover() -> void:
 func is_interaction_pointer_captured() -> bool:
 	return _is_interaction_pointer_captured
 
+func is_gameplay_input_enabled() -> bool:
+	return _is_gameplay_input_enabled
+
 func is_targeting_interaction() -> bool:
 	return _targeting_source != null
 
 func start_targeting(source: Node, action_id: StringName) -> bool:
+	if not _is_gameplay_input_enabled:
+		return false
+
 	var source_target := source as InteractionTargetScript
 	if source_target == null or action_id != InteractionActionResolverScript.ACTION_MOVE:
 		return false
@@ -114,6 +133,8 @@ func cancel_targeting() -> void:
 	_emit_event(&"interaction_targeting_cancelled", [source, action_id])
 
 func try_confirm_targeting_target(target: Node) -> bool:
+	if not _is_gameplay_input_enabled:
+		return false
 	if not is_targeting_interaction():
 		return false
 	if _targeting_action_id != InteractionActionResolverScript.ACTION_MOVE:
@@ -211,6 +232,8 @@ func _set_hover_target(target: InteractionTargetScript) -> void:
 		event_bus.emit_signal(&"hover_target_changed", _current_target)
 
 func _request_menu_for_current_target(screen_position: Vector2) -> void:
+	if not _is_gameplay_input_enabled:
+		return
 	if _current_target == null or not _current_target.is_interaction_enabled():
 		return
 
@@ -220,6 +243,9 @@ func _request_menu_for_current_target(screen_position: Vector2) -> void:
 	get_viewport().set_input_as_handled()
 
 func _handle_interaction_action_requested(target: Node, action_id: StringName) -> void:
+	if not _is_gameplay_input_enabled:
+		return
+
 	if action_id == InteractionActionResolverScript.ACTION_MOVE:
 		start_targeting(target, action_id)
 		return
@@ -249,6 +275,16 @@ func _handle_interaction_pointer_capture_changed(is_captured: bool) -> void:
 func _handle_interaction_ui_cancel_requested() -> void:
 	if is_targeting_interaction():
 		cancel_targeting()
+
+func _handle_editor_mode_changed(mode: StringName) -> void:
+	_is_gameplay_input_enabled = mode != &"editor"
+	if _is_gameplay_input_enabled:
+		return
+
+	clear_hover()
+	if is_targeting_interaction():
+		cancel_targeting()
+	_request_interaction_ui_cancel()
 
 func _request_interaction_ui_cancel() -> void:
 	var event_bus := _get_event_bus()

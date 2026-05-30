@@ -12,6 +12,10 @@ const MoveTargetResolverScript := preload("res://src/movement/move_target_resolv
 const MovementControllerScript := preload("res://src/movement/movement_controller.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
+const DevMenuScript := preload("res://src/editor/dev_menu.gd")
+const EditorPanelScript := preload("res://src/editor/editor_panel.gd")
+const EditorModeControllerScript := preload("res://src/editor/editor_mode_controller.gd")
+const EditorSelectionControllerScript := preload("res://src/editor/editor_selection_controller.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -87,6 +91,20 @@ func run(ctx) -> bool:
 	if debug_log_panel.visible:
 		main.free()
 		return ctx.fail("DebugLogPanel should be hidden until F12 toggles debug.")
+	var dev_menu := interaction_ui.get_node_or_null("DevMenu") as DevMenuScript
+	if dev_menu == null:
+		main.free()
+		return ctx.fail("Main scene is missing the Escape dev menu.")
+	if dev_menu.visible:
+		main.free()
+		return ctx.fail("DevMenu should be hidden by default.")
+	var editor_panel := interaction_ui.get_node_or_null("EditorPanel") as EditorPanelScript
+	if editor_panel == null:
+		main.free()
+		return ctx.fail("Main scene is missing the editor side panel.")
+	if editor_panel.visible:
+		main.free()
+		return ctx.fail("EditorPanel should be hidden while game mode is active.")
 	var navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
 	if navigation_debug_overlay == null:
 		main.free()
@@ -98,6 +116,12 @@ func run(ctx) -> bool:
 	if debug_overlay_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing DebugOverlayController.")
+	if main.get_node_or_null("EditorSelectionController") as EditorSelectionControllerScript == null:
+		main.free()
+		return ctx.fail("Main scene is missing EditorSelectionController.")
+	if main.get_node_or_null("EditorModeController") as EditorModeControllerScript == null:
+		main.free()
+		return ctx.fail("Main scene is missing EditorModeController.")
 	debug_overlay_controller.set_debug_visible(true)
 	if not debug_log_panel.visible or not navigation_debug_overlay.visible:
 		main.free()

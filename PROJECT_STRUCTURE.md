@@ -26,7 +26,7 @@ res://src/objects/       Current blockout world-object data and views; future sp
 res://src/interaction/   Interaction targets, hover highlighting, context action resolution, and input targeting.
 res://src/movement/      Move target data, movement validation, and movement execution.
 res://src/ui/            Runtime UI panels, debug log, and debug navigation overlay.
-res://src/editor/        Future runtime editor mode, editor tools, inspectors, and editor-only input.
+res://src/editor/        Runtime editor mode, editor tools, inspectors, save/load, and editor-only input.
 res://src/generation/    Future deterministic procedural generators and generation resolvers.
 res://data/              Authored resources only; no gameplay logic.
 res://scenes/            Playable scenes and reusable scene roots.
@@ -56,8 +56,12 @@ InteractionUI                     CanvasLayer containing interaction UI panels.
 InteractionUI/InteractionMenu     Context action menu.
 InteractionUI/InteractionLogPanel Examine output panel.
 InteractionUI/DebugLogPanel       F12 debug event log panel.
+InteractionUI/DevMenu             Escape dev menu for mode and map save/load actions.
+InteractionUI/EditorPanel         Runtime editor tool and read-only inspector panel.
 NavigationDebugOverlay            3D movement/path/failure markers.
 DebugOverlayController            F12 debug visibility toggle.
+EditorSelectionController         Editor-mode raycast selection and highlight owner.
+EditorModeController              Game/editor mode owner and editor map save/load coordinator.
 SunLight                          Directional blockout lighting.
 CameraRig                         Isometric-style camera rig.
 CameraRig/PitchPivot/Camera3D     Active camera.
@@ -67,9 +71,10 @@ CameraRig/PitchPivot/Camera3D     Active camera.
 
 ```text
 res://data/maps/main_blockout_map.tres
+res://data/editor_maps/<name>.tres
 ```
 
-Current sample map resource. It contains ground data, static wall segments, player-character data, and NPC data.
+Current sample map resource plus runtime editor save targets. The sample map contains ground data, static wall segments, player-character data, and NPC data.
 
 ## Core Data Resources
 
@@ -100,6 +105,9 @@ res://src/interaction/interaction_controller.gd        Camera raycasts, hover st
 res://src/movement/move_target_resolver.gd            Validates move sources, destinations, and native nav paths.
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
+res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
+res://src/editor/editor_selection_controller.gd        Editor-only raycast selection for generated map content.
+res://src/editor/map_file_store.gd                     Sanitized MapData save/load under data/editor_maps.
 ```
 
 ## Components and UI
@@ -113,6 +121,9 @@ res://src/ui/interaction_log_panel.gd          Examine output panel and interact
 res://src/ui/debug_log_panel.gd                F12 debug log panel.
 res://src/ui/navigation_debug_overlay.gd       3D movement/path/failure debug markers.
 res://src/ui/debug_overlay_controller.gd       F12 debug visibility controller.
+res://src/editor/dev_menu.gd                   Centered Escape dev menu UI.
+res://src/editor/editor_panel.gd               Editor side panel and read-only inspector.
+res://src/editor/editor_selection_highlighter.gd Editor selection highlight shells.
 ```
 
 ## Tests
@@ -121,6 +132,7 @@ res://src/ui/debug_overlay_controller.gd       F12 debug visibility controller.
 res://tests/test_runner.gd                         Headless smoke/integration orchestrator.
 res://tests/support/test_context.gd                Shared fixtures and helpers.
 res://tests/suites/camera_suite.gd                 Camera behavior coverage.
+res://tests/suites/editor_suite.gd                 Runtime editor mode, selection, inspector, and save/load coverage.
 res://tests/suites/interaction_ui_suite.gd         Interaction UI coverage.
 res://tests/suites/main_scene_raycast_suite.gd     Main-scene raycast and targeting coverage.
 res://tests/suites/main_scene_suite.gd             Main scene composition coverage.
