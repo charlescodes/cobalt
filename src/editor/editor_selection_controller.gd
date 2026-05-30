@@ -3,13 +3,24 @@ extends Node
 
 const EditorSelectionHighlighterScript := preload("res://src/editor/editor_selection_highlighter.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
+const MapDataScript := preload("res://src/maps/map_data.gd")
+const MapLoaderScript := preload("res://src/maps/map_loader.gd")
+const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
+
+const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
+const TOOL_NPC_BRUSH: StringName = &"npc_brush"
+const NPC_KIND: StringName = &"non_player_character"
+const NPC_SIZE_M: Vector3 = Vector3(0.5, 1.83, 0.5)
+const NPC_COLOR: Color = Color(0.45, 0.45, 0.45, 1.0)
 
 @export var camera_path: NodePath = ^"../CameraRig/PitchPivot/Camera3D"
+@export var map_loader_path: NodePath = ^"../MapLoader"
 @export_range(1.0, 500.0, 1.0) var max_ray_distance_m: float = 100.0
 @export_flags_3d_physics var collision_mask: int = 1
 
 var _camera: Camera3D
 var _is_editor_mode: bool = false
+var _active_tool: StringName = TOOL_SELECT_INSPECT
 var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
@@ -27,10 +38,13 @@ func _ready() -> void:
 
 	var mode_callable := Callable(self, "_on_editor_mode_changed")
 	var map_loaded_callable := Callable(self, "_on_editor_map_loaded")
+	var tool_callable := Callable(self, "_on_editor_tool_changed")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
 		event_bus.connect(&"editor_mode_changed", mode_callable)
 	if event_bus.has_signal(&"editor_map_loaded") and not event_bus.is_connected(&"editor_map_loaded", map_loaded_callable):
 		event_bus.connect(&"editor_map_loaded", map_loaded_callable)
+	if event_bus.has_signal(&"editor_tool_changed") and not event_bus.is_connected(&"editor_tool_changed", tool_callable):
+		event_bus.connect(&"editor_tool_changed", tool_callable)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _is_editor_mode:
@@ -40,10 +54,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var mouse_event := event as InputEventMouseButton
 	if mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
-		select_at_screen(mouse_event.position)
+		if _active_tool == TOOL_NPC_BRUSH:
+			place_npc_at_screen(mouse_event.position)
+		else:
+			select_at_screen(mouse_event.position)
 		var viewport := get_viewport()
 		if viewport != null:
 			viewport.set_input_as_handled()
+
+func get_active_tool() -> StringName:
+	return _active_tool
 
 func select_at_screen(screen_position: Vector2) -> bool:
 	if not _is_editor_mode:
@@ -60,6 +80,33 @@ func select_at_screen(screen_position: Vector2) -> bool:
 		hit.get("kind", &"") as StringName
 	)
 	return true
+
+func place_npc_at_screen(screen_position: Vector2) -> WorldObjectDataScript:
+	if not _is_editor_mode:
+		return null
+
+	var hit := _raycast_editor_selectable_at(screen_position)
+	if hit.is_empty() or hit.get("kind", &"") != MapBuilderScript.EDITOR_KIND_GROUND:
+		return null
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null:
+		return null
+
+	var placement_position: Vector3 = hit.get("position", Vector3.ZERO)
+	placement_position.y = 0.0
+	var object_data := WorldObjectDataScript.new(
+		_next_npc_id(map_loader.map_data),
+		NPC_KIND,
+		placement_position,
+		NPC_SIZE_M,
+		NPC_COLOR,
+		true
+	)
+	map_loader.map_data.world_objects.append(object_data)
+	map_loader.replace_map_data(map_loader.map_data, true)
+	clear_selection()
+	return object_data
 
 func clear_selection() -> void:
 	if _selected_node == null and _selected_data == null and _selected_kind == &"":
@@ -112,6 +159,7 @@ func _raycast_editor_selectable_at(screen_position: Vector2) -> Dictionary:
 		var collider := result.get("collider") as Object
 		var selectable := _find_editor_selectable(collider)
 		if not selectable.is_empty():
+			selectable["position"] = result.get("position", Vector3.ZERO)
 			return selectable
 
 		var collision_object := collider as CollisionObject3D
@@ -147,6 +195,10 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 func _on_editor_map_loaded(_map_data: Resource, _path: String) -> void:
 	clear_selection()
 
+func _on_editor_tool_changed(tool_id: StringName) -> void:
+	if tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_NPC_BRUSH:
+		_active_tool = tool_id
+
 func _resolve_camera() -> Camera3D:
 	var configured_camera := get_node_or_null(camera_path) as Camera3D
 	if configured_camera != null:
@@ -154,6 +206,23 @@ func _resolve_camera() -> Camera3D:
 
 	var viewport := get_viewport()
 	return viewport.get_camera_3d() if viewport != null else null
+
+func _resolve_map_loader() -> MapLoaderScript:
+	return get_node_or_null(map_loader_path) as MapLoaderScript
+
+func _next_npc_id(map_data: MapDataScript) -> StringName:
+	var index := 1
+	while _object_id_exists(map_data, StringName("npc_%03d" % index)):
+		index += 1
+
+	return StringName("npc_%03d" % index)
+
+func _object_id_exists(map_data: MapDataScript, object_id: StringName) -> bool:
+	for world_object in map_data.world_objects:
+		if world_object != null and world_object.object_id == object_id:
+			return true
+
+	return false
 
 func _emit_selection_changed() -> void:
 	var event_bus := _get_event_bus()

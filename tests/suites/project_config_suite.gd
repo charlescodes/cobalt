@@ -22,6 +22,7 @@ func run(ctx) -> bool:
 		"movement_failed",
 		"examined_output",
 		"editor_mode_changed",
+		"editor_tool_changed",
 		"editor_selection_changed",
 		"editor_map_loaded",
 		"editor_map_saved",

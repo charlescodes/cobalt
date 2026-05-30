@@ -5,11 +5,33 @@ const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
-var _tool_button: Button
+const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
+const TOOL_NPC_BRUSH: StringName = &"npc_brush"
+const DOCK_WIDTH: float = 288.0
+const COLLAPSED_HEIGHT: float = 58.0
+const EXPANDED_HEIGHT: float = 420.0
+const SCREEN_MARGIN: float = 16.0
+const TOOL_CONTENT_MARGIN_LEFT: int = 2
+const TOOL_CONTENT_MARGIN_TOP: int = 2
+const TOOL_CONTENT_MARGIN_RIGHT: int = 8
+const TOOL_CONTENT_MARGIN_BOTTOM: int = 2
+
+var _select_button: Button
+var _brush_button: Button
+var _content_root: VBoxContainer
+var _select_content: Control
+var _brush_content: Control
 var _inspector_label: Label
+var _brush_label: Label
 var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
+var _active_tool: StringName = TOOL_SELECT_INSPECT
+var _expanded_tool: StringName = &""
+var _panel_position: Vector2 = Vector2.ZERO
+var _is_dragging: bool = false
+var _drag_start_mouse_position: Vector2 = Vector2.ZERO
+var _drag_start_panel_position: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	visible = false
@@ -33,15 +55,51 @@ func _ready() -> void:
 func get_inspector_text() -> String:
 	return _inspector_label.text if _inspector_label != null else ""
 
+func get_active_tool() -> StringName:
+	return _active_tool
+
+func get_expanded_tool() -> StringName:
+	return _expanded_tool
+
+func is_tool_panel_expanded() -> bool:
+	return _expanded_tool != &""
+
+func get_panel_position() -> Vector2:
+	return _panel_position
+
+func set_panel_position(next_position: Vector2) -> void:
+	_panel_position = _clamped_panel_position(next_position)
+	_apply_panel_frame()
+
+func is_dragging() -> bool:
+	return _is_dragging
+
+func toggle_tool_panel(tool_id: StringName) -> void:
+	if not _is_known_tool(tool_id):
+		return
+
+	if _active_tool == tool_id and _expanded_tool == tool_id:
+		_expanded_tool = &""
+	else:
+		_set_active_tool(tool_id)
+		_expanded_tool = tool_id
+	_update_tool_ui()
+
+func collapse_tool_panel() -> void:
+	_expanded_tool = &""
+	_update_tool_ui()
+
 func _configure_position() -> void:
-	anchor_left = 1.0
+	anchor_left = 0.0
 	anchor_top = 0.0
-	anchor_right = 1.0
-	anchor_bottom = 1.0
-	offset_left = -304.0
-	offset_top = 16.0
-	offset_right = -16.0
-	offset_bottom = -16.0
+	anchor_right = 0.0
+	anchor_bottom = 0.0
+	var viewport_size := get_viewport_rect().size
+	_panel_position = Vector2(
+		maxf(SCREEN_MARGIN, viewport_size.x - DOCK_WIDTH - SCREEN_MARGIN),
+		SCREEN_MARGIN
+	)
+	_apply_panel_frame()
 
 func _configure_style() -> void:
 	var panel_style := StyleBoxFlat.new()
@@ -60,30 +118,111 @@ func _ensure_layout() -> void:
 		return
 
 	var layout := VBoxContainer.new()
-	layout.name = "EditorPanelLayout"
-	layout.add_theme_constant_override("separation", 10)
+	layout.name = "EditorToolDockLayout"
+	layout.add_theme_constant_override("separation", 8)
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(layout)
 
-	_tool_button = Button.new()
-	_tool_button.name = "SelectInspectToolButton"
-	_tool_button.text = "Select/Inspect"
-	_tool_button.toggle_mode = true
-	_tool_button.button_pressed = true
-	_tool_button.custom_minimum_size = Vector2(256.0, 34.0)
-	layout.add_child(_tool_button)
+	var button_row := HBoxContainer.new()
+	button_row.name = "ToolButtonRow"
+	button_row.add_theme_constant_override("separation", 8)
+	layout.add_child(button_row)
+
+	_select_button = _new_tool_button("SelectInspectToolButton", "Select/Inspect", TOOL_SELECT_INSPECT)
+	button_row.add_child(_select_button)
+
+	_brush_button = _new_tool_button("NpcBrushToolButton", "NPC Brush", TOOL_NPC_BRUSH)
+	button_row.add_child(_brush_button)
 
 	var separator := HSeparator.new()
 	separator.name = "ToolInspectorSeparator"
+	separator.visible = false
 	layout.add_child(separator)
 
+	_content_root = VBoxContainer.new()
+	_content_root.name = "ToolContent"
+	_content_root.visible = false
+	_content_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_child(_content_root)
+
+	_select_content = _build_select_content()
+	_content_root.add_child(_select_content)
+
+	_brush_content = _build_brush_content()
+	_content_root.add_child(_brush_content)
+
+	_update_tool_ui()
+
+func _new_tool_button(button_name: String, label: String, tool_id: StringName) -> Button:
+	var button := Button.new()
+	button.name = button_name
+	button.text = label
+	button.toggle_mode = true
+	button.custom_minimum_size = Vector2(0.0, 34.0)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.pressed.connect(_on_tool_button_pressed.bind(tool_id))
+	button.gui_input.connect(_on_drag_gui_input)
+	return button
+
+func _build_select_content() -> Control:
 	_inspector_label = Label.new()
 	_inspector_label.name = "InspectorContent"
-	_inspector_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_inspector_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	layout.add_child(_inspector_label)
+	_configure_tool_label(_inspector_label)
+	return _new_tool_content("SelectInspectContent", "SelectInspectContentPadding", _inspector_label)
+
+func _build_brush_content() -> Control:
+	_brush_label = Label.new()
+	_brush_label.name = "NpcBrushProperties"
+	_configure_tool_label(_brush_label)
+	_brush_label.text = "\n".join(PackedStringArray([
+		"NPC Brush",
+		"object_kind: non_player_character",
+		"size: (0.50, 1.83, 0.50)",
+		"color: (0.450, 0.450, 0.450, 1.000)",
+	]))
+	return _new_tool_content("NpcBrushContent", "NpcBrushContentPadding", _brush_label)
+
+func _new_tool_content(content_name: String, padding_name: String, content: Control) -> ScrollContainer:
+	var scroll := ScrollContainer.new()
+	scroll.name = content_name
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
+	var content_padding := MarginContainer.new()
+	content_padding.name = padding_name
+	content_padding.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_padding.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_padding.add_theme_constant_override("margin_left", TOOL_CONTENT_MARGIN_LEFT)
+	content_padding.add_theme_constant_override("margin_top", TOOL_CONTENT_MARGIN_TOP)
+	content_padding.add_theme_constant_override("margin_right", TOOL_CONTENT_MARGIN_RIGHT)
+	content_padding.add_theme_constant_override("margin_bottom", TOOL_CONTENT_MARGIN_BOTTOM)
+	scroll.add_child(content_padding)
+	content_padding.add_child(content)
+	return scroll
+
+func _configure_tool_label(label: Label) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+func _gui_input(event: InputEvent) -> void:
+	_handle_drag_input(event)
+
+func _input(event: InputEvent) -> void:
+	if _is_dragging:
+		_handle_drag_input(event)
 
 func _on_editor_mode_changed(mode: StringName) -> void:
 	visible = mode == &"editor"
+	if visible:
+		_expanded_tool = &""
+		_update_tool_ui()
+	else:
+		_is_dragging = false
 
 func _on_editor_selection_changed(
 	selected_node: Node,
@@ -94,6 +233,105 @@ func _on_editor_selection_changed(
 	_selected_data = selected_data
 	_selected_kind = selected_kind
 	_render_inspector()
+
+func _on_tool_button_pressed(tool_id: StringName) -> void:
+	toggle_tool_panel(tool_id)
+
+func _on_drag_gui_input(event: InputEvent) -> void:
+	_handle_drag_input(event)
+
+func _handle_drag_input(event: InputEvent) -> void:
+	if not visible:
+		return
+
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index != MOUSE_BUTTON_RIGHT:
+			return
+		if mouse_event.pressed:
+			_is_dragging = true
+			_drag_start_mouse_position = _event_screen_position(mouse_event)
+			_drag_start_panel_position = _panel_position
+		elif _is_dragging:
+			_is_dragging = false
+		accept_event()
+	elif event is InputEventMouseMotion and _is_dragging:
+		var motion_event := event as InputEventMouseMotion
+		var drag_delta := _event_screen_position(motion_event) - _drag_start_mouse_position
+		set_panel_position(_drag_start_panel_position + drag_delta)
+		accept_event()
+
+func _event_screen_position(event: InputEventMouse) -> Vector2:
+	if event.global_position != Vector2.ZERO:
+		return event.global_position
+	if event.position != Vector2.ZERO:
+		return global_position + event.position
+
+	var viewport := get_viewport()
+	return viewport.get_mouse_position() if viewport != null else global_position
+
+func _set_active_tool(tool_id: StringName) -> void:
+	if not _is_known_tool(tool_id):
+		return
+
+	if _active_tool == tool_id:
+		return
+
+	_active_tool = tool_id
+	var event_bus := _get_event_bus()
+	if event_bus != null and event_bus.has_signal(&"editor_tool_changed"):
+		event_bus.emit_signal(&"editor_tool_changed", _active_tool)
+
+func _update_tool_ui() -> void:
+	if _select_button != null:
+		_select_button.button_pressed = _active_tool == TOOL_SELECT_INSPECT
+	if _brush_button != null:
+		_brush_button.button_pressed = _active_tool == TOOL_NPC_BRUSH
+
+	if _content_root != null:
+		_content_root.visible = _expanded_tool != &""
+	if _select_content != null:
+		_select_content.visible = _expanded_tool == TOOL_SELECT_INSPECT
+	if _brush_content != null:
+		_brush_content.visible = _expanded_tool == TOOL_NPC_BRUSH
+
+	var separator := get_node_or_null("EditorToolDockLayout/ToolInspectorSeparator") as HSeparator
+	if separator != null:
+		separator.visible = _expanded_tool != &""
+
+	_apply_panel_frame()
+
+func _is_known_tool(tool_id: StringName) -> bool:
+	return tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_NPC_BRUSH
+
+func _apply_panel_frame() -> void:
+	var panel_size := _current_panel_size()
+	_panel_position = _clamped_panel_position(_panel_position)
+	custom_minimum_size = panel_size
+	size = panel_size
+	offset_left = _panel_position.x
+	offset_top = _panel_position.y
+	offset_right = _panel_position.x + panel_size.x
+	offset_bottom = _panel_position.y + panel_size.y
+
+func _current_panel_size() -> Vector2:
+	var viewport_size := get_viewport_rect().size
+	var width := minf(DOCK_WIDTH, maxf(180.0, viewport_size.x - (SCREEN_MARGIN * 2.0)))
+	var target_height := EXPANDED_HEIGHT if _expanded_tool != &"" else COLLAPSED_HEIGHT
+	var height := minf(target_height, maxf(COLLAPSED_HEIGHT, viewport_size.y - (SCREEN_MARGIN * 2.0)))
+	return Vector2(width, height)
+
+func _clamped_panel_position(next_position: Vector2) -> Vector2:
+	var viewport_size := get_viewport_rect().size
+	var panel_size := _current_panel_size()
+	var max_position := Vector2(
+		maxf(0.0, viewport_size.x - panel_size.x),
+		maxf(0.0, viewport_size.y - panel_size.y)
+	)
+	return Vector2(
+		clampf(next_position.x, 0.0, max_position.x),
+		clampf(next_position.y, 0.0, max_position.y)
+	)
 
 func _render_inspector() -> void:
 	if _inspector_label == null:

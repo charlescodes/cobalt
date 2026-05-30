@@ -11,6 +11,9 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added `CHANGELOG.md` as the formal running history.
 - Added runtime local-map editor V1 behind an Escape dev menu, with game/editor mode switching, map save/load, select/inspect tooling, editor selection highlighting, and a read-only inspector.
 - Added editor-focused test coverage for mode switching, generated-node metadata, selection, inspector display, and MapData save/load.
+- Added a draggable, collapsed-by-default editor tool dock with Select/Inspect and NPC Brush tools.
+- Added NPC Brush placement for non-player-character blockout objects, including rebuild/rebake while keeping selection clear for repeated painting.
+- Added editor test coverage for tool switching, dock dragging, and NPC brush placement.
 
 ### Changed
 
@@ -19,6 +22,10 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Planned the first editor direction as an Escape-driven runtime editor mode with separate editor tools, module libraries, placement descriptors, and generator presets.
 - Expanded future roadmap coverage for map components, procedural structures, sockets, city-block composition, world-map editor tooling, sparse region-scale generation, points of interest, and spawn placement.
 - Replaced legacy wall resources with continuous `WallData` resources while keeping solid `BoxMesh`/`BoxShape3D` generation per wall.
+
+### Fixed
+
+- Fixed the editor inspector label collapsing to a one-character wrapping width inside the scroll panel and normalized tool panel content layout.
 
 ## 2026-05-30
 

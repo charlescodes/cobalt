@@ -18,6 +18,8 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 var _mode_changed_count: int = 0
 var _latest_mode: StringName = &""
+var _tool_changed_count: int = 0
+var _latest_tool: StringName = &""
 var _selection_count: int = 0
 var _selected_node: Node
 var _selected_data: Resource
@@ -38,6 +40,7 @@ func run(ctx) -> bool:
 
 	_reset_records()
 	ctx.connect_if_needed(root_event_bus, &"editor_mode_changed", Callable(self, "_record_mode_changed"))
+	ctx.connect_if_needed(root_event_bus, &"editor_tool_changed", Callable(self, "_record_tool_changed"))
 	ctx.connect_if_needed(root_event_bus, &"editor_selection_changed", Callable(self, "_record_selection_changed"))
 	ctx.connect_if_needed(root_event_bus, &"editor_map_loaded", Callable(self, "_record_map_loaded"))
 	ctx.connect_if_needed(root_event_bus, &"editor_map_saved", Callable(self, "_record_map_saved"))
@@ -109,6 +112,12 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		return ctx.fail("Editor mode switch did not emit editor_mode_changed.")
 	if not editor_panel.visible:
 		return ctx.fail("EditorPanel did not appear in editor mode.")
+	if editor_panel.is_tool_panel_expanded():
+		return ctx.fail("EditorPanel should start collapsed to tool buttons only.")
+	if editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT:
+		return ctx.fail("EditorPanel should default to the select/inspect tool.")
+	if editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT:
+		return ctx.fail("EditorSelectionController should default to the select/inspect tool.")
 	if interaction_controller.is_gameplay_input_enabled():
 		return ctx.fail("InteractionController gameplay input stayed enabled in editor mode.")
 	if map_loader.map_data == null or map_loader.map_data.map_id != MapFileStoreScript.BLANK_EDITOR_MAP_ID:
@@ -117,6 +126,63 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		return ctx.fail("Blank editor map did not rebuild generated ground.")
 	if _map_loaded_count < 1 or _map_loaded_data != map_loader.map_data:
 		return ctx.fail("Blank editor map load did not emit editor_map_loaded.")
+
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
+	await ctx.tree.process_frame
+	if not editor_panel.is_tool_panel_expanded() or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_SELECT_INSPECT:
+		return ctx.fail("Select/Inspect tool button did not expand the inspector panel.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/SelectInspectContent/SelectInspectContentPadding/InspectorContent"
+	):
+		return ctx.fail("Inspector label did not receive usable wrapping width.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
+	if editor_panel.is_tool_panel_expanded():
+		return ctx.fail("Clicking the active Select/Inspect tool did not collapse the panel.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_NPC_BRUSH)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_NPC_BRUSH
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_NPC_BRUSH
+		or _latest_tool != EditorPanelScript.TOOL_NPC_BRUSH
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_NPC_BRUSH
+	):
+		return ctx.fail("NPC Brush tool did not become the active expanded editor tool.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/NpcBrushContent/NpcBrushContentPadding/NpcBrushProperties"
+	):
+		return ctx.fail("NPC Brush label did not receive the same usable wrapping width.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
+	):
+		return ctx.fail("Select/Inspect tool did not reactivate after the brush tool.")
+
+	var start_panel_position := editor_panel.get_panel_position()
+	var drag_press := InputEventMouseButton.new()
+	drag_press.button_index = MOUSE_BUTTON_RIGHT
+	drag_press.pressed = true
+	drag_press.position = Vector2(8.0, 8.0)
+	editor_panel._gui_input(drag_press)
+	if not editor_panel.is_dragging():
+		return ctx.fail("Editor tool dock did not start dragging on right mouse press.")
+	var drag_motion := InputEventMouseMotion.new()
+	drag_motion.position = Vector2(-32.0, 28.0)
+	editor_panel._input(drag_motion)
+	var drag_release := InputEventMouseButton.new()
+	drag_release.button_index = MOUSE_BUTTON_RIGHT
+	drag_release.pressed = false
+	drag_release.position = Vector2(-32.0, 28.0)
+	editor_panel._input(drag_release)
+	if editor_panel.is_dragging():
+		return ctx.fail("Editor tool dock did not stop dragging on right mouse release.")
+	if editor_panel.get_panel_position() == start_panel_position:
+		return ctx.fail("Editor tool dock right-mouse drag did not move the panel.")
+	if not ctx.control_inside_viewport(editor_panel):
+		return ctx.fail("Editor tool dock drag moved the panel outside the viewport.")
 
 	editor_mode_controller.enter_game_mode()
 	await ctx.tree.process_frame
@@ -129,6 +195,8 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	editor_mode_controller.enter_editor_mode()
 	await ctx.tree.process_frame
+	if not editor_panel.visible or editor_panel.is_tool_panel_expanded():
+		return ctx.fail("EditorPanel did not return to buttons-only state when re-entering editor mode.")
 	var editor_map := _create_editor_test_map()
 	map_loader.replace_map_data(editor_map, true)
 	await ctx.tree.process_frame
@@ -162,6 +230,11 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	var object_inspector := editor_panel.get_inspector_text()
 	if not object_inspector.contains("world_object") or not object_inspector.contains("editor_object"):
 		return ctx.fail("Inspector did not render selected world-object fields.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/SelectInspectContent/SelectInspectContentPadding/InspectorContent"
+	):
+		return ctx.fail("Inspector label collapsed to a character-wrapping width after selection.")
 
 	var wall_node := generated_map.get_node_or_null("StaticWalls/Wall_00") as Node3D
 	if wall_node == null:
@@ -194,6 +267,51 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	var ground_inspector := editor_panel.get_inspector_text()
 	if not ground_inspector.contains("ground") or not ground_inspector.contains("editor_ground_test") or not ground_inspector.contains("size"):
 		return ctx.fail("Inspector did not render selected ground fields.")
+
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_NPC_BRUSH)
+	await ctx.tree.process_frame
+	var object_count_before_brush := map_loader.map_data.world_objects.size()
+	var brush_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(2.0, 0.0, -2.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var brush_click := InputEventMouseButton.new()
+	brush_click.button_index = MOUSE_BUTTON_LEFT
+	brush_click.pressed = true
+	brush_click.position = brush_screen_position
+	editor_selection_controller._unhandled_input(brush_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.world_objects.size() != object_count_before_brush + 1:
+		return ctx.fail("NPC Brush did not append a world object to the editor map.")
+	var placed_npc := map_loader.map_data.world_objects[map_loader.map_data.world_objects.size() - 1]
+	if placed_npc.object_kind != &"non_player_character":
+		return ctx.fail("NPC Brush placed a world object with the wrong kind.")
+	if not String(placed_npc.object_id).begins_with("npc_"):
+		return ctx.fail("NPC Brush did not assign an npc_* object id.")
+	if placed_npc.position.distance_to(Vector3(2.0, 0.0, -2.0)) > 0.2:
+		return ctx.fail("NPC Brush did not place the NPC near the clicked ground point.")
+	if _selected_node != null or _selected_data != null or _selected_kind != &"":
+		return ctx.fail("NPC Brush should clear selection after placing an NPC.")
+	if editor_selection_controller.get_selected_data() != null:
+		return ctx.fail("EditorSelectionController kept a selected resource after NPC Brush placement.")
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	var placed_npc_node := generated_map.get_node_or_null("WorldObjects/%s" % String(placed_npc.object_id)) as BlockoutObjectViewScript
+	if placed_npc_node == null:
+		return ctx.fail("NPC Brush did not rebuild generated content with the placed NPC.")
+	if placed_npc_node.get_node_or_null("Body/EditorSelectionShell") != null:
+		return ctx.fail("NPC Brush should not highlight the newly placed NPC.")
+	var npc_inspector := editor_panel.get_inspector_text()
+	if npc_inspector != "No selection":
+		return ctx.fail("Inspector should show no selection after NPC Brush placement.")
+
+	var object_count_after_valid_brush := map_loader.map_data.world_objects.size()
+	var empty_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(20.0, 0.0, 20.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if editor_selection_controller.place_npc_at_screen(empty_screen_position) != null:
+		return ctx.fail("NPC Brush placed an object when clicking empty space.")
+	if map_loader.map_data.world_objects.size() != object_count_after_valid_brush:
+		return ctx.fail("NPC Brush changed map data after an empty-space click.")
 
 	var saved_path := editor_mode_controller.save_current_map("editor_suite_runtime_map")
 	if saved_path.is_empty() or not ResourceLoader.exists(saved_path):
@@ -261,9 +379,15 @@ func _generated_nodes_have_editor_metadata(generated_map: Node3D) -> bool:
 		and world_object.has_meta(MapBuilderScript.EDITOR_SOURCE_META)
 	)
 
+func _tool_label_has_usable_width(editor_panel: EditorPanelScript, label_path: NodePath) -> bool:
+	var label := editor_panel.get_node_or_null(label_path) as Label
+	return label != null and label.size.x >= 180.0
+
 func _reset_records() -> void:
 	_mode_changed_count = 0
 	_latest_mode = &""
+	_tool_changed_count = 0
+	_latest_tool = &""
 	_selection_count = 0
 	_selected_node = null
 	_selected_data = null
@@ -278,6 +402,10 @@ func _reset_records() -> void:
 func _record_mode_changed(mode: StringName) -> void:
 	_mode_changed_count += 1
 	_latest_mode = mode
+
+func _record_tool_changed(tool_id: StringName) -> void:
+	_tool_changed_count += 1
+	_latest_tool = tool_id
 
 func _record_selection_changed(selected_node: Node, selected_data: Resource, selected_kind: StringName) -> void:
 	_selection_count += 1
@@ -297,6 +425,7 @@ func _record_map_saved(map_data: Resource, path: String) -> void:
 
 func _disconnect_records(ctx, root_event_bus: Node) -> void:
 	ctx.disconnect_if_connected(root_event_bus, &"editor_mode_changed", Callable(self, "_record_mode_changed"))
+	ctx.disconnect_if_connected(root_event_bus, &"editor_tool_changed", Callable(self, "_record_tool_changed"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_selection_changed", Callable(self, "_record_selection_changed"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_map_loaded", Callable(self, "_record_map_loaded"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_map_saved", Callable(self, "_record_map_saved"))
