@@ -1,7 +1,7 @@
 class_name WallVisualResolver
 extends RefCounted
 
-const WallSegmentDataScript := preload("res://src/walls/wall_segment_data.gd")
+const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
 
 static func visual_endpoints(segment: WallSegmentDataScript) -> PackedVector3Array:
 	if segment == null:

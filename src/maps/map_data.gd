@@ -1,8 +1,8 @@
 class_name MapData
 extends Resource
 
-const GroundDataScript := preload("res://src/maps/ground_data.gd")
-const WallSegmentDataScript := preload("res://src/walls/wall_segment_data.gd")
+const GroundDataScript := preload("res://src/environment/ground_data.gd")
+const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 @export var map_id: String = ""

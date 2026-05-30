@@ -1,12 +1,12 @@
 extends RefCounted
 
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
-const GroundDataScript := preload("res://src/maps/ground_data.gd")
+const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
-const WallSegmentDataScript := preload("res://src/walls/wall_segment_data.gd")
+const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 func run(ctx) -> bool:

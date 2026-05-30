@@ -1,8 +1,8 @@
 class_name WallLayoutView
 extends Node3D
 
-const WallSegmentDataScript := preload("res://src/walls/wall_segment_data.gd")
-const WallVisualResolverScript := preload("res://src/walls/wall_visual_resolver.gd")
+const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
 
 const VISUAL_ROOT_NAME: StringName = &"WallVisuals"
 

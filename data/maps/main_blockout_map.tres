@@ -1,8 +1,8 @@
 [gd_resource type="Resource" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://src/maps/map_data.gd" id="1_map"]
-[ext_resource type="Script" path="res://src/maps/ground_data.gd" id="2_ground"]
-[ext_resource type="Script" path="res://src/walls/wall_segment_data.gd" id="3_wall"]
+[ext_resource type="Script" path="res://src/environment/ground_data.gd" id="2_ground"]
+[ext_resource type="Script" path="res://src/environment/wall_segment_data.gd" id="3_wall"]
 [ext_resource type="Script" path="res://src/objects/world_object_data.gd" id="4_object"]
 
 [sub_resource type="Resource" id="Resource_ground"]

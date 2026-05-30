@@ -1,8 +1,8 @@
 extends RefCounted
 
-const WallLayoutViewScript := preload("res://src/walls/wall_layout_view.gd")
-const WallSegmentDataScript := preload("res://src/walls/wall_segment_data.gd")
-const WallVisualResolverScript := preload("res://src/walls/wall_visual_resolver.gd")
+const WallLayoutViewScript := preload("res://src/environment/wall_layout_view.gd")
+const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()

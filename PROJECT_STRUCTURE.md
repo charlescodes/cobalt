@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-05-21
+Last updated: 2026-05-29
 
 Purpose: quick-reference file map for future context windows. Keep this updated when scenes, controllers, processors, resources, or tests move.
 
@@ -50,21 +50,21 @@ Current sample map resource. Contains ground data, static wall segments, player-
 ## Data Resource Scripts
 
 ```text
-res://src/maps/map_data.gd             Map id plus ground, wall, and object arrays.
-res://src/maps/ground_data.gd           Static ground id, position, size, and color.
-res://src/walls/wall_segment_data.gd   Static wall endpoints, height, thickness, and color.
-res://src/objects/world_object_data.gd World object id, kind, position, size, color, and hoverability.
-res://src/movement/move_target_data.gd Exact Vector3 destination selected by ground raycasts.
+res://src/maps/map_data.gd                    Map id plus environment, wall, and object arrays.
+res://src/environment/ground_data.gd          Static ground id, position, size, and color.
+res://src/environment/wall_segment_data.gd    Static wall endpoints, height, thickness, and color.
+res://src/objects/world_object_data.gd        World object id, kind, position, size, color, and hoverability.
+res://src/movement/move_target_data.gd        Exact Vector3 destination selected by ground raycasts.
 ```
 
 ## Stateless Processors and Resolvers
 
 ```text
-res://src/maps/map_builder.gd                  Builds generated scene nodes from MapData.
-res://src/walls/wall_visual_resolver.gd        Derives wall visual center, length, and rotation.
+res://src/maps/map_builder.gd                         Builds generated scene nodes from MapData.
+res://src/environment/wall_visual_resolver.gd          Derives wall visual center, length, and rotation.
 res://src/interaction/interaction_action_resolver.gd
-                                                Resolves context actions and examine output.
-res://src/movement/move_target_resolver.gd     Validates move sources, destinations, and native nav paths.
+                                                       Resolves context actions and examine output.
+res://src/movement/move_target_resolver.gd            Validates move sources, destinations, and native nav paths.
 ```
 
 Rule logic belongs here or in new stateless processors. Do not move tactical rules into scene nodes.
@@ -96,15 +96,16 @@ res://src/ui/interaction_menu.gd      Context menu for target actions.
 res://src/ui/interaction_log_panel.gd Examine output panel and interaction log toggle.
 ```
 
-## Walls and Navigation Geometry
+## Environment and Navigation Geometry
 
 ```text
-res://src/walls/wall_segment_data.gd    Wall data resource.
-res://src/walls/wall_visual_resolver.gd Stateless wall geometry helper.
-res://src/walls/wall_layout_view.gd     Focused wall layout view retained for tests/tools.
+res://src/environment/ground_data.gd          Static ground data resource.
+res://src/environment/wall_segment_data.gd    Wall data resource.
+res://src/environment/wall_visual_resolver.gd Stateless wall geometry helper.
+res://src/environment/wall_layout_view.gd     Focused wall layout view retained for tests/tools.
 ```
 
-Wall collision generated from map data must remain static so `NavigationRegion3D` can bake native navigation around it.
+Ground, wall, and other static environment collision generated from map data must remain static so `NavigationRegion3D` can bake native navigation around it.
 
 ## Tests
 
@@ -142,6 +143,7 @@ When new systems are added, extend the relevant section above and keep paths gro
 
 ```text
 res://src/combat/              Future combat resources, processors, and scene adapters.
+res://src/environment/         Static map geometry such as ground, walls, and baked obstacles.
 res://src/inventory/           Future inventory resources, processors, and UI adapters.
 res://src/dialogue/            Future dialogue resources, processors, and UI adapters.
 res://src/quests/              Future quest data and stateless validation/progression helpers.
