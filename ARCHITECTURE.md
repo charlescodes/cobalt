@@ -1,27 +1,61 @@
-# SYSTEM RULES: COBALT (Godot 4.4 Project)
+# COBALT Architecture
 
-You are an expert Godot 4.4 architect assisting with the development of "COBALT," a 3D isometric Fallout-style RPG. You must strictly adhere to the following architectural pillars. If a requested feature violates these, you must propose an alternative that fits the architecture.
+Last updated: 2026-05-30
 
-## 1. Core Architecture
-* **Decoupled & Data-Driven:** Data lives in custom `Resource` scripts. Logic lives in stateless processors. Do not hardcode stats or behaviors into nodes.
-* **Composition over Inheritance:** Use Godot's node tree for composition. Do not create deep inheritance trees. Use Duck Typing (e.g., `has_method()`, `has_signal()`, or Node Groups) to interact with objects.
-* **Event Bus Pattern:** Nodes should rarely reference each other directly. Use a global `EventBus` autoload to emit and connect signals for major game events (e.g., `EventBus.emit_signal("unit_moved", unit, target_position)`).
+Purpose: stable project rules for COBALT. This file defines what must stay true as systems grow. Use `DECISIONS.md` for current implementation state and `PROJECT_STRUCTURE.md` for file locations.
 
-## 2. Movement & Navigation (Free-Form 3D)
-* **No Grids:** The game uses free movement on a 3D plane. Do not use hex, square, or grid-based math. 
-* **Native Pathfinding:** Rely exclusively on Godot's native `NavigationServer3D`. 
-* **Static Geometry:** Walls and static obstacles must provide static collision so that a `NavigationRegion3D` can bake a continuous navigation mesh.
-* **Actors:** Moving entities utilize standard `Vector3` coordinates and `NavigationAgent3D` nodes for steering and path resolution. Collision is handled via primitive 3D shapes (e.g., spherical/capsule hitboxes).
+## Core Principles
 
-## 3. Stateless Processors
-* Managers and rule resolvers (combat calculations, action point validation, inventory sorting) must remain isolated and stateless. 
-* They should take a `Resource`, `Vector3`, or `Node` as input, perform the logic, and return a result or emit an event. They must not store active game state.
+- **Data-driven:** Authored game state lives in custom `Resource` scripts. Do not hardcode durable gameplay values into scene nodes.
+- **Composition over inheritance:** Use Godot node composition, small focused scripts, duck typing, signals, and groups instead of deep inheritance trees.
+- **Event-based coordination:** Major cross-system events flow through the `EventBus` autoload. Avoid direct node references between unrelated systems.
+- **Capability-based interaction:** Interactable behavior is a capability. Actors, props, doors, containers, harvestables, and environment pieces may expose interaction profiles without all becoming the same data type.
 
-## 4. Visuals & Scale
-* **Scale:** 1 Godot Unit = 1 Meter.
-* **Visuals:** Currently using simple 3D primitives (`MeshInstance3D` with basic shapes like boxes, cylinders, capsules, and spheres) to mock up the world. Do not write code for complex models or animations.
-* **Interaction:** Raycasts hitting `Area3D` nodes (wrapped as Interaction Targets) drive hover states and context menus. This interaction layer is completely decoupled from the navigation system.
+## Data and Logic Boundaries
 
-## 5. Coding Standards
-* Write token-efficient, modern GDScript specifically for Godot 4.4.
-* Use strict static typing wherever possible (e.g., `var health: int = 100`, `func get_damage() -> int:`).
+- Resource scripts own authored data: identity, position, sizes, colors, static geometry, and future content definitions.
+- Stateless processors and resolvers own durable gameplay rules. They may inspect resources, nodes, and `Vector3` values, but should not store active tactical state.
+- Scene nodes coordinate runtime behavior only: input, raycasts, UI updates, movement execution, generated visuals, and transient busy state.
+- If a rule must be testable without loading the main scene, prefer a stateless `RefCounted` processor.
+
+## World Model
+
+- **Environment** is static map geometry that may contribute baked navigation collision: ground, walls, static obstacles, and future static blocking props.
+- **Objects and props** are authored world entities that can be examined, interacted with, moved, opened, harvested, looted, or otherwise manipulated.
+- **Actors** are moving entities such as the player character, NPCs, enemies, and companions.
+- Keep these concepts distinct. Do not force ground, walls, actors, and containers into one vague resource if their authoring data differs.
+- Scale is `1 Godot unit = 1 meter`.
+
+## Movement and Navigation
+
+- Movement is free-form 3D movement on a continuous plane using `Vector3`.
+- Do not introduce grid, hex, square-cell, axial-coordinate, or cell-blocking movement logic.
+- Pathfinding must rely on Godot native navigation, especially `NavigationServer3D`, `NavigationRegion3D`, and `NavigationAgent3D`.
+- Static environment collision must be bakeable by `NavigationRegion3D`.
+- Actors use `NavigationAgent3D` for path following and steering. Tactical movement validation belongs in resolvers, not actor nodes.
+
+## Interaction
+
+- Interaction raycasts hit `Area3D` wrappers such as `InteractionTarget`.
+- Interaction should remain decoupled from navigation except when a movement action validates a clicked destination.
+- Context actions should be resolved through focused resolvers, not hardcoded into visual nodes.
+- Examine behavior should be reusable across actors, props, containers, doors, harvestables, and future interactables.
+
+## Visuals and Prototype Scope
+
+- Current visuals are primitive blockout geometry using Godot meshes and simple materials.
+- Do not build complex models, animation pipelines, or asset-heavy systems until the gameplay architecture needs them.
+- Debug visuals and overlays are acceptable when they clarify movement, targeting, or navigation behavior.
+
+## Testing Expectations
+
+- Add focused tests for new resources, resolvers, scene coordinators, and interaction or movement behavior.
+- Keep regression coverage close to the subsystem being changed.
+- Run `./scripts/check.sh` before finishing code changes.
+
+## Forbidden Patterns
+
+- No custom grid or hex pathfinding for movement.
+- No durable tactical state in broad manager nodes.
+- No direct coupling between unrelated scene systems when an event or resolver boundary fits.
+- No hidden generated files or editor-local configuration committed as source.
