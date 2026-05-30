@@ -57,6 +57,25 @@ Runtime source of truth:
 - Ground movement targets are intentionally non-highlightable to avoid a giant hover shell.
 - `F12` toggles the debug log panel and navigation debug overlay.
 
+## Planning Direction
+
+### Runtime Editor Mode
+
+- The first editor surface should be an in-game development mode reached through an Escape dev menu.
+- This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
+- Game view should keep the current movement, context-menu, hover, and examine behavior.
+- Editor view should own its own pointer capture, raycasts, tool palette, inspector, and save/load actions.
+- Entering editor view should disable gameplay targeting and context-menu input instead of adding editor behavior to `InteractionController`.
+- Editor tools should mutate resource data and ask `MapLoader` to rebuild and rebake, preserving the current `MapData` -> `MapBuilder` -> generated scene flow.
+- Use "editor tool" for pluggable runtime tools. Reserve "plugin" for future Godot editor plugins or external extension points.
+
+### Module and Generation Planning
+
+- Reusable map pieces should be modeled as resource-backed modules and placement descriptors before building large procedural systems.
+- A placement descriptor should carry local position, rotation, bounds or footprint, seed, selected module or generator preset, and tool-authored parameters.
+- Generator presets should be deterministic and resource-backed. Candidate presets include BSP buildings, roads, utilities, tree clusters, and rock outcrops.
+- World-map coordinate, cellular, quadrant, brush, or noise language applies to generation and authoring only. It must not become custom grid or hex movement.
+
 ## Deferred Behavior
 
 These are intentional gaps, not regressions:
@@ -85,7 +104,7 @@ Update this section when a work session ends with meaningful unfinished context.
 
 Current focus:
 
-- Roadmap planning now centers on editor/game view separation, procedural world-map zones, generated local maps, factions, populations, agents, and one-year world history outcomes.
+- Roadmap planning now centers on an Escape-driven runtime editor mode, editor tools, module libraries, procedural world-map zones, generated local maps, factions, populations, agents, and one-year world history outcomes.
 
 Known state:
 
@@ -95,7 +114,9 @@ Known state:
 
 Next likely work:
 
-- Decide the first development tool surface: dev scene, in-game debug mode, or Godot editor plugin.
+- Define the `Game`/`Editor` mode controller and Escape dev menu contract.
+- Define the first editor tool contract, probably select/inspect before placement or generation.
+- Define resource schemas for module libraries, placement descriptors, and generator presets.
 - Introduce richer interactable data once doors, containers, harvestables, or examine profiles need distinct behavior.
 - Add static obstacle data under `src/environment/` when authored blockers are needed beyond wall segments.
 

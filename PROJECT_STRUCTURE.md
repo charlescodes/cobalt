@@ -26,6 +26,8 @@ res://src/objects/       Current blockout world-object data and views; future sp
 res://src/interaction/   Interaction targets, hover highlighting, context action resolution, and input targeting.
 res://src/movement/      Move target data, movement validation, and movement execution.
 res://src/ui/            Runtime UI panels, debug log, and debug navigation overlay.
+res://src/editor/        Future runtime editor mode, editor tools, inspectors, and editor-only input.
+res://src/generation/    Future deterministic procedural generators and generation resolvers.
 res://data/              Authored resources only; no gameplay logic.
 res://scenes/            Playable scenes and reusable scene roots.
 res://tests/             Headless smoke and integration coverage.
@@ -77,6 +79,14 @@ res://src/environment/ground_data.gd       Static ground id, position, size, and
 res://src/environment/wall_segment_data.gd Static wall endpoints, height, thickness, and color.
 res://src/objects/world_object_data.gd     Current actor/object id, kind, position, size, color, and hoverability.
 res://src/movement/move_target_data.gd     Exact Vector3 destination selected by ground raycasts.
+```
+
+Future authored data locations:
+
+```text
+res://data/modules/            Future reusable environment module resources.
+res://data/generator_presets/  Future deterministic generator preset resources.
+res://data/world/              Future world-map, zone, faction, population, and campaign resources.
 ```
 
 ## Processors, Resolvers, and Coordinators
@@ -136,6 +146,8 @@ res://scripts/open-editor.sh  Launches the Godot editor for this project.
 
 ```text
 res://src/environment/static_obstacle_data.gd  Future baked blockers that are not wall segments.
+res://src/editor/                              Future runtime editor mode controllers, editor tools, inspectors, and panels.
+res://src/generation/                          Future deterministic procedural generators and resolvers.
 res://src/actors/                              Future actor resources, views, and actor-specific coordinators.
 res://src/props/                               Future doors, shelves, lockers, harvestables, and containers.
 res://src/combat/                              Future combat resources, processors, and scene adapters.
@@ -144,4 +156,4 @@ res://src/dialogue/                            Future dialogue resources, proces
 res://src/quests/                              Future quest data and stateless progression helpers.
 ```
 
-Static props or obstacles that affect baked navigation should start in `src/environment/`. Dynamic or interactable props should stay in `src/objects/` until a dedicated `src/props/` split is justified.
+Static props or obstacles that affect baked navigation should start in `src/environment/`. Runtime editor tooling should start in `src/editor/`, while deterministic content-generation logic should start in `src/generation/`. Dynamic or interactable props should stay in `src/objects/` until a dedicated `src/props/` split is justified.

@@ -14,6 +14,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 
 - Sharpened `ARCHITECTURE.md`, `DECISIONS.md`, and `PROJECT_STRUCTURE.md` into distinct source-of-truth documents.
 - Expanded `ROADMAP.md` with procedural world generation, editor tooling, faction/population, agent, quest-seed, and world-history milestones.
+- Planned the first editor direction as an Escape-driven runtime editor mode with separate editor tools, module libraries, placement descriptors, and generator presets.
 
 ## 2026-05-30
 

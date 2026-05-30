@@ -12,10 +12,15 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 
 - **Game view:** The playable experience: exploration, interaction, movement, quests, and world consequences.
 - **Editor view:** Development tooling for authoring map modules, components, zone rules, faction profiles, and generation constraints.
+- **Dev menu:** Escape-driven runtime overlay for switching between game view and editor view, and later for save/load or debug actions.
+- **Editor tool:** A pluggable in-project tool mode selected inside the editor view, such as selection, placement, module inspection, or building generation. This is not a Godot `EditorPlugin` unless the project later needs Godot editor integration.
 - **World map:** A 2D strategic layer made of regions or zones.
 - **Local map:** The playable 3D area generated from the current zone and nearby context.
 - **Zone:** A world-map unit with terrain, environment modules, factions, populations, resources, risks, and generation tags.
-- **Environment module:** Static geometry or layout content that can contribute baked navigation collision.
+- **Environment module:** Static geometry or layout content that can contribute baked navigation collision, such as tree clusters, rock outcrops, roads, utility runs, or building shells.
+- **Module library:** Authored reusable environment modules and generator presets saved as resources under `res://data/`.
+- **Placement descriptor:** Data that says which module or generator preset appears at a local-map position, with rotation, bounds, seed, and parameters.
+- **Generator preset:** A deterministic resource-backed configuration for creating module content, such as a BSP building generator preset.
 - **Faction:** A social, political, religious, military, economic, or ideological organization with goals and methods.
 - **Population:** A broad biological or cultural group such as humans, mutants, ghouls, isolated vault communities, or future setting-specific groups.
 - **Archetype profile:** A weighted set of sliders, usually `0.0` to `1.0`, that influences generation and behavior.
@@ -23,8 +28,9 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 
 ## Now
 
-- [ ] Define the split between game view and editor view.
-- [ ] Decide whether editor tooling lives inside the playable Godot project, a debug/dev scene, or Godot editor plugins.
+- [x] Choose the first editor surface: an in-game development editor mode reached through an Escape dev menu.
+- [ ] Define the mode-switching contract between game view and editor view.
+- [ ] Define the editor tool contract for selection, placement, generation, save/load, and map reload.
 - [ ] Add the first static obstacle/environment resource beyond walls and ground.
 - [ ] Keep consolidating map/environment/object language before adding larger systems.
 
@@ -32,8 +38,9 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 
 - [ ] Create a world-map data model with zones, coordinates, seeds, and neighbor relationships.
 - [ ] Create a zone component schema for terrain, environment, faction influence, population mix, resources, and danger.
+- [ ] Create a module library schema for reusable environment modules, placement descriptors, and generator presets.
 - [ ] Build a local-map generation prototype from zone data and authored environment modules.
-- [ ] Add basic editor tooling for inspecting and tweaking generated zones.
+- [ ] Add basic editor tooling for selecting tools, inspecting resources, placing modules, and reloading maps.
 - [ ] Introduce a reusable interaction/examine profile for future props, actors, doors, containers, and harvestables.
 
 ## Later
@@ -58,12 +65,17 @@ Goal: Establish a clear workflow for development tooling without polluting the p
 Scope:
 
 - Define game view versus editor view responsibilities.
-- Add a development scene or tool surface for map and generation inspection.
+- Add an Escape dev menu that can switch between game view and editor view.
+- Add a runtime editor panel with a tool palette, inspector area, and save/load actions.
+- Keep gameplay interaction raycasts separate from editor raycasts.
+- Let editor tools mutate resource data, then ask `MapLoader` to rebuild and rebake.
 - Keep debug/editor controls separate from normal player controls.
+- Defer true Godot `EditorPlugin` work until runtime editor workflows prove what needs deeper Godot integration.
 
 Exit criteria:
 
-- A contributor can open a dev view to inspect generated map data.
+- A contributor can press Escape, enter editor view, select a tool, and inspect generated map data.
+- Gameplay movement/context-menu input is disabled while editor view owns the pointer.
 - The playable scene remains clean and player-focused.
 
 ### 2. World Map and Zone Model
@@ -92,6 +104,8 @@ Goal: Generate playable local maps from authored components instead of one hand-
 Scope:
 
 - Static environment modules for ground, walls, obstacles, and structure shells.
+- Placement descriptors for module position, rotation, bounds, seed, and tool-authored parameters.
+- Generator presets for module families such as buildings, roads, utilities, tree clusters, and rock outcrops.
 - Rules for selecting modules based on zone tags and archetype profiles.
 - Navmesh rebake after generated environment placement.
 
@@ -173,10 +187,14 @@ Exit criteria:
 
 | Area | Idea | Status | Notes |
 | --- | --- | --- | --- |
+| Tooling | Escape dev menu | Planned | Switch between game view and editor view without starting a separate app. |
+| Tooling | Editor tool contract | Planned | Selection, placement, generation, save/load, map reload, and input ownership. |
 | Tooling | Editor/dev view | Planned | Inspect zones, generated maps, modules, and profiles. |
 | World Map | Zone graph | Planned | 2D region layout with deterministic seeds and neighbors. |
 | Environment | Static obstacle resource | Planned | Use for baked navmesh blockers that are not wall segments. |
 | Generation | Environment modules | Planned | Authored components selected by zone and faction profiles. |
+| Generation | Generator presets | Planned | Resource-backed deterministic presets such as BSP buildings, roads, utilities, tree clusters, and rock outcrops. |
+| Generation | Placement descriptors | Planned | Local-map coordinates, rotation, bounds, seed, and parameters for placed modules. |
 | Interaction | Shared examine profile | Planned | Reusable by props, actors, doors, harvestables, and containers. |
 | World Data | Split actors and props | Deferred | Wait until behavior differs enough from current `WorldObjectData`. |
 | Factions | Faction profile resource | Proposed | Goals, ideology, government, aesthetics, resources, and preferred structures. |
@@ -187,11 +205,13 @@ Exit criteria:
 
 ## Open Questions
 
-- Should editor tooling be a separate dev scene, an in-game debug mode, or Godot editor plugins?
+- When should the runtime editor mode graduate into a separate dev scene or Godot `EditorPlugin`, if ever?
 - What term should the project use for broad groups like humans, mutants, ghouls, and vault communities: population, lineage, people, species, culture, or something else?
 - What are the final archetype axes? Avoid borrowing tabletop alignment directly if custom sliders communicate the setting better.
 - How large is a world-map zone, and how much local map should generate at once?
 - Should local maps stream continuously between zones or load one generated zone at a time first?
+- Are world-map regions best represented as a coordinate graph, authored polygons, generated noise regions, or a hybrid?
+- What is the smallest useful first editor tool: select/inspect, place module, or generate building?
 - Which first interactable should prove the interaction model: door, container, harvestable, or examine-only prop?
 - What is the minimum viable faction simulation before quests are worthwhile?
 - What does it mean for a faction or population to "win" the year?
@@ -201,3 +221,4 @@ Exit criteria:
 - Reference inspirations should stay conceptual. Do not copy named factions, setting-specific groups, or lore directly into COBALT.
 - Keep procedural systems deterministic where possible: the same seed plus the same authored inputs should produce the same result.
 - Prefer small resources and stateless resolvers over broad manager classes as these systems grow.
+- Any cellular, quadrant, brush, or coordinate language for generation is about authoring and placement only. Do not turn it into custom grid movement or pathfinding.
