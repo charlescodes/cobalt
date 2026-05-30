@@ -2,18 +2,18 @@ class_name MapData
 extends Resource
 
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
-const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 @export var map_id: String = ""
 @export var grounds: Array[GroundDataScript] = []
-@export var static_walls: Array[WallSegmentDataScript] = []
+@export var static_walls: Array[WallDataScript] = []
 @export var world_objects: Array[WorldObjectDataScript] = []
 
 func _init(
 	p_map_id: String = "",
 	p_grounds: Array[GroundDataScript] = [],
-	p_static_walls: Array[WallSegmentDataScript] = [],
+	p_static_walls: Array[WallDataScript] = [],
 	p_world_objects: Array[WorldObjectDataScript] = []
 ) -> void:
 	map_id = p_map_id

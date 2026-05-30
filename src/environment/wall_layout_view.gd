@@ -1,12 +1,12 @@
 class_name WallLayoutView
 extends Node3D
 
-const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
 
 const VISUAL_ROOT_NAME: StringName = &"WallVisuals"
 
-@export var wall_segments: Array[WallSegmentDataScript] = []
+@export var walls: Array[WallDataScript] = []
 @export var navigation_region_path: NodePath = ^".."
 @export var apply_on_ready: bool = true
 @export var rebake_navigation_on_apply: bool = true
@@ -25,32 +25,33 @@ func _rebuild_visuals() -> void:
 		child.free()
 
 	var wall_index := 0
-	for segment in wall_segments:
-		if segment == null or not segment.is_valid_segment():
+	for wall_data in walls:
+		if wall_data == null or not wall_data.is_valid_wall():
 			continue
 
-		var endpoints := WallVisualResolverScript.visual_endpoints(segment)
+		var endpoints := WallVisualResolverScript.visual_endpoints(wall_data)
 		if endpoints.size() != 2:
 			continue
 
-		_add_wall_visual(visual_root, segment, wall_index)
+		_add_wall_visual(visual_root, wall_data, wall_index)
 		wall_index += 1
 
-func _add_wall_visual(parent: Node, segment: WallSegmentDataScript, wall_index: int) -> void:
+func _add_wall_visual(parent: Node, wall_data: WallDataScript, wall_index: int) -> void:
 	var wall := Node3D.new()
 	wall.name = "Wall_%02d" % wall_index
-	wall.position = WallVisualResolverScript.visual_center(segment)
-	wall.rotation.y = WallVisualResolverScript.visual_rotation_y(segment)
+	wall.position = WallVisualResolverScript.visual_center(wall_data)
 
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(segment.thickness_m, segment.height_m, WallVisualResolverScript.visual_length(segment))
+	var wall_mesh := WallVisualResolverScript.build_visual_mesh(wall_data)
+	if wall_mesh == null:
+		return
 
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = "Mesh"
-	mesh_instance.mesh = box_mesh
+	mesh_instance.mesh = wall_mesh
+	mesh_instance.transform = WallVisualResolverScript.visual_local_transform(wall_data)
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = segment.color
+	material.albedo_color = wall_data.color
 	mesh_instance.material_override = material
 	wall.add_child(mesh_instance)
 
@@ -62,8 +63,9 @@ func _add_wall_visual(parent: Node, segment: WallSegmentDataScript, wall_index: 
 
 	var collision_shape := CollisionShape3D.new()
 	collision_shape.name = "CollisionShape3D"
+	collision_shape.transform = WallVisualResolverScript.visual_local_transform(wall_data)
 	var box_shape := BoxShape3D.new()
-	box_shape.size = box_mesh.size
+	box_shape.size = WallVisualResolverScript.visual_size(wall_data)
 	collision_shape.shape = box_shape
 	static_body.add_child(collision_shape)
 

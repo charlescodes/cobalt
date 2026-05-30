@@ -2,7 +2,7 @@ class_name EditorPanel
 extends PanelContainer
 
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
-const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 var _tool_button: Button
@@ -113,11 +113,11 @@ func _render_inspector() -> void:
 		lines.append("position: %s" % _format_vector3(ground.position))
 		lines.append("size: %s" % _format_vector3(ground.size_m))
 		lines.append("color: %s" % _format_color(ground.color))
-	elif _selected_data is WallSegmentDataScript:
-		var wall := _selected_data as WallSegmentDataScript
+	elif _selected_data is WallDataScript:
+		var wall := _selected_data as WallDataScript
 		if _selected_node is Node3D:
 			lines.append("position: %s" % _format_vector3((_selected_node as Node3D).global_position))
-		lines.append("endpoints: %s -> %s" % [
+		lines.append("line: %s -> %s" % [
 			_format_vector3(wall.start_position),
 			_format_vector3(wall.end_position),
 		])

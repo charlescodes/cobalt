@@ -6,7 +6,7 @@ const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
-const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
@@ -99,41 +99,39 @@ static func _add_ground_move_target(parent: Node3D, ground: GroundDataScript, gr
 	collision.shape = box_shape
 	target.add_child(collision)
 
-static func _add_wall(parent: Node3D, segment: WallSegmentDataScript, wall_index: int) -> void:
-	if segment == null or not segment.is_valid_segment():
+static func _add_wall(parent: Node3D, wall_data: WallDataScript, wall_index: int) -> void:
+	if wall_data == null or not wall_data.is_valid_wall():
 		return
 
 	var wall := Node3D.new()
 	wall.name = "Wall_%02d" % wall_index
-	wall.position = WallVisualResolverScript.visual_center(segment)
-	wall.rotation.y = WallVisualResolverScript.visual_rotation_y(segment)
-	_tag_editor_selectable(wall, segment, EDITOR_KIND_WALL, wall_index, wall)
+	wall.position = WallVisualResolverScript.visual_center(wall_data)
+	_tag_editor_selectable(wall, wall_data, EDITOR_KIND_WALL, wall_index, wall)
 	parent.add_child(wall)
 
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(
-		segment.thickness_m,
-		segment.height_m,
-		WallVisualResolverScript.visual_length(segment)
-	)
+	var wall_mesh := WallVisualResolverScript.build_visual_mesh(wall_data)
+	if wall_mesh == null:
+		return
 
 	var mesh := MeshInstance3D.new()
 	mesh.name = "Mesh"
-	mesh.mesh = box_mesh
-	mesh.material_override = _material(segment.color)
+	mesh.mesh = wall_mesh
+	mesh.transform = WallVisualResolverScript.visual_local_transform(wall_data)
+	mesh.material_override = _material(wall_data.color)
 	wall.add_child(mesh)
 
 	var static_body := StaticBody3D.new()
 	static_body.name = "StaticBody3D"
 	static_body.collision_layer = 1
 	static_body.collision_mask = 1
-	_tag_editor_selectable(static_body, segment, EDITOR_KIND_WALL, wall_index, wall)
+	_tag_editor_selectable(static_body, wall_data, EDITOR_KIND_WALL, wall_index, wall)
 	wall.add_child(static_body)
 
 	var collision := CollisionShape3D.new()
 	collision.name = "CollisionShape3D"
+	collision.transform = WallVisualResolverScript.visual_local_transform(wall_data)
 	var box_shape := BoxShape3D.new()
-	box_shape.size = box_mesh.size
+	box_shape.size = WallVisualResolverScript.visual_size(wall_data)
 	collision.shape = box_shape
 	static_body.add_child(collision)
 

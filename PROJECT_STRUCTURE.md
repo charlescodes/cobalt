@@ -74,14 +74,14 @@ res://data/maps/main_blockout_map.tres
 res://data/editor_maps/<name>.tres
 ```
 
-Current sample map resource plus runtime editor save targets. The sample map contains ground data, static wall segments, player-character data, and NPC data.
+Current sample map resource plus runtime editor save targets. The sample map contains ground data, continuous static walls, player-character data, and NPC data.
 
 ## Core Data Resources
 
 ```text
 res://src/maps/map_data.gd                 Map id plus ground, wall, and world-object arrays.
 res://src/environment/ground_data.gd       Static ground id, position, size, and color.
-res://src/environment/wall_segment_data.gd Static wall endpoints, height, thickness, and color.
+res://src/environment/wall_data.gd         Static wall line endpoints, height, thickness, and color.
 res://src/objects/world_object_data.gd     Current actor/object id, kind, position, size, color, and hoverability.
 res://src/movement/move_target_data.gd     Exact Vector3 destination selected by ground raycasts.
 ```
@@ -157,7 +157,7 @@ res://scripts/open-editor.sh  Launches the Godot editor for this project.
 ## Future File Placement
 
 ```text
-res://src/environment/static_obstacle_data.gd  Future baked blockers that are not wall segments.
+res://src/environment/static_obstacle_data.gd  Future baked blockers that are not continuous walls.
 res://src/editor/                              Future runtime editor mode controllers, editor tools, inspectors, and panels.
 res://src/generation/                          Future deterministic procedural generators and resolvers.
 res://src/actors/                              Future actor resources, views, and actor-specific coordinators.

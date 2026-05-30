@@ -1,4 +1,4 @@
-class_name WallSegmentData
+class_name WallData
 extends Resource
 
 @export var start_position: Vector3 = Vector3.ZERO
@@ -26,5 +26,5 @@ func horizontal_delta() -> Vector3:
 func horizontal_length() -> float:
 	return horizontal_delta().length()
 
-func is_valid_segment() -> bool:
+func is_valid_wall() -> bool:
 	return horizontal_length() > 0.001

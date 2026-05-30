@@ -21,7 +21,7 @@ Runtime source of truth:
 
 ### World Organization
 
-- `src/environment/` owns static map geometry resources and helpers: ground, wall segments, wall visualization, and future static obstacles or static blocking props.
+- `src/environment/` owns static map geometry resources and helpers: ground, continuous walls, wall visualization, and future static obstacles or static blocking props.
 - `src/maps/` owns map aggregation, map building, and map loading.
 - `src/objects/` currently owns blockout object data and views. A later split into `actors/` and `props/` is expected when gameplay behavior requires it.
 - Interactable behavior should be reusable as a capability, not treated as a directory category by itself.
@@ -37,9 +37,9 @@ Runtime source of truth:
 
 ### Environment and NavMesh Geometry
 
-- Static walls are authored as `WallSegmentData` with endpoint `Vector3` values, height, thickness, and color.
-- `WallVisualResolver` derives wall center, length, and rotation from segment endpoints.
-- `MapBuilder` turns walls into primitive visuals plus `StaticBody3D` collision on collision layer `1`.
+- Static walls are authored as `WallData` with one start/end floor-plane line, height, thickness, and color.
+- `WallVisualResolver` derives a box size and local orientation from each wall line; authored walls do not store rotation.
+- `MapBuilder` turns each wall into one `BoxMesh` visual plus `BoxShape3D` static collision on collision layer `1`.
 - Grounds are generated as static collision bodies and include a child `GroundMoveTarget` `Area3D` for movement targeting.
 - `MapLoader.rebake_navigation()` configures the `NavigationMesh` to parse static colliders and bakes the `NavigationRegion3D`.
 
@@ -129,7 +129,7 @@ Next likely work:
 - Define resource schemas for module libraries, placement descriptors, and generator presets.
 - Keep the first editor pass scoped to local map mode switching, save/load, selection, highlighting, and read-only inspection before adding composition, sockets, or generation tools.
 - Introduce richer interactable data once doors, containers, harvestables, or examine profiles need distinct behavior.
-- Add static obstacle data under `src/environment/` when authored blockers are needed beyond wall segments.
+- Add static obstacle data under `src/environment/` when authored blockers are needed beyond continuous walls.
 
 ## Verification
 

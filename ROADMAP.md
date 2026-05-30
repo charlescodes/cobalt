@@ -236,7 +236,7 @@ Exit criteria:
 | Tooling | World-map editor | Proposed | Separate future tool surface for zones, points of interest, towns, routes, and sparse terrain. |
 | World Map | Zone graph | Planned | 2D region layout with deterministic seeds and neighbors. |
 | World Map | Region-scale sparse generation | Proposed | Large world with dead space, routes, hazards, communities, and points of interest. |
-| Environment | Static obstacle resource | Planned | Use for baked navmesh blockers that are not wall segments. |
+| Environment | Static obstacle resource | Planned | Use for baked navmesh blockers that are not continuous walls. |
 | Environment | Environmental clusters | Proposed | Tree clusters, rock outcrops, utility runs, hazards, roads, and small scenic compositions. |
 | Generation | Environment modules | Planned | Authored components selected by zone and faction profiles. |
 | Generation | Generator presets | Planned | Resource-backed deterministic presets such as BSP buildings, roads, utilities, tree clusters, and rock outcrops. |

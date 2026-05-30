@@ -61,9 +61,9 @@ func run(ctx) -> bool:
 	if static_walls == null or static_walls.get_child_count() != 2:
 		main.free()
 		return ctx.fail("Main scene should generate two static walls.")
-	if map_loader.map_data.static_walls.size() != 2 or not map_loader.map_data.static_walls[0].is_valid_segment():
+	if map_loader.map_data.static_walls.size() != 2 or not map_loader.map_data.static_walls[0].is_valid_wall():
 		main.free()
-		return ctx.fail("Main scene first map wall segment is invalid.")
+		return ctx.fail("Main scene first map wall is invalid.")
 	var wall_body := generated_map.get_node_or_null("StaticWalls/Wall_00/StaticBody3D") as StaticBody3D
 	if wall_body == null:
 		main.free()

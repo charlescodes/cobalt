@@ -18,6 +18,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Expanded `ROADMAP.md` with procedural world generation, editor tooling, faction/population, agent, quest-seed, and world-history milestones.
 - Planned the first editor direction as an Escape-driven runtime editor mode with separate editor tools, module libraries, placement descriptors, and generator presets.
 - Expanded future roadmap coverage for map components, procedural structures, sockets, city-block composition, world-map editor tooling, sparse region-scale generation, points of interest, and spawn placement.
+- Replaced legacy wall resources with continuous `WallData` resources while keeping solid `BoxMesh`/`BoxShape3D` generation per wall.
 
 ## 2026-05-30
 

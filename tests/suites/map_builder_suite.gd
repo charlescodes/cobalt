@@ -6,7 +6,7 @@ const InteractionTargetScript := preload("res://src/interaction/interaction_targ
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
-const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 func run(ctx) -> bool:
@@ -18,7 +18,7 @@ func run(ctx) -> bool:
 		Vector3(4.0, 0.1, 4.0),
 		Color(0.2, 0.3, 0.25, 1.0)
 	)
-	var wall := WallSegmentDataScript.new(
+	var wall := WallDataScript.new(
 		Vector3(-1.0, 0.0, 1.0),
 		Vector3(1.0, 0.0, 1.0),
 		2.0,
@@ -33,7 +33,7 @@ func run(ctx) -> bool:
 		Color.BLUE
 	)
 	var grounds: Array[GroundDataScript] = []
-	var walls: Array[WallSegmentDataScript] = []
+	var walls: Array[WallDataScript] = []
 	var objects: Array[WorldObjectDataScript] = []
 	grounds.append(ground)
 	walls.append(wall)
@@ -94,6 +94,13 @@ func run(ctx) -> bool:
 	if wall_node == null:
 		parent.free()
 		return ctx.fail("MapBuilder did not create a static wall node.")
+	if not is_zero_approx(wall_node.rotation.y):
+		parent.free()
+		return ctx.fail("MapBuilder should not rotate generated wall roots.")
+	var wall_mesh := wall_node.get_node_or_null("Mesh") as MeshInstance3D
+	if wall_mesh == null or not (wall_mesh.mesh is BoxMesh):
+		parent.free()
+		return ctx.fail("Generated static wall is missing its box mesh.")
 	var wall_body := wall_node.get_node_or_null("StaticBody3D") as StaticBody3D
 	if wall_body == null:
 		parent.free()

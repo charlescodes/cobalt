@@ -13,7 +13,7 @@ const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapFileStoreScript := preload("res://src/editor/map_file_store.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
-const WallSegmentDataScript := preload("res://src/environment/wall_segment_data.gd")
+const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 var _mode_changed_count: int = 0
@@ -178,7 +178,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if wall_node.get_node_or_null("Mesh/EditorSelectionShell") == null:
 		return ctx.fail("Wall selection did not create an editor highlight shell.")
 	var wall_inspector := editor_panel.get_inspector_text()
-	if not wall_inspector.contains("wall") or not wall_inspector.contains("endpoints"):
+	if not wall_inspector.contains("wall") or not wall_inspector.contains("line"):
 		return ctx.fail("Inspector did not render selected wall fields.")
 
 	var ground_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-3.0, 0.0, -3.0))
@@ -226,7 +226,7 @@ func _create_editor_test_map() -> MapDataScript:
 		Vector3(12.0, 0.1, 12.0),
 		Color(0.2, 0.24, 0.2, 1.0)
 	)
-	var wall := WallSegmentDataScript.new(
+	var wall := WallDataScript.new(
 		Vector3(-1.0, 0.0, 2.0),
 		Vector3(1.0, 0.0, 2.0),
 		2.0,
@@ -241,7 +241,7 @@ func _create_editor_test_map() -> MapDataScript:
 		Color(0.1, 0.45, 0.95, 1.0)
 	)
 	var grounds: Array[GroundDataScript] = []
-	var walls: Array[WallSegmentDataScript] = []
+	var walls: Array[WallDataScript] = []
 	var objects: Array[WorldObjectDataScript] = []
 	grounds.append(ground)
 	walls.append(wall)
