@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Purpose: filesystem index and ownership map. This file tells contributors and agents where code lives and where new files should go. Use `ARCHITECTURE.md` for rules and `DECISIONS.md` for current reasoning and handoff notes.
 
@@ -27,7 +27,7 @@ res://src/interaction/   Interaction targets, hover highlighting, context action
 res://src/movement/      Move target data, movement validation, and movement execution.
 res://src/ui/            Runtime UI panels, debug log, and debug navigation overlay.
 res://src/editor/        Runtime editor mode, editor tools, inspectors, save/load, and editor-only input.
-res://src/generation/    Future deterministic procedural generators and generation resolvers.
+res://src/generation/    Deterministic procedural generators and generation resolvers.
 res://data/              Authored resources only; no gameplay logic.
 res://scenes/            Playable scenes and reusable scene roots.
 res://tests/             Headless smoke and integration coverage.
@@ -107,8 +107,9 @@ res://src/movement/move_target_resolver.gd            Validates move sources, de
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
 res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
-res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, NPC brush, PC brush, wall brush, and door brush input for generated map content.
+res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, NPC brush, PC brush, wall brush, door brush, and building brush input for generated map content.
 res://src/editor/map_file_store.gd                     Sanitized MapData save/load under data/editor_maps.
+res://src/generation/bsp_building_generator.gd         Deterministic BSP building generator that emits WallData and DoorSocketData.
 ```
 
 ## Components and UI
@@ -123,7 +124,7 @@ res://src/ui/debug_log_panel.gd                F12 debug log panel.
 res://src/ui/navigation_debug_overlay.gd       3D movement/path/failure debug markers.
 res://src/ui/debug_overlay_controller.gd       F12 debug visibility controller.
 res://src/editor/dev_menu.gd                   Centered Escape dev menu UI.
-res://src/editor/editor_panel.gd               Draggable editor tool dock, tool panels, and read-only inspector.
+res://src/editor/editor_panel.gd               Draggable editor tool dock, tool panels, building sliders, and read-only inspector.
 res://src/editor/editor_selection_highlighter.gd Editor selection highlight shells.
 ```
 
@@ -133,7 +134,8 @@ res://src/editor/editor_selection_highlighter.gd Editor selection highlight shel
 res://tests/test_runner.gd                         Headless smoke/integration orchestrator.
 res://tests/support/test_context.gd                Shared fixtures and helpers.
 res://tests/suites/camera_suite.gd                 Camera behavior coverage.
-res://tests/suites/editor_suite.gd                 Runtime editor mode, tool dock, selection, NPC brush, PC brush, wall brush, door brush, inspector, and save/load coverage.
+res://tests/suites/bsp_building_generator_suite.gd Deterministic BSP building generator coverage.
+res://tests/suites/editor_suite.gd                 Runtime editor mode, tool dock, selection, NPC brush, PC brush, wall brush, door brush, building brush, inspector, and save/load coverage.
 res://tests/suites/interaction_ui_suite.gd         Interaction UI coverage.
 res://tests/suites/main_scene_raycast_suite.gd     Main-scene raycast and targeting coverage.
 res://tests/suites/main_scene_suite.gd             Main scene composition coverage.
@@ -160,7 +162,7 @@ res://scripts/open-editor.sh  Launches the Godot editor for this project.
 ```text
 res://src/environment/static_obstacle_data.gd  Future baked blockers that are not continuous walls.
 res://src/editor/                              Future runtime editor mode controllers, editor tools, inspectors, and panels.
-res://src/generation/                          Future deterministic procedural generators and resolvers.
+res://src/generation/                          Deterministic procedural generators and resolvers.
 res://src/actors/                              Future actor resources, views, and actor-specific coordinators.
 res://src/props/                               Future doors, shelves, lockers, harvestables, and containers.
 res://src/combat/                              Future combat resources, processors, and scene adapters.

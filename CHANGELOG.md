@@ -17,6 +17,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added a Wall Brush editor tool with line and rectangle modes for two-click static wall placement and map rebuild/rebake.
 - Added a Door Brush editor tool that snaps to walls, splits a 1m opening with 0.5m edge clearance, and draws a light grey-green door socket marker.
 - Added a PC Brush editor tool for placing multiple controllable player-character blockout objects.
+- Added a deterministic BSP building generator and `Bldg.` editor brush with seed/size/room sliders, translucent preview, Submit commit flow, partition door sockets, and an exterior door socket.
 
 ### Changed
 

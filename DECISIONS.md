@@ -1,6 +1,6 @@
 # COBALT Decisions
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Purpose: living design ledger and agent handoff file. `ARCHITECTURE.md` is project law, `PROJECT_STRUCTURE.md` is the file index, `ROADMAP.md` is future planning, and `CHANGELOG.md` is the formal history.
 
@@ -70,12 +70,13 @@ Runtime source of truth:
 - Entering editor mode loads an in-memory blank editor map the first time no editor map is active.
 - Editor mode disables gameplay mouse targeting and context-menu input through `InteractionController` while `EditorSelectionController` owns editor tool raycasts.
 - The editor panel is a draggable, collapsed-by-default tool dock. Right mouse drag moves the dock when the pointer is over the dock; right mouse elsewhere remains camera pan.
-- The editor currently exposes `Select/Inspect`, `NPC Brush`, `PC Brush`, `Wall Brush`, and `Door Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
+- The editor currently exposes `Select/Inspect`, `NPC Brush`, `PC Brush`, `Wall Brush`, `Door Brush`, and `Bldg. Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
 - `Select/Inspect` raycasts generated grounds, walls, door sockets, and world objects and renders a read-only inspector.
 - `NPC Brush` places `WorldObjectData` entries with `object_kind == &"non_player_character"` on generated ground clicks, rebuilds/rebakes through `MapLoader.replace_map_data()`, and clears selection so repeated painting stays uninterrupted.
 - `PC Brush` places `WorldObjectData` entries with `object_kind == &"player_character"` on generated ground clicks. Multiple player-character objects are valid and each can be used as a movement source.
 - `Wall Brush` defaults to line mode when selected. Line mode uses two ground-plane clicks to append one `WallData`; rectangle mode uses two opposite corner clicks to append four enclosing `WallData` edges. Wall brush mode changes flow through `EventBus.editor_wall_brush_mode_changed`.
 - `Door Brush` snaps a click to the nearest wall line, clamps the opening to leave 0.5m edge clearance, replaces the original wall with two shorter wall lines around a 1m gap, appends a `DoorSocketData`, and rebuilds/rebakes the map.
+- `Bldg. Brush` uses a clicked ground point as the building center, picks a seed, and draws a transient 50% opacity preview. Width, depth, minimum room size, target room count, and seed are slider-controlled in the editor panel. Submit flattens the preview into `WallData` and `DoorSocketData`, then rebuilds/rebakes through `MapLoader.replace_map_data()`.
 - The first editor surface should be an in-game development mode reached through an Escape dev menu.
 - This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
 - Game view should keep the current movement, context-menu, hover, and examine behavior.
@@ -89,6 +90,7 @@ Runtime source of truth:
 - Reusable map pieces should be modeled as resource-backed modules and placement descriptors before building large procedural systems.
 - A placement descriptor should carry local position, rotation, bounds or footprint, seed, selected module or generator preset, and tool-authored parameters.
 - Generator presets should be deterministic and resource-backed. Candidate presets include BSP buildings, roads, utilities, tree clusters, and rock outcrops.
+- The first BSP building generator is implemented as a deterministic `RefCounted` processor. It partitions a rectangular footprint into rooms, cuts one door in every partition wall, and adds at least one exterior door socket so generated rooms are connected before higher-level module resources exist.
 - World-map coordinate, cellular, quadrant, brush, or noise language applies to generation and authoring only. It must not become custom grid or hex movement.
 
 ## Deferred Behavior

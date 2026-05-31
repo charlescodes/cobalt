@@ -2,11 +2,13 @@ class_name EditorSelectionController
 extends Node
 
 const EditorSelectionHighlighterScript := preload("res://src/editor/editor_selection_highlighter.gd")
+const BspBuildingGeneratorScript := preload("res://src/generation/bsp_building_generator.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
+const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
@@ -14,6 +16,7 @@ const TOOL_NPC_BRUSH: StringName = &"npc_brush"
 const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
 const TOOL_DOOR_BRUSH: StringName = &"door_brush"
+const TOOL_BUILDING_BRUSH: StringName = &"building_brush"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
 const PC_KIND: StringName = &"player_character"
@@ -30,6 +33,9 @@ const DOOR_SOCKET_WIDTH_M: float = 1.0
 const DOOR_SOCKET_EDGE_CLEARANCE_M: float = 0.5
 const DOOR_SOCKET_SNAP_DISTANCE_M: float = 0.75
 const DOOR_SOCKET_COLOR: Color = Color(0.82, 0.9, 0.84, 1.0)
+const BUILDING_PREVIEW_ALPHA: float = 0.5
+const BUILDING_PREVIEW_SOCKET_HEIGHT_M: float = 0.03
+const BUILDING_PREVIEW_SOCKET_SEGMENTS: int = 32
 
 @export var camera_path: NodePath = ^"../CameraRig/PitchPivot/Camera3D"
 @export var map_loader_path: NodePath = ^"../MapLoader"
@@ -46,12 +52,18 @@ var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
 var _highlighter: EditorSelectionHighlighterScript
+var _building_parameters: Dictionary = BspBuildingGeneratorScript.default_parameters()
+var _building_preview_origin: Vector3 = Vector3.ZERO
+var _building_preview_result: Dictionary = {}
+var _building_preview_root: Node3D
+var _preview_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	_camera = _resolve_camera()
 	_highlighter = EditorSelectionHighlighterScript.new()
 	_highlighter.name = "EditorSelectionHighlighter"
 	add_child(_highlighter)
+	_preview_rng.randomize()
 
 	var event_bus := _get_event_bus()
 	if event_bus == null:
@@ -61,6 +73,8 @@ func _ready() -> void:
 	var map_loaded_callable := Callable(self, "_on_editor_map_loaded")
 	var tool_callable := Callable(self, "_on_editor_tool_changed")
 	var wall_mode_callable := Callable(self, "_on_editor_wall_brush_mode_changed")
+	var building_parameters_callable := Callable(self, "_on_editor_building_brush_parameters_changed")
+	var building_commit_callable := Callable(self, "_on_editor_building_brush_commit_requested")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
 		event_bus.connect(&"editor_mode_changed", mode_callable)
 	if event_bus.has_signal(&"editor_map_loaded") and not event_bus.is_connected(&"editor_map_loaded", map_loaded_callable):
@@ -69,6 +83,10 @@ func _ready() -> void:
 		event_bus.connect(&"editor_tool_changed", tool_callable)
 	if event_bus.has_signal(&"editor_wall_brush_mode_changed") and not event_bus.is_connected(&"editor_wall_brush_mode_changed", wall_mode_callable):
 		event_bus.connect(&"editor_wall_brush_mode_changed", wall_mode_callable)
+	if event_bus.has_signal(&"editor_building_brush_parameters_changed") and not event_bus.is_connected(&"editor_building_brush_parameters_changed", building_parameters_callable):
+		event_bus.connect(&"editor_building_brush_parameters_changed", building_parameters_callable)
+	if event_bus.has_signal(&"editor_building_brush_commit_requested") and not event_bus.is_connected(&"editor_building_brush_commit_requested", building_commit_callable):
+		event_bus.connect(&"editor_building_brush_commit_requested", building_commit_callable)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _is_editor_mode:
@@ -86,6 +104,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			add_wall_brush_point_at_screen(mouse_event.position)
 		elif _active_tool == TOOL_DOOR_BRUSH:
 			place_door_socket_at_screen(mouse_event.position)
+		elif _active_tool == TOOL_BUILDING_BRUSH:
+			place_building_preview_at_screen(mouse_event.position)
 		else:
 			select_at_screen(mouse_event.position)
 		var viewport := get_viewport()
@@ -100,6 +120,15 @@ func get_wall_brush_mode() -> StringName:
 
 func has_pending_wall_brush_point() -> bool:
 	return _has_wall_brush_start
+
+func has_building_preview() -> bool:
+	return not _building_preview_result.is_empty()
+
+func get_building_preview_origin() -> Vector3:
+	return _building_preview_origin
+
+func get_building_preview_result() -> Dictionary:
+	return _building_preview_result
 
 func select_at_screen(screen_position: Vector2) -> bool:
 	if not _is_editor_mode:
@@ -219,6 +248,45 @@ func place_door_socket_at_screen(screen_position: Vector2) -> DoorSocketDataScri
 	map_loader.replace_map_data(map_loader.map_data, true)
 	clear_selection()
 	return socket_data
+
+func place_building_preview_at_screen(screen_position: Vector2) -> Dictionary:
+	if not _is_editor_mode:
+		return {}
+
+	var hit := _raycast_editor_ground_at(screen_position)
+	if hit.is_empty():
+		return {}
+
+	var preview_origin := _floor_plane_position(hit.get("position", Vector3.ZERO))
+	_building_parameters["seed"] = _preview_rng.randi_range(1, 9999)
+	_emit_building_seed_selected(int(_building_parameters.get("seed", 1)))
+	_set_building_preview(preview_origin)
+	clear_selection()
+	return _building_preview_result
+
+func commit_building_preview() -> Dictionary:
+	if not _is_editor_mode or _building_preview_result.is_empty():
+		return {}
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null:
+		return {}
+
+	var walls: Array = _building_preview_result.get("walls", [])
+	var sockets: Array = _building_preview_result.get("door_sockets", [])
+	for wall_data in walls:
+		if wall_data is WallDataScript:
+			map_loader.map_data.static_walls.append(wall_data)
+	for socket_data in sockets:
+		if socket_data is DoorSocketDataScript:
+			(socket_data as DoorSocketDataScript).socket_id = _next_building_door_socket_id(map_loader.map_data)
+			map_loader.map_data.door_sockets.append(socket_data)
+
+	var committed_result := _building_preview_result
+	_clear_building_preview()
+	map_loader.replace_map_data(map_loader.map_data, true)
+	clear_selection()
+	return committed_result
 
 func add_wall_brush_point_at_screen(screen_position: Vector2) -> Array[WallDataScript]:
 	var added_walls: Array[WallDataScript] = []
@@ -352,10 +420,12 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 	_is_editor_mode = mode == &"editor"
 	if not _is_editor_mode:
 		_clear_wall_brush_points()
+		_clear_building_preview()
 		clear_selection()
 
 func _on_editor_map_loaded(_map_data: Resource, _path: String) -> void:
 	_clear_wall_brush_points()
+	_clear_building_preview()
 	clear_selection()
 
 func _on_editor_tool_changed(tool_id: StringName) -> void:
@@ -365,10 +435,13 @@ func _on_editor_tool_changed(tool_id: StringName) -> void:
 		or tool_id == TOOL_PC_BRUSH
 		or tool_id == TOOL_WALL_BRUSH
 		or tool_id == TOOL_DOOR_BRUSH
+		or tool_id == TOOL_BUILDING_BRUSH
 	):
 		_active_tool = tool_id
 		if _active_tool != TOOL_WALL_BRUSH:
 			_clear_wall_brush_points()
+		if _active_tool != TOOL_BUILDING_BRUSH:
+			_clear_building_preview()
 
 func _on_editor_wall_brush_mode_changed(mode: StringName) -> void:
 	if mode != WALL_BRUSH_MODE_LINE and mode != WALL_BRUSH_MODE_RECTANGLE:
@@ -376,6 +449,14 @@ func _on_editor_wall_brush_mode_changed(mode: StringName) -> void:
 
 	_wall_brush_mode = mode
 	_clear_wall_brush_points()
+
+func _on_editor_building_brush_parameters_changed(parameters: Dictionary) -> void:
+	_building_parameters = parameters.duplicate()
+	if not _building_preview_result.is_empty():
+		_set_building_preview(_building_preview_origin)
+
+func _on_editor_building_brush_commit_requested() -> void:
+	commit_building_preview()
 
 func _resolve_camera() -> Camera3D:
 	var configured_camera := get_node_or_null(camera_path) as Camera3D
@@ -415,6 +496,13 @@ func _next_door_socket_id(map_data: MapDataScript) -> StringName:
 		index += 1
 
 	return StringName("door_socket_%03d" % index)
+
+func _next_building_door_socket_id(map_data: MapDataScript) -> StringName:
+	var index := 1
+	while _door_socket_id_exists(map_data, StringName("building_door_%03d" % index)):
+		index += 1
+
+	return StringName("building_door_%03d" % index)
 
 func _door_socket_id_exists(map_data: MapDataScript, socket_id: StringName) -> bool:
 	for socket in map_data.door_sockets:
@@ -583,6 +671,99 @@ func _door_socket_overlaps_existing(
 func _clear_wall_brush_points() -> void:
 	_has_wall_brush_start = false
 	_wall_brush_start_position = Vector3.ZERO
+
+func _set_building_preview(origin: Vector3) -> void:
+	_building_preview_origin = _floor_plane_position(origin)
+	_building_preview_result = BspBuildingGeneratorScript.generate(
+		_building_preview_origin,
+		_building_parameters
+	)
+	_rebuild_building_preview_root()
+
+func _rebuild_building_preview_root() -> void:
+	if _building_preview_root != null:
+		_building_preview_root.free()
+		_building_preview_root = null
+
+	if _building_preview_result.is_empty():
+		return
+
+	_building_preview_root = Node3D.new()
+	_building_preview_root.name = "BuildingBrushPreview"
+	add_child(_building_preview_root)
+
+	var walls: Array = _building_preview_result.get("walls", [])
+	for wall_data in walls:
+		if wall_data is WallDataScript:
+			_add_preview_wall(_building_preview_root, wall_data as WallDataScript)
+
+	var sockets: Array = _building_preview_result.get("door_sockets", [])
+	for socket_data in sockets:
+		if socket_data is DoorSocketDataScript:
+			_add_preview_door_socket(_building_preview_root, socket_data as DoorSocketDataScript)
+
+func _add_preview_wall(parent: Node3D, wall_data: WallDataScript) -> void:
+	if wall_data == null or not wall_data.is_valid_wall():
+		return
+
+	var wall := Node3D.new()
+	wall.name = "PreviewWall"
+	wall.position = WallVisualResolverScript.visual_center(wall_data)
+	parent.add_child(wall)
+
+	var wall_mesh := WallVisualResolverScript.build_visual_mesh(wall_data)
+	if wall_mesh == null:
+		return
+
+	var mesh := MeshInstance3D.new()
+	mesh.name = "Mesh"
+	mesh.mesh = wall_mesh
+	mesh.transform = WallVisualResolverScript.visual_local_transform(wall_data)
+	mesh.material_override = _preview_material(wall_data.color)
+	wall.add_child(mesh)
+
+func _add_preview_door_socket(parent: Node3D, socket_data: DoorSocketDataScript) -> void:
+	if socket_data == null or not socket_data.is_valid_socket():
+		return
+
+	var marker_root := Node3D.new()
+	marker_root.name = "PreviewDoorSocket"
+	marker_root.position = socket_data.position
+	marker_root.rotation.y = socket_data.rotation_y
+	parent.add_child(marker_root)
+
+	var cylinder_mesh := CylinderMesh.new()
+	cylinder_mesh.top_radius = socket_data.width_m * 0.5
+	cylinder_mesh.bottom_radius = socket_data.width_m * 0.5
+	cylinder_mesh.height = BUILDING_PREVIEW_SOCKET_HEIGHT_M
+	cylinder_mesh.radial_segments = BUILDING_PREVIEW_SOCKET_SEGMENTS
+
+	var mesh := MeshInstance3D.new()
+	mesh.name = "Marker"
+	mesh.position = Vector3(0.0, BUILDING_PREVIEW_SOCKET_HEIGHT_M * 0.5, 0.0)
+	mesh.mesh = cylinder_mesh
+	mesh.material_override = _preview_material(socket_data.color)
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	marker_root.add_child(mesh)
+
+func _preview_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(color.r, color.g, color.b, BUILDING_PREVIEW_ALPHA)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return material
+
+func _clear_building_preview() -> void:
+	_building_preview_origin = Vector3.ZERO
+	_building_preview_result = {}
+	if _building_preview_root != null:
+		_building_preview_root.free()
+		_building_preview_root = null
+
+func _emit_building_seed_selected(seed: int) -> void:
+	var event_bus := _get_event_bus()
+	if event_bus != null and event_bus.has_signal(&"editor_building_brush_seed_selected"):
+		event_bus.emit_signal(&"editor_building_brush_seed_selected", seed)
 
 func _emit_selection_changed() -> void:
 	var event_bus := _get_event_bus()

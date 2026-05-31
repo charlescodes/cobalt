@@ -224,12 +224,26 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		^"EditorToolDockLayout/ToolContent/DoorBrushContent/DoorBrushContentPadding/DoorBrushProperties"
 	):
 		return ctx.fail("Door Brush label did not receive a usable wrapping width.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_BUILDING_BRUSH)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_BUILDING_BRUSH
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_BUILDING_BRUSH
+		or _latest_tool != EditorPanelScript.TOOL_BUILDING_BRUSH
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_BUILDING_BRUSH
+	):
+		return ctx.fail("Building Brush tool did not become the active expanded editor tool.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/BuildingBrushContent/BuildingBrushContentPadding/BuildingBrushProperties/BuildingBrushDetails"
+	):
+		return ctx.fail("Building Brush label did not receive a usable wrapping width.")
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
 	if (
 		editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
 		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
 	):
-		return ctx.fail("Select/Inspect tool did not reactivate after the door brush tool.")
+		return ctx.fail("Select/Inspect tool did not reactivate after the door/building brush tools.")
 
 	var start_panel_position := editor_panel.get_panel_position()
 	var drag_press := InputEventMouseButton.new()
@@ -602,6 +616,69 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if not socket_inspector.contains("door_socket") or not socket_inspector.contains("door_socket_001"):
 		return ctx.fail("Inspector did not render selected door socket fields.")
 
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_BUILDING_BRUSH)
+	await ctx.tree.process_frame
+	var wall_count_before_building := map_loader.map_data.static_walls.size()
+	var socket_count_before_building := map_loader.map_data.door_sockets.size()
+	var building_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(3.0, 0.0, 3.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var building_click := InputEventMouseButton.new()
+	building_click.button_index = MOUSE_BUTTON_LEFT
+	building_click.pressed = true
+	building_click.position = building_screen_position
+	editor_selection_controller._unhandled_input(building_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if not editor_selection_controller.has_building_preview():
+		return ctx.fail("Building Brush did not create a transient preview after a ground click.")
+	if editor_selection_controller.get_node_or_null("BuildingBrushPreview") == null:
+		return ctx.fail("Building Brush preview did not create visible preview geometry.")
+	if map_loader.map_data.static_walls.size() != wall_count_before_building:
+		return ctx.fail("Building Brush preview should not append walls before Submit.")
+	if map_loader.map_data.door_sockets.size() != socket_count_before_building:
+		return ctx.fail("Building Brush preview should not append door sockets before Submit.")
+	var width_slider := editor_panel.get_node_or_null(
+		^"EditorToolDockLayout/ToolContent/BuildingBrushContent/BuildingBrushContentPadding/BuildingBrushProperties/BuildingWidthSliderRow/BuildingWidthSlider"
+	) as HSlider
+	if width_slider == null:
+		return ctx.fail("Building Brush width slider was not created.")
+	width_slider.value = 12.0
+	await ctx.tree.process_frame
+	var adjusted_preview := editor_selection_controller.get_building_preview_result()
+	var adjusted_bounds: Dictionary = adjusted_preview.get("bounds", {})
+	var adjusted_width := float(adjusted_bounds.get("max_x", 0.0)) - float(adjusted_bounds.get("min_x", 0.0))
+	if not is_equal_approx(adjusted_width, 12.0):
+		return ctx.fail("Building Brush slider changes did not regenerate the preview.")
+	var preview_walls: Array = adjusted_preview.get("walls", [])
+	var preview_sockets: Array = adjusted_preview.get("door_sockets", [])
+	if preview_walls.is_empty() or preview_sockets.is_empty():
+		return ctx.fail("Building Brush preview did not contain generated walls and door sockets.")
+	var submit_button := editor_panel.get_node_or_null(
+		^"EditorToolDockLayout/ToolContent/BuildingBrushContent/BuildingBrushContentPadding/BuildingBrushProperties/BuildingBrushActionRow/BuildingSubmitButton"
+	) as Button
+	if submit_button == null:
+		return ctx.fail("Building Brush submit button was not created.")
+	submit_button.emit_signal(&"pressed")
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if editor_selection_controller.has_building_preview():
+		return ctx.fail("Building Brush kept the preview after Submit.")
+	if map_loader.map_data.static_walls.size() != wall_count_before_building + preview_walls.size():
+		return ctx.fail("Building Brush Submit did not append the preview walls to the map.")
+	if map_loader.map_data.door_sockets.size() != socket_count_before_building + preview_sockets.size():
+		return ctx.fail("Building Brush Submit did not append the preview door sockets to the map.")
+	var building_socket := map_loader.map_data.door_sockets[map_loader.map_data.door_sockets.size() - 1] as DoorSocketDataScript
+	if building_socket == null or not String(building_socket.socket_id).begins_with("building_door_"):
+		return ctx.fail("Building Brush Submit did not assign building_door_* socket ids.")
+	var building_socket_id := String(building_socket.socket_id)
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if generated_map.get_node_or_null("DoorSockets/%s" % building_socket_id) == null:
+		return ctx.fail("Building Brush Submit did not rebuild generated door socket nodes.")
+	if editor_panel.get_inspector_text() != "No selection":
+		return ctx.fail("Inspector should show no selection after Building Brush Submit.")
+
+	var saved_door_socket_count := map_loader.map_data.door_sockets.size()
 	var saved_path := editor_mode_controller.save_current_map("editor_suite_runtime_map")
 	if saved_path.is_empty() or not ResourceLoader.exists(saved_path):
 		return ctx.fail("Editor map save did not write a .tres resource.")
@@ -622,8 +699,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if navigation_region.get_node_or_null("GeneratedMap/WorldObjects/editor_object") == null:
 		return ctx.fail("Editor map load did not rebuild generated world objects.")
 	if (
-		map_loader.map_data.door_sockets.size() != 1
+		map_loader.map_data.door_sockets.size() != saved_door_socket_count
 		or navigation_region.get_node_or_null("GeneratedMap/DoorSockets/door_socket_001") == null
+		or navigation_region.get_node_or_null("GeneratedMap/DoorSockets/%s" % building_socket_id) == null
 	):
 		return ctx.fail("Editor map load did not preserve and rebuild door sockets.")
 	if _map_loaded_data != loaded_map or _map_loaded_path != saved_path:

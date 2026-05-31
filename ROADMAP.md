@@ -1,6 +1,6 @@
 # COBALT Roadmap
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Purpose: forward-looking planning for major systems, milestones, and unresolved design questions. Use `DECISIONS.md` for accepted design state and `CHANGELOG.md` for completed work.
 
@@ -34,6 +34,7 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 - [x] Choose the first editor surface: an in-game development editor mode reached through an Escape dev menu.
 - [x] Define the mode-switching contract between game view and editor view.
 - [x] Define the V1 editor tool contract for selection, save/load, and map reload.
+- [x] Add a first runtime BSP building brush with preview, sliders, submit, partition doors, and one exterior door.
 - [ ] Add the first static obstacle/environment resource beyond walls and ground.
 - [ ] Keep consolidating map/environment/object language before adding larger systems.
 
@@ -123,7 +124,7 @@ Exit criteria:
 
 ### 4. Procedural Structures and Sockets
 
-Status: Proposed
+Status: Proposed; first local-map brush slice implemented
 
 Goal: Generate useful authored building components that can be saved, inspected, reused, and combined into larger local maps.
 
@@ -138,6 +139,11 @@ Exit criteria:
 
 - A generated building can expose room, door, and spawn metadata.
 - The same generated building can be reused as a component in more than one local map.
+
+Implemented first slice:
+
+- Runtime `Bldg. Brush` can generate and preview a deterministic BSP shell from a ground click.
+- Submit currently flattens generated walls and door sockets into `MapData`; reusable building component resources and richer room/socket metadata remain future work.
 
 ### 5. World-Scale Map Editing and Points of Interest
 

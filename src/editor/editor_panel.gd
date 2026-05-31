@@ -5,12 +5,14 @@ const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
+const BspBuildingGeneratorScript := preload("res://src/generation/bsp_building_generator.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
 const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
 const TOOL_DOOR_BRUSH: StringName = &"door_brush"
+const TOOL_BUILDING_BRUSH: StringName = &"building_brush"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
 const DOCK_WIDTH: float = 376.0
@@ -27,6 +29,7 @@ var _brush_button: Button
 var _pc_button: Button
 var _wall_button: Button
 var _door_button: Button
+var _building_button: Button
 var _wall_line_button: Button
 var _wall_rectangle_button: Button
 var _content_root: VBoxContainer
@@ -35,17 +38,26 @@ var _brush_content: Control
 var _pc_content: Control
 var _wall_content: Control
 var _door_content: Control
+var _building_content: Control
 var _inspector_label: Label
 var _brush_label: Label
 var _pc_label: Label
 var _wall_label: Label
 var _door_label: Label
+var _building_label: Label
+var _building_width_slider: HSlider
+var _building_depth_slider: HSlider
+var _building_min_room_slider: HSlider
+var _building_room_count_slider: HSlider
+var _building_seed_slider: HSlider
+var _building_submit_button: Button
 var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
 var _active_tool: StringName = TOOL_SELECT_INSPECT
 var _expanded_tool: StringName = &""
 var _wall_brush_mode: StringName = WALL_BRUSH_MODE_LINE
+var _building_parameters: Dictionary = BspBuildingGeneratorScript.default_parameters()
 var _panel_position: Vector2 = Vector2.ZERO
 var _is_dragging: bool = false
 var _drag_start_mouse_position: Vector2 = Vector2.ZERO
@@ -65,10 +77,13 @@ func _ready() -> void:
 
 	var mode_callable := Callable(self, "_on_editor_mode_changed")
 	var selection_callable := Callable(self, "_on_editor_selection_changed")
+	var building_seed_callable := Callable(self, "_on_editor_building_brush_seed_selected")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
 		event_bus.connect(&"editor_mode_changed", mode_callable)
 	if event_bus.has_signal(&"editor_selection_changed") and not event_bus.is_connected(&"editor_selection_changed", selection_callable):
 		event_bus.connect(&"editor_selection_changed", selection_callable)
+	if event_bus.has_signal(&"editor_building_brush_seed_selected") and not event_bus.is_connected(&"editor_building_brush_seed_selected", building_seed_callable):
+		event_bus.connect(&"editor_building_brush_seed_selected", building_seed_callable)
 
 func get_inspector_text() -> String:
 	return _inspector_label.text if _inspector_label != null else ""
@@ -81,6 +96,9 @@ func get_expanded_tool() -> StringName:
 
 func get_wall_brush_mode() -> StringName:
 	return _wall_brush_mode
+
+func get_building_brush_parameters() -> Dictionary:
+	return _building_parameters.duplicate()
 
 func is_tool_panel_expanded() -> bool:
 	return _expanded_tool != &""
@@ -171,6 +189,9 @@ func _ensure_layout() -> void:
 	_door_button = _new_tool_button("DoorBrushToolButton", "Door", TOOL_DOOR_BRUSH)
 	button_row.add_child(_door_button)
 
+	_building_button = _new_tool_button("BuildingBrushToolButton", "Bldg.", TOOL_BUILDING_BRUSH)
+	button_row.add_child(_building_button)
+
 	var separator := HSeparator.new()
 	separator.name = "ToolInspectorSeparator"
 	separator.visible = false
@@ -197,6 +218,9 @@ func _ensure_layout() -> void:
 
 	_door_content = _build_door_content()
 	_content_root.add_child(_door_content)
+
+	_building_content = _build_building_content()
+	_content_root.add_child(_building_content)
 
 	_update_tool_ui()
 
@@ -296,6 +320,93 @@ func _build_door_content() -> Control:
 	]))
 	return _new_tool_content("DoorBrushContent", "DoorBrushContentPadding", _door_label)
 
+func _build_building_content() -> Control:
+	var layout := VBoxContainer.new()
+	layout.name = "BuildingBrushProperties"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 8)
+
+	_building_width_slider = _new_building_slider("BuildingWidthSlider", 4.0, 24.0, 0.5, "width_m")
+	layout.add_child(_new_building_slider_row("width_m", _building_width_slider))
+
+	_building_depth_slider = _new_building_slider("BuildingDepthSlider", 4.0, 24.0, 0.5, "depth_m")
+	layout.add_child(_new_building_slider_row("depth_m", _building_depth_slider))
+
+	_building_min_room_slider = _new_building_slider("BuildingMinRoomSlider", 1.0, 6.0, 0.25, "min_room_size_m")
+	layout.add_child(_new_building_slider_row("min_room_m", _building_min_room_slider))
+
+	_building_room_count_slider = _new_building_slider("BuildingRoomCountSlider", 1.0, 12.0, 1.0, "target_room_count")
+	layout.add_child(_new_building_slider_row("rooms", _building_room_count_slider))
+
+	_building_seed_slider = _new_building_slider("BuildingSeedSlider", 1.0, 9999.0, 1.0, "seed")
+	layout.add_child(_new_building_slider_row("seed", _building_seed_slider))
+
+	var action_row := HBoxContainer.new()
+	action_row.name = "BuildingBrushActionRow"
+	action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_row.add_theme_constant_override("separation", 8)
+	layout.add_child(action_row)
+
+	var seed_button := Button.new()
+	seed_button.name = "BuildingNewSeedButton"
+	seed_button.text = "New Seed"
+	seed_button.custom_minimum_size = Vector2(0.0, 32.0)
+	seed_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	seed_button.pressed.connect(_on_building_new_seed_pressed)
+	seed_button.gui_input.connect(_on_drag_gui_input)
+	action_row.add_child(seed_button)
+
+	_building_submit_button = Button.new()
+	_building_submit_button.name = "BuildingSubmitButton"
+	_building_submit_button.text = "Submit"
+	_building_submit_button.custom_minimum_size = Vector2(0.0, 32.0)
+	_building_submit_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_building_submit_button.pressed.connect(_on_building_submit_pressed)
+	_building_submit_button.gui_input.connect(_on_drag_gui_input)
+	action_row.add_child(_building_submit_button)
+
+	_building_label = Label.new()
+	_building_label.name = "BuildingBrushDetails"
+	_configure_tool_label(_building_label)
+	layout.add_child(_building_label)
+
+	_apply_building_parameters_to_sliders(false)
+	_update_building_summary()
+	return _new_tool_content("BuildingBrushContent", "BuildingBrushContentPadding", layout)
+
+func _new_building_slider(
+	slider_name: String,
+	min_value: float,
+	max_value: float,
+	step: float,
+	parameter_name: String
+) -> HSlider:
+	var slider := HSlider.new()
+	slider.name = slider_name
+	slider.min_value = min_value
+	slider.max_value = max_value
+	slider.step = step
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.value_changed.connect(_on_building_slider_changed.bind(parameter_name))
+	slider.gui_input.connect(_on_drag_gui_input)
+	return slider
+
+func _new_building_slider_row(label_text: String, slider: HSlider) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "%sRow" % slider.name
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+
+	var label := Label.new()
+	label.name = "%sLabel" % slider.name
+	label.text = label_text
+	label.custom_minimum_size = Vector2(92.0, 0.0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+	row.add_child(slider)
+	return row
+
 func _new_wall_mode_button(button_name: String, label: String, mode: StringName) -> Button:
 	var button := Button.new()
 	button.name = button_name
@@ -357,11 +468,36 @@ func _on_editor_selection_changed(
 	_selected_kind = selected_kind
 	_render_inspector()
 
+func _on_editor_building_brush_seed_selected(seed: int) -> void:
+	_building_parameters["seed"] = clampi(seed, 1, 9999)
+	_apply_building_parameters_to_sliders(false)
+	_update_building_summary()
+
 func _on_tool_button_pressed(tool_id: StringName) -> void:
 	toggle_tool_panel(tool_id)
 
 func _on_wall_mode_button_pressed(mode: StringName) -> void:
 	set_wall_brush_mode(mode)
+
+func _on_building_slider_changed(value: float, parameter_name: String) -> void:
+	if parameter_name == "target_room_count" or parameter_name == "seed":
+		_building_parameters[parameter_name] = int(roundf(value))
+	else:
+		_building_parameters[parameter_name] = value
+	_update_building_summary()
+	_emit_building_parameters_changed()
+
+func _on_building_new_seed_pressed() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	_building_parameters["seed"] = rng.randi_range(1, 9999)
+	_apply_building_parameters_to_sliders(true)
+	_update_building_summary()
+
+func _on_building_submit_pressed() -> void:
+	var event_bus := _get_event_bus()
+	if event_bus != null and event_bus.has_signal(&"editor_building_brush_commit_requested"):
+		event_bus.emit_signal(&"editor_building_brush_commit_requested")
 
 func _on_drag_gui_input(event: InputEvent) -> void:
 	_handle_drag_input(event)
@@ -432,6 +568,8 @@ func _update_tool_ui() -> void:
 		_wall_button.button_pressed = _active_tool == TOOL_WALL_BRUSH
 	if _door_button != null:
 		_door_button.button_pressed = _active_tool == TOOL_DOOR_BRUSH
+	if _building_button != null:
+		_building_button.button_pressed = _active_tool == TOOL_BUILDING_BRUSH
 	if _wall_line_button != null:
 		_wall_line_button.button_pressed = _wall_brush_mode == WALL_BRUSH_MODE_LINE
 	if _wall_rectangle_button != null:
@@ -449,6 +587,8 @@ func _update_tool_ui() -> void:
 		_wall_content.visible = _expanded_tool == TOOL_WALL_BRUSH
 	if _door_content != null:
 		_door_content.visible = _expanded_tool == TOOL_DOOR_BRUSH
+	if _building_content != null:
+		_building_content.visible = _expanded_tool == TOOL_BUILDING_BRUSH
 
 	var separator := get_node_or_null("EditorToolDockLayout/ToolInspectorSeparator") as HSeparator
 	if separator != null:
@@ -463,7 +603,50 @@ func _is_known_tool(tool_id: StringName) -> bool:
 		or tool_id == TOOL_PC_BRUSH
 		or tool_id == TOOL_WALL_BRUSH
 		or tool_id == TOOL_DOOR_BRUSH
+		or tool_id == TOOL_BUILDING_BRUSH
 	)
+
+func _apply_building_parameters_to_sliders(should_emit: bool) -> void:
+	var slider_values := {
+		"width_m": _building_width_slider,
+		"depth_m": _building_depth_slider,
+		"min_room_size_m": _building_min_room_slider,
+		"target_room_count": _building_room_count_slider,
+		"seed": _building_seed_slider,
+	}
+	for parameter_name in slider_values.keys():
+		var slider := slider_values[parameter_name] as HSlider
+		if slider == null:
+			continue
+
+		slider.set_value_no_signal(float(_building_parameters.get(parameter_name, slider.value)))
+
+	if should_emit:
+		_emit_building_parameters_changed()
+
+func _update_building_summary() -> void:
+	if _building_label == null:
+		return
+
+	_building_label.text = "\n".join(PackedStringArray([
+		"Building Brush",
+		"origin: center point",
+		"size: %.1fm x %.1fm" % [
+			float(_building_parameters.get("width_m", BspBuildingGeneratorScript.DEFAULT_WIDTH_M)),
+			float(_building_parameters.get("depth_m", BspBuildingGeneratorScript.DEFAULT_DEPTH_M)),
+		],
+		"rooms: %d" % int(_building_parameters.get("target_room_count", BspBuildingGeneratorScript.DEFAULT_TARGET_ROOM_COUNT)),
+		"min_room_m: %.2f" % float(_building_parameters.get("min_room_size_m", BspBuildingGeneratorScript.DEFAULT_MIN_ROOM_SIZE_M)),
+		"seed: %d" % int(_building_parameters.get("seed", BspBuildingGeneratorScript.DEFAULT_SEED)),
+	]))
+
+func _emit_building_parameters_changed() -> void:
+	var event_bus := _get_event_bus()
+	if event_bus != null and event_bus.has_signal(&"editor_building_brush_parameters_changed"):
+		event_bus.emit_signal(
+			&"editor_building_brush_parameters_changed",
+			_building_parameters.duplicate()
+		)
 
 func _is_known_wall_brush_mode(mode: StringName) -> bool:
 	return mode == WALL_BRUSH_MODE_LINE or mode == WALL_BRUSH_MODE_RECTANGLE
