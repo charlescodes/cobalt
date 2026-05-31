@@ -1,6 +1,7 @@
 extends RefCounted
 
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
+const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
@@ -25,6 +26,13 @@ func run(ctx) -> bool:
 		0.2,
 		Color(0.3, 0.3, 0.3, 1.0)
 	)
+	var door_socket := DoorSocketDataScript.new(
+		&"door_test",
+		Vector3(0.0, 0.0, 1.0),
+		1.0,
+		0.0,
+		Color(0.82, 0.9, 0.84, 1.0)
+	)
 	var object_data := WorldObjectDataScript.new(
 		&"pc_test",
 		&"player_character",
@@ -34,16 +42,20 @@ func run(ctx) -> bool:
 	)
 	var grounds: Array[GroundDataScript] = []
 	var walls: Array[WallDataScript] = []
+	var door_sockets: Array[DoorSocketDataScript] = []
 	var objects: Array[WorldObjectDataScript] = []
 	grounds.append(ground)
 	walls.append(wall)
+	door_sockets.append(door_socket)
 	objects.append(object_data)
-	var map_data := MapDataScript.new("test_map", grounds, walls, objects)
+	var map_data := MapDataScript.new("test_map", grounds, walls, objects, door_sockets)
 
 	if map_data.map_id != "test_map" or map_data.grounds[0] != ground:
 		return ctx.fail("MapData did not preserve ground data.")
 	if map_data.static_walls[0] != wall or map_data.world_objects[0] != object_data:
 		return ctx.fail("MapData did not preserve wall or world-object data.")
+	if map_data.door_sockets[0] != door_socket:
+		return ctx.fail("MapData did not preserve door socket data.")
 
 	var parent := Node3D.new()
 	ctx.root().add_child(parent)
@@ -109,6 +121,22 @@ func run(ctx) -> bool:
 	if wall_collision == null or not (wall_collision.shape is BoxShape3D):
 		parent.free()
 		return ctx.fail("Generated static wall is missing StaticBody3D collision.")
+
+	var door_socket_node := generated_map.get_node_or_null("DoorSockets/door_test") as Node3D
+	if door_socket_node == null:
+		parent.free()
+		return ctx.fail("MapBuilder did not create a door socket marker node.")
+	if door_socket_node.position != door_socket.position:
+		parent.free()
+		return ctx.fail("Generated door socket did not use DoorSocketData.position.")
+	var door_marker := door_socket_node.get_node_or_null("Marker") as MeshInstance3D
+	if door_marker == null or not (door_marker.mesh is CylinderMesh):
+		parent.free()
+		return ctx.fail("Generated door socket is missing its cylinder marker mesh.")
+	var door_pick_area := door_socket_node.get_node_or_null("EditorPickArea") as Area3D
+	if door_pick_area == null or door_pick_area.get_node_or_null("CollisionShape3D") == null:
+		parent.free()
+		return ctx.fail("Generated door socket is missing editor pick area collision.")
 
 	var object_view := generated_map.get_node_or_null("WorldObjects/pc_test") as BlockoutObjectViewScript
 	if object_view == null or object_view.object_data != object_data:

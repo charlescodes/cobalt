@@ -2,6 +2,7 @@ class_name MapBuilder
 extends RefCounted
 
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
+const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
@@ -13,6 +14,7 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 const GENERATED_ROOT_NAME: StringName = &"GeneratedMap"
 const STATIC_GROUNDS_NAME: StringName = &"StaticGrounds"
 const STATIC_WALLS_NAME: StringName = &"StaticWalls"
+const DOOR_SOCKETS_NAME: StringName = &"DoorSockets"
 const WORLD_OBJECTS_NAME: StringName = &"WorldObjects"
 const EDITOR_SOURCE_META: StringName = &"editor_source_resource"
 const EDITOR_KIND_META: StringName = &"editor_source_kind"
@@ -20,7 +22,11 @@ const EDITOR_INDEX_META: StringName = &"editor_source_index"
 const EDITOR_ROOT_META: StringName = &"editor_select_root"
 const EDITOR_KIND_GROUND: StringName = &"ground"
 const EDITOR_KIND_WALL: StringName = &"wall"
+const EDITOR_KIND_DOOR_SOCKET: StringName = &"door_socket"
 const EDITOR_KIND_WORLD_OBJECT: StringName = &"world_object"
+const DOOR_SOCKET_MARKER_HEIGHT_M: float = 0.025
+const DOOR_SOCKET_PICK_HEIGHT_M: float = 0.25
+const DOOR_SOCKET_MARKER_SEGMENTS: int = 48
 
 static func build(map_data: MapDataScript, parent: Node3D) -> Node3D:
 	var root := Node3D.new()
@@ -33,9 +39,11 @@ static func build(map_data: MapDataScript, parent: Node3D) -> Node3D:
 static func _add_roots(root: Node3D, map_data: MapDataScript) -> void:
 	var grounds_root := _new_root(STATIC_GROUNDS_NAME)
 	var walls_root := _new_root(STATIC_WALLS_NAME)
+	var door_sockets_root := _new_root(DOOR_SOCKETS_NAME)
 	var objects_root := _new_root(WORLD_OBJECTS_NAME)
 	root.add_child(grounds_root)
 	root.add_child(walls_root)
+	root.add_child(door_sockets_root)
 	root.add_child(objects_root)
 
 	if map_data == null:
@@ -45,6 +53,8 @@ static func _add_roots(root: Node3D, map_data: MapDataScript) -> void:
 		_add_ground(grounds_root, map_data.grounds[ground_index], ground_index)
 	for wall_index in range(map_data.static_walls.size()):
 		_add_wall(walls_root, map_data.static_walls[wall_index], wall_index)
+	for socket_index in range(map_data.door_sockets.size()):
+		_add_door_socket(door_sockets_root, map_data.door_sockets[socket_index], socket_index)
 	for object_index in range(map_data.world_objects.size()):
 		_add_world_object(objects_root, map_data.world_objects[object_index], object_index)
 
@@ -135,6 +145,52 @@ static func _add_wall(parent: Node3D, wall_data: WallDataScript, wall_index: int
 	collision.shape = box_shape
 	static_body.add_child(collision)
 
+static func _add_door_socket(
+	parent: Node3D,
+	socket_data: DoorSocketDataScript,
+	socket_index: int
+) -> void:
+	if socket_data == null or not socket_data.is_valid_socket():
+		return
+
+	var marker_root := Node3D.new()
+	marker_root.name = _data_name(socket_data.socket_id, "DoorSocket_%02d" % socket_index)
+	marker_root.position = socket_data.position
+	marker_root.rotation.y = socket_data.rotation_y
+	_tag_editor_selectable(marker_root, socket_data, EDITOR_KIND_DOOR_SOCKET, socket_index, marker_root)
+	parent.add_child(marker_root)
+
+	var cylinder_mesh := CylinderMesh.new()
+	cylinder_mesh.top_radius = socket_data.width_m * 0.5
+	cylinder_mesh.bottom_radius = socket_data.width_m * 0.5
+	cylinder_mesh.height = DOOR_SOCKET_MARKER_HEIGHT_M
+	cylinder_mesh.radial_segments = DOOR_SOCKET_MARKER_SEGMENTS
+
+	var mesh := MeshInstance3D.new()
+	mesh.name = "Marker"
+	mesh.position = Vector3(0.0, DOOR_SOCKET_MARKER_HEIGHT_M * 0.5, 0.0)
+	mesh.mesh = cylinder_mesh
+	mesh.material_override = _door_socket_material(socket_data.color)
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	marker_root.add_child(mesh)
+
+	var pick_area := Area3D.new()
+	pick_area.name = "EditorPickArea"
+	pick_area.collision_layer = 1
+	pick_area.collision_mask = 0
+	pick_area.input_ray_pickable = true
+	_tag_editor_selectable(pick_area, socket_data, EDITOR_KIND_DOOR_SOCKET, socket_index, marker_root)
+	marker_root.add_child(pick_area)
+
+	var collision := CollisionShape3D.new()
+	collision.name = "CollisionShape3D"
+	collision.position = Vector3(0.0, DOOR_SOCKET_PICK_HEIGHT_M * 0.5, 0.0)
+	var cylinder_shape := CylinderShape3D.new()
+	cylinder_shape.radius = socket_data.width_m * 0.5
+	cylinder_shape.height = DOOR_SOCKET_PICK_HEIGHT_M
+	collision.shape = cylinder_shape
+	pick_area.add_child(collision)
+
 static func _add_world_object(parent: Node3D, object_data: WorldObjectDataScript, object_index: int) -> void:
 	if object_data == null:
 		return
@@ -166,6 +222,11 @@ static func _is_positive_size(size_m: Vector3) -> bool:
 static func _material(color: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
+	return material
+
+static func _door_socket_material(color: Color) -> StandardMaterial3D:
+	var material := _material(color)
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return material
 
 static func _tag_editor_selectable(

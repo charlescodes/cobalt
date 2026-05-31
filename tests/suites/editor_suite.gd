@@ -2,6 +2,7 @@ extends RefCounted
 
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 const DevMenuScript := preload("res://src/editor/dev_menu.gd")
+const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const EditorModeControllerScript := preload("res://src/editor/editor_mode_controller.gd")
 const EditorPanelScript := preload("res://src/editor/editor_panel.gd")
 const EditorSelectionControllerScript := preload("res://src/editor/editor_selection_controller.gd")
@@ -13,6 +14,7 @@ const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapFileStoreScript := preload("res://src/editor/map_file_store.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
+const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
@@ -156,13 +158,27 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		^"EditorToolDockLayout/ToolContent/NpcBrushContent/NpcBrushContentPadding/NpcBrushProperties"
 	):
 		return ctx.fail("NPC Brush label did not receive the same usable wrapping width.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_PC_BRUSH)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_PC_BRUSH
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_PC_BRUSH
+		or _latest_tool != EditorPanelScript.TOOL_PC_BRUSH
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_PC_BRUSH
+	):
+		return ctx.fail("PC Brush tool did not become the active expanded editor tool.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/PcBrushContent/PcBrushContentPadding/PcBrushProperties"
+	):
+		return ctx.fail("PC Brush label did not receive a usable wrapping width.")
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
 	if (
 		editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
 		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
 		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
 	):
-		return ctx.fail("Select/Inspect tool did not reactivate after the brush tool.")
+		return ctx.fail("Select/Inspect tool did not reactivate after the character brush tools.")
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_WALL_BRUSH)
 	await ctx.tree.process_frame
 	if (
@@ -194,6 +210,26 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
 	):
 		return ctx.fail("Select/Inspect tool did not reactivate after the wall brush tool.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_DOOR_BRUSH)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_DOOR_BRUSH
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_DOOR_BRUSH
+		or _latest_tool != EditorPanelScript.TOOL_DOOR_BRUSH
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_DOOR_BRUSH
+	):
+		return ctx.fail("Door Brush tool did not become the active expanded editor tool.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/DoorBrushContent/DoorBrushContentPadding/DoorBrushProperties"
+	):
+		return ctx.fail("Door Brush label did not receive a usable wrapping width.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
+	):
+		return ctx.fail("Select/Inspect tool did not reactivate after the door brush tool.")
 
 	var start_panel_position := editor_panel.get_panel_position()
 	var drag_press := InputEventMouseButton.new()
@@ -347,6 +383,54 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if map_loader.map_data.world_objects.size() != object_count_after_valid_brush:
 		return ctx.fail("NPC Brush changed map data after an empty-space click.")
 
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_PC_BRUSH)
+	await ctx.tree.process_frame
+	var object_count_before_pc_brush := map_loader.map_data.world_objects.size()
+	var pc_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-2.0, 0.0, -2.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var pc_click := InputEventMouseButton.new()
+	pc_click.button_index = MOUSE_BUTTON_LEFT
+	pc_click.pressed = true
+	pc_click.position = pc_screen_position
+	editor_selection_controller._unhandled_input(pc_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.world_objects.size() != object_count_before_pc_brush + 1:
+		return ctx.fail("PC Brush did not append a world object to the editor map.")
+	var placed_pc := map_loader.map_data.world_objects[map_loader.map_data.world_objects.size() - 1]
+	if placed_pc.object_kind != &"player_character":
+		return ctx.fail("PC Brush placed a world object with the wrong kind.")
+	if placed_pc.object_id != &"pc_001":
+		return ctx.fail("PC Brush did not assign the first pc_* object id.")
+	if not MoveTargetResolverScript.can_start_move_data(placed_pc):
+		return ctx.fail("PC Brush placed a world object that movement rules cannot control.")
+	if placed_pc.position.distance_to(Vector3(-2.0, 0.0, -2.0)) > 0.2:
+		return ctx.fail("PC Brush did not place the PC near the clicked ground point.")
+	var second_pc_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-4.0, 0.0, -2.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var second_pc_click := InputEventMouseButton.new()
+	second_pc_click.button_index = MOUSE_BUTTON_LEFT
+	second_pc_click.pressed = true
+	second_pc_click.position = second_pc_screen_position
+	editor_selection_controller._unhandled_input(second_pc_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.world_objects.size() != object_count_before_pc_brush + 2:
+		return ctx.fail("PC Brush did not allow multiple player-character placements.")
+	var second_pc := map_loader.map_data.world_objects[map_loader.map_data.world_objects.size() - 1]
+	if second_pc.object_kind != &"player_character" or second_pc.object_id != &"pc_002":
+		return ctx.fail("PC Brush did not assign a second controllable PC correctly.")
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if (
+		generated_map.get_node_or_null("WorldObjects/pc_001") == null
+		or generated_map.get_node_or_null("WorldObjects/pc_002") == null
+	):
+		return ctx.fail("PC Brush did not rebuild generated content with multiple PCs.")
+	if editor_panel.get_inspector_text() != "No selection":
+		return ctx.fail("Inspector should show no selection after PC Brush placement.")
+
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_WALL_BRUSH)
 	await ctx.tree.process_frame
 	var wall_count_before_line := map_loader.map_data.static_walls.size()
@@ -455,6 +539,69 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if editor_panel.get_inspector_text() != "No selection":
 		return ctx.fail("Inspector should show no selection after Wall Brush rectangle placement.")
 
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_DOOR_BRUSH)
+	await ctx.tree.process_frame
+	var wall_count_before_door := map_loader.map_data.static_walls.size()
+	var socket_count_before_door := map_loader.map_data.door_sockets.size()
+	var door_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(0.0, 0.0, 2.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var door_click := InputEventMouseButton.new()
+	door_click.button_index = MOUSE_BUTTON_LEFT
+	door_click.pressed = true
+	door_click.position = door_screen_position
+	editor_selection_controller._unhandled_input(door_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.door_sockets.size() != socket_count_before_door + 1:
+		return ctx.fail("Door Brush did not append a door socket to the editor map.")
+	if map_loader.map_data.static_walls.size() != wall_count_before_door + 1:
+		return ctx.fail("Door Brush did not split one wall into two wall segments.")
+	var placed_socket := map_loader.map_data.door_sockets[map_loader.map_data.door_sockets.size() - 1]
+	if placed_socket.socket_id != &"door_socket_001":
+		return ctx.fail("Door Brush did not assign the expected door_socket_* id.")
+	if placed_socket.position.distance_to(Vector3(0.0, 0.0, 2.0)) > 0.2:
+		return ctx.fail("Door Brush did not snap the socket to the clicked wall point.")
+	if not is_equal_approx(placed_socket.width_m, 1.0):
+		return ctx.fail("Door Brush did not use a 1m socket width.")
+	if placed_socket.color != Color(0.82, 0.9, 0.84, 1.0):
+		return ctx.fail("Door Brush did not use the expected light grey-green marker color.")
+	if not _wall_matches(
+		map_loader.map_data.static_walls[0],
+		Vector3(-1.0, 0.0, 2.0),
+		Vector3(-0.5, 0.0, 2.0),
+		2.0,
+		0.2
+	):
+		return ctx.fail("Door Brush did not keep the left wall segment up to the 1m gap.")
+	if not _wall_matches(
+		map_loader.map_data.static_walls[1],
+		Vector3(0.5, 0.0, 2.0),
+		Vector3(1.0, 0.0, 2.0),
+		2.0,
+		0.2
+	):
+		return ctx.fail("Door Brush did not keep the right wall segment after the 1m gap.")
+	if editor_panel.get_inspector_text() != "No selection":
+		return ctx.fail("Inspector should show no selection after Door Brush placement.")
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	var placed_socket_node := generated_map.get_node_or_null("DoorSockets/door_socket_001") as Node3D
+	if placed_socket_node == null:
+		return ctx.fail("Door Brush did not rebuild generated content with the placed door socket.")
+	var placed_socket_marker := placed_socket_node.get_node_or_null("Marker") as MeshInstance3D
+	if placed_socket_marker == null or not (placed_socket_marker.mesh is CylinderMesh):
+		return ctx.fail("Door Brush marker did not generate a visible circle mesh.")
+	var placed_socket_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, placed_socket.position)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if not editor_selection_controller.select_at_screen(placed_socket_screen_position):
+		return ctx.fail("Editor selection raycast did not select a generated door socket.")
+	if _selected_kind != MapBuilderScript.EDITOR_KIND_DOOR_SOCKET or _selected_data != placed_socket:
+		return ctx.fail("Editor selection emitted the wrong door-socket payload.")
+	var socket_inspector := editor_panel.get_inspector_text()
+	if not socket_inspector.contains("door_socket") or not socket_inspector.contains("door_socket_001"):
+		return ctx.fail("Inspector did not render selected door socket fields.")
+
 	var saved_path := editor_mode_controller.save_current_map("editor_suite_runtime_map")
 	if saved_path.is_empty() or not ResourceLoader.exists(saved_path):
 		return ctx.fail("Editor map save did not write a .tres resource.")
@@ -474,6 +621,11 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		return ctx.fail("Editor map load returned the wrong MapData.")
 	if navigation_region.get_node_or_null("GeneratedMap/WorldObjects/editor_object") == null:
 		return ctx.fail("Editor map load did not rebuild generated world objects.")
+	if (
+		map_loader.map_data.door_sockets.size() != 1
+		or navigation_region.get_node_or_null("GeneratedMap/DoorSockets/door_socket_001") == null
+	):
+		return ctx.fail("Editor map load did not preserve and rebuild door sockets.")
 	if _map_loaded_data != loaded_map or _map_loaded_path != saved_path:
 		return ctx.fail("Editor map load did not emit editor_map_loaded.")
 
@@ -525,15 +677,21 @@ func _tool_label_has_usable_width(editor_panel: EditorPanelScript, label_path: N
 	var label := editor_panel.get_node_or_null(label_path) as Label
 	return label != null and label.size.x >= 180.0
 
-func _wall_matches(wall: WallDataScript, expected_start: Vector3, expected_end: Vector3) -> bool:
+func _wall_matches(
+	wall: WallDataScript,
+	expected_start: Vector3,
+	expected_end: Vector3,
+	expected_height_m: float = 2.2,
+	expected_thickness_m: float = 0.18
+) -> bool:
 	return (
 		wall != null
 		and wall.start_position.distance_to(expected_start) <= 0.2
 		and wall.end_position.distance_to(expected_end) <= 0.2
 		and wall.start_position.y == 0.0
 		and wall.end_position.y == 0.0
-		and is_equal_approx(wall.height_m, 2.2)
-		and is_equal_approx(wall.thickness_m, 0.18)
+		and is_equal_approx(wall.height_m, expected_height_m)
+		and is_equal_approx(wall.thickness_m, expected_thickness_m)
 	)
 
 func _reset_records() -> void:

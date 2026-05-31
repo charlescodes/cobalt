@@ -2,6 +2,7 @@ class_name EditorSelectionController
 extends Node
 
 const EditorSelectionHighlighterScript := preload("res://src/editor/editor_selection_highlighter.gd")
+const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
@@ -10,9 +11,14 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
+const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
+const TOOL_DOOR_BRUSH: StringName = &"door_brush"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
+const PC_KIND: StringName = &"player_character"
+const PC_SIZE_M: Vector3 = Vector3(0.5, 1.83, 0.5)
+const PC_COLOR: Color = Color(0.1, 0.25, 1.0, 1.0)
 const NPC_KIND: StringName = &"non_player_character"
 const NPC_SIZE_M: Vector3 = Vector3(0.5, 1.83, 0.5)
 const NPC_COLOR: Color = Color(0.45, 0.45, 0.45, 1.0)
@@ -20,6 +26,10 @@ const WALL_HEIGHT_M: float = 2.2
 const WALL_THICKNESS_M: float = 0.18
 const WALL_COLOR: Color = Color(0.35, 0.34, 0.32, 1.0)
 const MIN_WALL_LENGTH_M: float = 0.01
+const DOOR_SOCKET_WIDTH_M: float = 1.0
+const DOOR_SOCKET_EDGE_CLEARANCE_M: float = 0.5
+const DOOR_SOCKET_SNAP_DISTANCE_M: float = 0.75
+const DOOR_SOCKET_COLOR: Color = Color(0.82, 0.9, 0.84, 1.0)
 
 @export var camera_path: NodePath = ^"../CameraRig/PitchPivot/Camera3D"
 @export var map_loader_path: NodePath = ^"../MapLoader"
@@ -70,8 +80,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
 		if _active_tool == TOOL_NPC_BRUSH:
 			place_npc_at_screen(mouse_event.position)
+		elif _active_tool == TOOL_PC_BRUSH:
+			place_pc_at_screen(mouse_event.position)
 		elif _active_tool == TOOL_WALL_BRUSH:
 			add_wall_brush_point_at_screen(mouse_event.position)
+		elif _active_tool == TOOL_DOOR_BRUSH:
+			place_door_socket_at_screen(mouse_event.position)
 		else:
 			select_at_screen(mouse_event.position)
 		var viewport := get_viewport()
@@ -129,6 +143,82 @@ func place_npc_at_screen(screen_position: Vector2) -> WorldObjectDataScript:
 	map_loader.replace_map_data(map_loader.map_data, true)
 	clear_selection()
 	return object_data
+
+func place_pc_at_screen(screen_position: Vector2) -> WorldObjectDataScript:
+	if not _is_editor_mode:
+		return null
+
+	var hit := _raycast_editor_selectable_at(screen_position)
+	if hit.is_empty() or hit.get("kind", &"") != MapBuilderScript.EDITOR_KIND_GROUND:
+		return null
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null:
+		return null
+
+	var placement_position: Vector3 = hit.get("position", Vector3.ZERO)
+	placement_position.y = 0.0
+	var object_data := WorldObjectDataScript.new(
+		_next_pc_id(map_loader.map_data),
+		PC_KIND,
+		placement_position,
+		PC_SIZE_M,
+		PC_COLOR,
+		true
+	)
+	map_loader.map_data.world_objects.append(object_data)
+	map_loader.replace_map_data(map_loader.map_data, true)
+	clear_selection()
+	return object_data
+
+func place_door_socket_at_screen(screen_position: Vector2) -> DoorSocketDataScript:
+	if not _is_editor_mode:
+		return null
+
+	var hit := _raycast_editor_selectable_at(screen_position)
+	if hit.is_empty():
+		return null
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null:
+		return null
+
+	var click_position := _floor_plane_position(hit.get("position", Vector3.ZERO))
+	var placement := _door_socket_placement_for_position(map_loader.map_data, click_position)
+	if placement.is_empty():
+		return null
+
+	var wall_index := int(placement.get("wall_index", -1))
+	if wall_index < 0 or wall_index >= map_loader.map_data.static_walls.size():
+		return null
+
+	var wall_data := map_loader.map_data.static_walls[wall_index]
+	var socket_position: Vector3 = placement.get("position", Vector3.ZERO)
+	var direction: Vector3 = placement.get("direction", Vector3.FORWARD)
+	var replacement_walls := _wall_segments_after_door_gap(
+		wall_data,
+		socket_position,
+		direction,
+		DOOR_SOCKET_WIDTH_M
+	)
+	if replacement_walls.size() != 2:
+		return null
+
+	var socket_data := DoorSocketDataScript.new(
+		_next_door_socket_id(map_loader.map_data),
+		socket_position,
+		DOOR_SOCKET_WIDTH_M,
+		atan2(direction.x, direction.z),
+		DOOR_SOCKET_COLOR
+	)
+
+	map_loader.map_data.static_walls.remove_at(wall_index)
+	for replacement_index in range(replacement_walls.size()):
+		map_loader.map_data.static_walls.insert(wall_index + replacement_index, replacement_walls[replacement_index])
+	map_loader.map_data.door_sockets.append(socket_data)
+	map_loader.replace_map_data(map_loader.map_data, true)
+	clear_selection()
+	return socket_data
 
 func add_wall_brush_point_at_screen(screen_position: Vector2) -> Array[WallDataScript]:
 	var added_walls: Array[WallDataScript] = []
@@ -269,7 +359,13 @@ func _on_editor_map_loaded(_map_data: Resource, _path: String) -> void:
 	clear_selection()
 
 func _on_editor_tool_changed(tool_id: StringName) -> void:
-	if tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_NPC_BRUSH or tool_id == TOOL_WALL_BRUSH:
+	if (
+		tool_id == TOOL_SELECT_INSPECT
+		or tool_id == TOOL_NPC_BRUSH
+		or tool_id == TOOL_PC_BRUSH
+		or tool_id == TOOL_WALL_BRUSH
+		or tool_id == TOOL_DOOR_BRUSH
+	):
 		_active_tool = tool_id
 		if _active_tool != TOOL_WALL_BRUSH:
 			_clear_wall_brush_points()
@@ -306,6 +402,27 @@ func _object_id_exists(map_data: MapDataScript, object_id: StringName) -> bool:
 
 	return false
 
+func _next_pc_id(map_data: MapDataScript) -> StringName:
+	var index := 1
+	while _object_id_exists(map_data, StringName("pc_%03d" % index)):
+		index += 1
+
+	return StringName("pc_%03d" % index)
+
+func _next_door_socket_id(map_data: MapDataScript) -> StringName:
+	var index := 1
+	while _door_socket_id_exists(map_data, StringName("door_socket_%03d" % index)):
+		index += 1
+
+	return StringName("door_socket_%03d" % index)
+
+func _door_socket_id_exists(map_data: MapDataScript, socket_id: StringName) -> bool:
+	for socket in map_data.door_sockets:
+		if socket != null and socket.socket_id == socket_id:
+			return true
+
+	return false
+
 func _floor_plane_position(position: Vector3) -> Vector3:
 	return Vector3(position.x, 0.0, position.z)
 
@@ -322,6 +439,25 @@ func _wall_from_points(start_position: Vector3, end_position: Vector3) -> WallDa
 		WALL_THICKNESS_M,
 		WALL_COLOR
 	)
+
+func _wall_segments_after_door_gap(
+	wall_data: WallDataScript,
+	socket_position: Vector3,
+	direction: Vector3,
+	socket_width_m: float
+) -> Array[WallDataScript]:
+	var wall_segments: Array[WallDataScript] = []
+	if wall_data == null or direction.length_squared() <= 0.000001:
+		return wall_segments
+
+	var clean_start := _floor_plane_position(wall_data.start_position)
+	var clean_end := _floor_plane_position(wall_data.end_position)
+	var half_width := socket_width_m * 0.5
+	var gap_start := _floor_plane_position(socket_position - (direction * half_width))
+	var gap_end := _floor_plane_position(socket_position + (direction * half_width))
+	_append_wall_like(wall_segments, wall_data, clean_start, gap_start)
+	_append_wall_like(wall_segments, wall_data, gap_end, clean_end)
+	return wall_segments
 
 func _rectangle_walls_from_points(start_position: Vector3, end_position: Vector3) -> Array[WallDataScript]:
 	var walls: Array[WallDataScript] = []
@@ -351,6 +487,98 @@ func _append_wall_if_valid(
 	var wall := _wall_from_points(start_position, end_position)
 	if wall != null:
 		walls.append(wall)
+
+func _append_wall_like(
+	walls: Array[WallDataScript],
+	template_wall: WallDataScript,
+	start_position: Vector3,
+	end_position: Vector3
+) -> void:
+	var clean_start := _floor_plane_position(start_position)
+	var clean_end := _floor_plane_position(end_position)
+	if clean_start.distance_to(clean_end) <= MIN_WALL_LENGTH_M:
+		return
+
+	walls.append(WallDataScript.new(
+		clean_start,
+		clean_end,
+		template_wall.height_m,
+		template_wall.thickness_m,
+		template_wall.color
+	))
+
+func _door_socket_placement_for_position(map_data: MapDataScript, click_position: Vector3) -> Dictionary:
+	var best_placement := {}
+	var best_distance := INF
+	for wall_index in range(map_data.static_walls.size()):
+		var wall_data := map_data.static_walls[wall_index]
+		var placement := _door_socket_placement_on_wall(wall_data, wall_index, click_position)
+		if placement.is_empty():
+			continue
+
+		var snap_distance := float(placement.get("snap_distance", INF))
+		var socket_position: Vector3 = placement.get("position", Vector3.ZERO)
+		if (
+			snap_distance < best_distance
+			and not _door_socket_overlaps_existing(map_data, socket_position, DOOR_SOCKET_WIDTH_M)
+		):
+			best_distance = snap_distance
+			best_placement = placement
+
+	return best_placement
+
+func _door_socket_placement_on_wall(
+	wall_data: WallDataScript,
+	wall_index: int,
+	click_position: Vector3
+) -> Dictionary:
+	if wall_data == null or not wall_data.is_valid_wall():
+		return {}
+
+	var start_position := _floor_plane_position(wall_data.start_position)
+	var end_position := _floor_plane_position(wall_data.end_position)
+	var wall_delta := end_position - start_position
+	var wall_length := wall_delta.length()
+	var minimum_center_offset := (DOOR_SOCKET_WIDTH_M * 0.5) + DOOR_SOCKET_EDGE_CLEARANCE_M
+	if wall_length < minimum_center_offset * 2.0:
+		return {}
+
+	var direction := wall_delta / wall_length
+	var relative_click := _floor_plane_position(click_position) - start_position
+	var raw_distance_along_wall := relative_click.dot(direction)
+	var closest_distance_along_wall := clampf(raw_distance_along_wall, 0.0, wall_length)
+	var closest_point := start_position + (direction * closest_distance_along_wall)
+	var snap_distance := _floor_plane_position(click_position).distance_to(closest_point)
+	if snap_distance > DOOR_SOCKET_SNAP_DISTANCE_M:
+		return {}
+
+	var socket_distance_along_wall := clampf(
+		raw_distance_along_wall,
+		minimum_center_offset,
+		wall_length - minimum_center_offset
+	)
+	return {
+		"wall_index": wall_index,
+		"position": start_position + (direction * socket_distance_along_wall),
+		"direction": direction,
+		"snap_distance": snap_distance,
+	}
+
+func _door_socket_overlaps_existing(
+	map_data: MapDataScript,
+	socket_position: Vector3,
+	socket_width_m: float
+) -> bool:
+	for existing_socket in map_data.door_sockets:
+		if existing_socket == null:
+			continue
+
+		var existing_position := _floor_plane_position(existing_socket.position)
+		var minimum_distance := (existing_socket.width_m + socket_width_m) * 0.5
+		if existing_position.distance_to(_floor_plane_position(socket_position)) < minimum_distance:
+			return true
+
+	return false
 
 func _clear_wall_brush_points() -> void:
 	_has_wall_brush_start = false

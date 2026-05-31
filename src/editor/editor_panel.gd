@@ -3,14 +3,17 @@ extends PanelContainer
 
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
+const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
+const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
+const TOOL_DOOR_BRUSH: StringName = &"door_brush"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
-const DOCK_WIDTH: float = 336.0
+const DOCK_WIDTH: float = 376.0
 const COLLAPSED_HEIGHT: float = 58.0
 const EXPANDED_HEIGHT: float = 420.0
 const SCREEN_MARGIN: float = 16.0
@@ -21,16 +24,22 @@ const TOOL_CONTENT_MARGIN_BOTTOM: int = 2
 
 var _select_button: Button
 var _brush_button: Button
+var _pc_button: Button
 var _wall_button: Button
+var _door_button: Button
 var _wall_line_button: Button
 var _wall_rectangle_button: Button
 var _content_root: VBoxContainer
 var _select_content: Control
 var _brush_content: Control
+var _pc_content: Control
 var _wall_content: Control
+var _door_content: Control
 var _inspector_label: Label
 var _brush_label: Label
+var _pc_label: Label
 var _wall_label: Label
+var _door_label: Label
 var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
@@ -147,14 +156,20 @@ func _ensure_layout() -> void:
 	button_row.add_theme_constant_override("separation", 8)
 	layout.add_child(button_row)
 
-	_select_button = _new_tool_button("SelectInspectToolButton", "Select/Inspect", TOOL_SELECT_INSPECT)
+	_select_button = _new_tool_button("SelectInspectToolButton", "Select", TOOL_SELECT_INSPECT)
 	button_row.add_child(_select_button)
 
-	_brush_button = _new_tool_button("NpcBrushToolButton", "NPC Brush", TOOL_NPC_BRUSH)
+	_brush_button = _new_tool_button("NpcBrushToolButton", "NPC", TOOL_NPC_BRUSH)
 	button_row.add_child(_brush_button)
 
-	_wall_button = _new_tool_button("WallBrushToolButton", "Wall Brush", TOOL_WALL_BRUSH)
+	_pc_button = _new_tool_button("PcBrushToolButton", "PC", TOOL_PC_BRUSH)
+	button_row.add_child(_pc_button)
+
+	_wall_button = _new_tool_button("WallBrushToolButton", "Wall", TOOL_WALL_BRUSH)
 	button_row.add_child(_wall_button)
+
+	_door_button = _new_tool_button("DoorBrushToolButton", "Door", TOOL_DOOR_BRUSH)
+	button_row.add_child(_door_button)
 
 	var separator := HSeparator.new()
 	separator.name = "ToolInspectorSeparator"
@@ -174,8 +189,14 @@ func _ensure_layout() -> void:
 	_brush_content = _build_brush_content()
 	_content_root.add_child(_brush_content)
 
+	_pc_content = _build_pc_content()
+	_content_root.add_child(_pc_content)
+
 	_wall_content = _build_wall_content()
 	_content_root.add_child(_wall_content)
+
+	_door_content = _build_door_content()
+	_content_root.add_child(_door_content)
 
 	_update_tool_ui()
 
@@ -207,6 +228,18 @@ func _build_brush_content() -> Control:
 		"color: (0.450, 0.450, 0.450, 1.000)",
 	]))
 	return _new_tool_content("NpcBrushContent", "NpcBrushContentPadding", _brush_label)
+
+func _build_pc_content() -> Control:
+	_pc_label = Label.new()
+	_pc_label.name = "PcBrushProperties"
+	_configure_tool_label(_pc_label)
+	_pc_label.text = "\n".join(PackedStringArray([
+		"PC Brush",
+		"object_kind: player_character",
+		"size: (0.50, 1.83, 0.50)",
+		"color: (0.100, 0.250, 1.000, 1.000)",
+	]))
+	return _new_tool_content("PcBrushContent", "PcBrushContentPadding", _pc_label)
 
 func _build_wall_content() -> Control:
 	var layout := VBoxContainer.new()
@@ -249,6 +282,19 @@ func _build_wall_content() -> Control:
 	layout.add_child(_wall_label)
 
 	return _new_tool_content("WallBrushContent", "WallBrushContentPadding", layout)
+
+func _build_door_content() -> Control:
+	_door_label = Label.new()
+	_door_label.name = "DoorBrushProperties"
+	_configure_tool_label(_door_label)
+	_door_label.text = "\n".join(PackedStringArray([
+		"Door Brush",
+		"socket_width: 1.00",
+		"edge_clearance: 0.50",
+		"snap_distance: 0.75",
+		"marker_color: (0.820, 0.900, 0.840, 1.000)",
+	]))
+	return _new_tool_content("DoorBrushContent", "DoorBrushContentPadding", _door_label)
 
 func _new_wall_mode_button(button_name: String, label: String, mode: StringName) -> Button:
 	var button := Button.new()
@@ -380,8 +426,12 @@ func _update_tool_ui() -> void:
 		_select_button.button_pressed = _active_tool == TOOL_SELECT_INSPECT
 	if _brush_button != null:
 		_brush_button.button_pressed = _active_tool == TOOL_NPC_BRUSH
+	if _pc_button != null:
+		_pc_button.button_pressed = _active_tool == TOOL_PC_BRUSH
 	if _wall_button != null:
 		_wall_button.button_pressed = _active_tool == TOOL_WALL_BRUSH
+	if _door_button != null:
+		_door_button.button_pressed = _active_tool == TOOL_DOOR_BRUSH
 	if _wall_line_button != null:
 		_wall_line_button.button_pressed = _wall_brush_mode == WALL_BRUSH_MODE_LINE
 	if _wall_rectangle_button != null:
@@ -393,8 +443,12 @@ func _update_tool_ui() -> void:
 		_select_content.visible = _expanded_tool == TOOL_SELECT_INSPECT
 	if _brush_content != null:
 		_brush_content.visible = _expanded_tool == TOOL_NPC_BRUSH
+	if _pc_content != null:
+		_pc_content.visible = _expanded_tool == TOOL_PC_BRUSH
 	if _wall_content != null:
 		_wall_content.visible = _expanded_tool == TOOL_WALL_BRUSH
+	if _door_content != null:
+		_door_content.visible = _expanded_tool == TOOL_DOOR_BRUSH
 
 	var separator := get_node_or_null("EditorToolDockLayout/ToolInspectorSeparator") as HSeparator
 	if separator != null:
@@ -403,7 +457,13 @@ func _update_tool_ui() -> void:
 	_apply_panel_frame()
 
 func _is_known_tool(tool_id: StringName) -> bool:
-	return tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_NPC_BRUSH or tool_id == TOOL_WALL_BRUSH
+	return (
+		tool_id == TOOL_SELECT_INSPECT
+		or tool_id == TOOL_NPC_BRUSH
+		or tool_id == TOOL_PC_BRUSH
+		or tool_id == TOOL_WALL_BRUSH
+		or tool_id == TOOL_DOOR_BRUSH
+	)
 
 func _is_known_wall_brush_mode(mode: StringName) -> bool:
 	return mode == WALL_BRUSH_MODE_LINE or mode == WALL_BRUSH_MODE_RECTANGLE
@@ -466,6 +526,12 @@ func _render_inspector() -> void:
 		lines.append("height: %.2f" % wall.height_m)
 		lines.append("thickness: %.2f" % wall.thickness_m)
 		lines.append("color: %s" % _format_color(wall.color))
+	elif _selected_data is DoorSocketDataScript:
+		var socket := _selected_data as DoorSocketDataScript
+		lines.append("position: %s" % _format_vector3(socket.position))
+		lines.append("width: %.2f" % socket.width_m)
+		lines.append("rotation_y: %.3f" % socket.rotation_y)
+		lines.append("color: %s" % _format_color(socket.color))
 	elif _selected_data is WorldObjectDataScript:
 		var world_object := _selected_data as WorldObjectDataScript
 		lines.append("object_kind: %s" % String(world_object.object_kind))
@@ -484,6 +550,10 @@ func _selected_id_or_name() -> String:
 		var world_object := _selected_data as WorldObjectDataScript
 		if world_object.object_id != &"":
 			return String(world_object.object_id)
+	if _selected_data is DoorSocketDataScript:
+		var socket := _selected_data as DoorSocketDataScript
+		if socket.socket_id != &"":
+			return String(socket.socket_id)
 	if _selected_node != null:
 		return _selected_node.name
 

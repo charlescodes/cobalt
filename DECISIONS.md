@@ -21,7 +21,7 @@ Runtime source of truth:
 
 ### World Organization
 
-- `src/environment/` owns static map geometry resources and helpers: ground, continuous walls, wall visualization, and future static obstacles or static blocking props.
+- `src/environment/` owns static map geometry resources and helpers: ground, continuous walls, door sockets, wall visualization, and future static obstacles or static blocking props.
 - `src/maps/` owns map aggregation, map building, and map loading.
 - `src/objects/` currently owns blockout object data and views. A later split into `actors/` and `props/` is expected when gameplay behavior requires it.
 - Interactable behavior should be reusable as a capability, not treated as a directory category by itself.
@@ -31,8 +31,8 @@ Runtime source of truth:
 - `main.tscn` contains `NavigationRegion3D`, `MapLoader`, `InteractionController`, `MovementController`, `InteractionUI`, `NavigationDebugOverlay`, `DebugOverlayController`, `CameraRig`, and lighting.
 - `main.tscn` also contains runtime editor nodes: `InteractionUI/DevMenu`, `InteractionUI/EditorPanel`, `EditorSelectionController`, and `EditorModeController`.
 - `MapLoader` builds generated map content under the configured `NavigationRegion3D`.
-- `MapBuilder` creates a stable generated subtree: `GeneratedMap/StaticGrounds`, `GeneratedMap/StaticWalls`, and `GeneratedMap/WorldObjects`.
-- `MapBuilder` tags generated grounds, walls, and world objects with editor metadata so editor raycasts can map scene nodes back to source resources.
+- `MapBuilder` creates a stable generated subtree: `GeneratedMap/StaticGrounds`, `GeneratedMap/StaticWalls`, `GeneratedMap/DoorSockets`, and `GeneratedMap/WorldObjects`.
+- `MapBuilder` tags generated grounds, walls, door sockets, and world objects with editor metadata so editor raycasts can map scene nodes back to source resources.
 - `BlockoutObjectView` composes primitive visuals, an `InteractionTarget`, hover highlighting, and a `NavigationAgent3D` from `WorldObjectData`.
 
 ### Environment and NavMesh Geometry
@@ -40,6 +40,7 @@ Runtime source of truth:
 - Static walls are authored as `WallData` with one start/end floor-plane line, height, thickness, and color.
 - `WallVisualResolver` derives a box size and local orientation from each wall line; authored walls do not store rotation.
 - `MapBuilder` turns each wall into one `BoxMesh` visual plus `BoxShape3D` static collision on collision layer `1`.
+- Door openings are authored as `DoorSocketData` markers after the editor splits wall lines around a gap. Door socket markers are non-blocking editor visuals and do not contribute static navigation collision.
 - Grounds are generated as static collision bodies and include a child `GroundMoveTarget` `Area3D` for movement targeting.
 - `MapLoader.rebake_navigation()` configures the `NavigationMesh` to parse static colliders and bakes the `NavigationRegion3D`.
 
@@ -69,10 +70,12 @@ Runtime source of truth:
 - Entering editor mode loads an in-memory blank editor map the first time no editor map is active.
 - Editor mode disables gameplay mouse targeting and context-menu input through `InteractionController` while `EditorSelectionController` owns editor tool raycasts.
 - The editor panel is a draggable, collapsed-by-default tool dock. Right mouse drag moves the dock when the pointer is over the dock; right mouse elsewhere remains camera pan.
-- The editor currently exposes `Select/Inspect`, `NPC Brush`, and `Wall Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
-- `Select/Inspect` raycasts generated grounds, walls, and world objects and renders a read-only inspector.
+- The editor currently exposes `Select/Inspect`, `NPC Brush`, `PC Brush`, `Wall Brush`, and `Door Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
+- `Select/Inspect` raycasts generated grounds, walls, door sockets, and world objects and renders a read-only inspector.
 - `NPC Brush` places `WorldObjectData` entries with `object_kind == &"non_player_character"` on generated ground clicks, rebuilds/rebakes through `MapLoader.replace_map_data()`, and clears selection so repeated painting stays uninterrupted.
+- `PC Brush` places `WorldObjectData` entries with `object_kind == &"player_character"` on generated ground clicks. Multiple player-character objects are valid and each can be used as a movement source.
 - `Wall Brush` defaults to line mode when selected. Line mode uses two ground-plane clicks to append one `WallData`; rectangle mode uses two opposite corner clicks to append four enclosing `WallData` edges. Wall brush mode changes flow through `EventBus.editor_wall_brush_mode_changed`.
+- `Door Brush` snaps a click to the nearest wall line, clamps the opening to leave 0.5m edge clearance, replaces the original wall with two shorter wall lines around a 1m gap, appends a `DoorSocketData`, and rebuilds/rebakes the map.
 - The first editor surface should be an in-game development mode reached through an Escape dev menu.
 - This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
 - Game view should keep the current movement, context-menu, hover, and examine behavior.

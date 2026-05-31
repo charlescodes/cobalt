@@ -20,7 +20,7 @@ res://CHANGELOG.md           Formal running history of notable changes.
 ```text
 res://src/core/          Global infrastructure, currently EventBus.
 res://src/camera/        Camera rig behavior.
-res://src/environment/   Static map geometry: ground, walls, baked obstacles, and future static blocking props.
+res://src/environment/   Static map geometry: ground, walls, door sockets, baked obstacles, and future static blocking props.
 res://src/maps/          MapData aggregation, generated map building, map loading, and navmesh rebaking.
 res://src/objects/       Current blockout world-object data and views; future split point for props/actors.
 res://src/interaction/   Interaction targets, hover highlighting, context action resolution, and input targeting.
@@ -74,14 +74,15 @@ res://data/maps/main_blockout_map.tres
 res://data/editor_maps/<name>.tres
 ```
 
-Current sample map resource plus runtime editor save targets. The sample map contains ground data, continuous static walls, player-character data, and NPC data.
+Current sample map resource plus runtime editor save targets. Map resources can contain ground data, continuous static walls, door socket data, player-character data, and NPC data.
 
 ## Core Data Resources
 
 ```text
-res://src/maps/map_data.gd                 Map id plus ground, wall, and world-object arrays.
+res://src/maps/map_data.gd                 Map id plus ground, wall, door socket, and world-object arrays.
 res://src/environment/ground_data.gd       Static ground id, position, size, and color.
 res://src/environment/wall_data.gd         Static wall line endpoints, height, thickness, and color.
+res://src/environment/door_socket_data.gd  Static door opening socket id, position, width, orientation, and marker color.
 res://src/objects/world_object_data.gd     Current actor/object id, kind, position, size, color, and hoverability.
 res://src/movement/move_target_data.gd     Exact Vector3 destination selected by ground raycasts.
 ```
@@ -106,7 +107,7 @@ res://src/movement/move_target_resolver.gd            Validates move sources, de
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
 res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
-res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, NPC brush, and wall brush input for generated map content.
+res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, NPC brush, PC brush, wall brush, and door brush input for generated map content.
 res://src/editor/map_file_store.gd                     Sanitized MapData save/load under data/editor_maps.
 ```
 
@@ -132,7 +133,7 @@ res://src/editor/editor_selection_highlighter.gd Editor selection highlight shel
 res://tests/test_runner.gd                         Headless smoke/integration orchestrator.
 res://tests/support/test_context.gd                Shared fixtures and helpers.
 res://tests/suites/camera_suite.gd                 Camera behavior coverage.
-res://tests/suites/editor_suite.gd                 Runtime editor mode, tool dock, selection, NPC brush, inspector, and save/load coverage.
+res://tests/suites/editor_suite.gd                 Runtime editor mode, tool dock, selection, NPC brush, PC brush, wall brush, door brush, inspector, and save/load coverage.
 res://tests/suites/interaction_ui_suite.gd         Interaction UI coverage.
 res://tests/suites/main_scene_raycast_suite.gd     Main-scene raycast and targeting coverage.
 res://tests/suites/main_scene_suite.gd             Main scene composition coverage.
