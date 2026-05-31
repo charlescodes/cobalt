@@ -7,7 +7,10 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
-const DOCK_WIDTH: float = 288.0
+const TOOL_WALL_BRUSH: StringName = &"wall_brush"
+const WALL_BRUSH_MODE_LINE: StringName = &"line"
+const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
+const DOCK_WIDTH: float = 336.0
 const COLLAPSED_HEIGHT: float = 58.0
 const EXPANDED_HEIGHT: float = 420.0
 const SCREEN_MARGIN: float = 16.0
@@ -18,16 +21,22 @@ const TOOL_CONTENT_MARGIN_BOTTOM: int = 2
 
 var _select_button: Button
 var _brush_button: Button
+var _wall_button: Button
+var _wall_line_button: Button
+var _wall_rectangle_button: Button
 var _content_root: VBoxContainer
 var _select_content: Control
 var _brush_content: Control
+var _wall_content: Control
 var _inspector_label: Label
 var _brush_label: Label
+var _wall_label: Label
 var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
 var _active_tool: StringName = TOOL_SELECT_INSPECT
 var _expanded_tool: StringName = &""
+var _wall_brush_mode: StringName = WALL_BRUSH_MODE_LINE
 var _panel_position: Vector2 = Vector2.ZERO
 var _is_dragging: bool = false
 var _drag_start_mouse_position: Vector2 = Vector2.ZERO
@@ -61,6 +70,9 @@ func get_active_tool() -> StringName:
 func get_expanded_tool() -> StringName:
 	return _expanded_tool
 
+func get_wall_brush_mode() -> StringName:
+	return _wall_brush_mode
+
 func is_tool_panel_expanded() -> bool:
 	return _expanded_tool != &""
 
@@ -82,7 +94,13 @@ func toggle_tool_panel(tool_id: StringName) -> void:
 		_expanded_tool = &""
 	else:
 		_set_active_tool(tool_id)
+		if tool_id == TOOL_WALL_BRUSH:
+			_set_wall_brush_mode(WALL_BRUSH_MODE_LINE, true, true)
 		_expanded_tool = tool_id
+	_update_tool_ui()
+
+func set_wall_brush_mode(mode: StringName) -> void:
+	_set_wall_brush_mode(mode, true)
 	_update_tool_ui()
 
 func collapse_tool_panel() -> void:
@@ -135,6 +153,9 @@ func _ensure_layout() -> void:
 	_brush_button = _new_tool_button("NpcBrushToolButton", "NPC Brush", TOOL_NPC_BRUSH)
 	button_row.add_child(_brush_button)
 
+	_wall_button = _new_tool_button("WallBrushToolButton", "Wall Brush", TOOL_WALL_BRUSH)
+	button_row.add_child(_wall_button)
+
 	var separator := HSeparator.new()
 	separator.name = "ToolInspectorSeparator"
 	separator.visible = false
@@ -152,6 +173,9 @@ func _ensure_layout() -> void:
 
 	_brush_content = _build_brush_content()
 	_content_root.add_child(_brush_content)
+
+	_wall_content = _build_wall_content()
+	_content_root.add_child(_wall_content)
 
 	_update_tool_ui()
 
@@ -183,6 +207,59 @@ func _build_brush_content() -> Control:
 		"color: (0.450, 0.450, 0.450, 1.000)",
 	]))
 	return _new_tool_content("NpcBrushContent", "NpcBrushContentPadding", _brush_label)
+
+func _build_wall_content() -> Control:
+	var layout := VBoxContainer.new()
+	layout.name = "WallBrushProperties"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 8)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.name = "WallBrushModeRow"
+	mode_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mode_row.add_theme_constant_override("separation", 8)
+	layout.add_child(mode_row)
+
+	_wall_line_button = _new_wall_mode_button(
+		"WallLineModeButton",
+		"Line",
+		WALL_BRUSH_MODE_LINE
+	)
+	mode_row.add_child(_wall_line_button)
+
+	_wall_rectangle_button = _new_wall_mode_button(
+		"WallRectangleModeButton",
+		"Rectangle",
+		WALL_BRUSH_MODE_RECTANGLE
+	)
+	mode_row.add_child(_wall_rectangle_button)
+
+	_wall_label = Label.new()
+	_wall_label.name = "WallBrushDetails"
+	_configure_tool_label(_wall_label)
+	_wall_label.text = "\n".join(PackedStringArray([
+		"Wall Brush",
+		"default_mode: line",
+		"modes: line, rectangle",
+		"height: 2.20",
+		"thickness: 0.18",
+		"color: (0.350, 0.340, 0.320, 1.000)",
+	]))
+	layout.add_child(_wall_label)
+
+	return _new_tool_content("WallBrushContent", "WallBrushContentPadding", layout)
+
+func _new_wall_mode_button(button_name: String, label: String, mode: StringName) -> Button:
+	var button := Button.new()
+	button.name = button_name
+	button.text = label
+	button.toggle_mode = true
+	button.custom_minimum_size = Vector2(0.0, 32.0)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.pressed.connect(_on_wall_mode_button_pressed.bind(mode))
+	button.gui_input.connect(_on_drag_gui_input)
+	return button
 
 func _new_tool_content(content_name: String, padding_name: String, content: Control) -> ScrollContainer:
 	var scroll := ScrollContainer.new()
@@ -237,6 +314,9 @@ func _on_editor_selection_changed(
 func _on_tool_button_pressed(tool_id: StringName) -> void:
 	toggle_tool_panel(tool_id)
 
+func _on_wall_mode_button_pressed(mode: StringName) -> void:
+	set_wall_brush_mode(mode)
+
 func _on_drag_gui_input(event: InputEvent) -> void:
 	_handle_drag_input(event)
 
@@ -282,11 +362,30 @@ func _set_active_tool(tool_id: StringName) -> void:
 	if event_bus != null and event_bus.has_signal(&"editor_tool_changed"):
 		event_bus.emit_signal(&"editor_tool_changed", _active_tool)
 
+func _set_wall_brush_mode(mode: StringName, should_emit: bool = true, force_emit: bool = false) -> void:
+	if not _is_known_wall_brush_mode(mode):
+		return
+
+	if _wall_brush_mode == mode and not force_emit:
+		return
+
+	_wall_brush_mode = mode
+	if should_emit:
+		var event_bus := _get_event_bus()
+		if event_bus != null and event_bus.has_signal(&"editor_wall_brush_mode_changed"):
+			event_bus.emit_signal(&"editor_wall_brush_mode_changed", _wall_brush_mode)
+
 func _update_tool_ui() -> void:
 	if _select_button != null:
 		_select_button.button_pressed = _active_tool == TOOL_SELECT_INSPECT
 	if _brush_button != null:
 		_brush_button.button_pressed = _active_tool == TOOL_NPC_BRUSH
+	if _wall_button != null:
+		_wall_button.button_pressed = _active_tool == TOOL_WALL_BRUSH
+	if _wall_line_button != null:
+		_wall_line_button.button_pressed = _wall_brush_mode == WALL_BRUSH_MODE_LINE
+	if _wall_rectangle_button != null:
+		_wall_rectangle_button.button_pressed = _wall_brush_mode == WALL_BRUSH_MODE_RECTANGLE
 
 	if _content_root != null:
 		_content_root.visible = _expanded_tool != &""
@@ -294,6 +393,8 @@ func _update_tool_ui() -> void:
 		_select_content.visible = _expanded_tool == TOOL_SELECT_INSPECT
 	if _brush_content != null:
 		_brush_content.visible = _expanded_tool == TOOL_NPC_BRUSH
+	if _wall_content != null:
+		_wall_content.visible = _expanded_tool == TOOL_WALL_BRUSH
 
 	var separator := get_node_or_null("EditorToolDockLayout/ToolInspectorSeparator") as HSeparator
 	if separator != null:
@@ -302,7 +403,10 @@ func _update_tool_ui() -> void:
 	_apply_panel_frame()
 
 func _is_known_tool(tool_id: StringName) -> bool:
-	return tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_NPC_BRUSH
+	return tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_NPC_BRUSH or tool_id == TOOL_WALL_BRUSH
+
+func _is_known_wall_brush_mode(mode: StringName) -> bool:
+	return mode == WALL_BRUSH_MODE_LINE or mode == WALL_BRUSH_MODE_RECTANGLE
 
 func _apply_panel_frame() -> void:
 	var panel_size := _current_panel_size()

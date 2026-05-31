@@ -20,6 +20,8 @@ var _mode_changed_count: int = 0
 var _latest_mode: StringName = &""
 var _tool_changed_count: int = 0
 var _latest_tool: StringName = &""
+var _wall_mode_changed_count: int = 0
+var _latest_wall_mode: StringName = &""
 var _selection_count: int = 0
 var _selected_node: Node
 var _selected_data: Resource
@@ -41,6 +43,7 @@ func run(ctx) -> bool:
 	_reset_records()
 	ctx.connect_if_needed(root_event_bus, &"editor_mode_changed", Callable(self, "_record_mode_changed"))
 	ctx.connect_if_needed(root_event_bus, &"editor_tool_changed", Callable(self, "_record_tool_changed"))
+	ctx.connect_if_needed(root_event_bus, &"editor_wall_brush_mode_changed", Callable(self, "_record_wall_mode_changed"))
 	ctx.connect_if_needed(root_event_bus, &"editor_selection_changed", Callable(self, "_record_selection_changed"))
 	ctx.connect_if_needed(root_event_bus, &"editor_map_loaded", Callable(self, "_record_map_loaded"))
 	ctx.connect_if_needed(root_event_bus, &"editor_map_saved", Callable(self, "_record_map_saved"))
@@ -160,6 +163,37 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
 	):
 		return ctx.fail("Select/Inspect tool did not reactivate after the brush tool.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_WALL_BRUSH)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_WALL_BRUSH
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_WALL_BRUSH
+		or editor_panel.get_wall_brush_mode() != EditorPanelScript.WALL_BRUSH_MODE_LINE
+		or _latest_tool != EditorPanelScript.TOOL_WALL_BRUSH
+		or _latest_wall_mode != EditorPanelScript.WALL_BRUSH_MODE_LINE
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_WALL_BRUSH
+		or editor_selection_controller.get_wall_brush_mode() != EditorSelectionControllerScript.WALL_BRUSH_MODE_LINE
+	):
+		return ctx.fail("Wall Brush did not activate in default line mode.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/WallBrushContent/WallBrushContentPadding/WallBrushProperties/WallBrushDetails"
+	):
+		return ctx.fail("Wall Brush label did not receive a usable wrapping width.")
+	editor_panel.set_wall_brush_mode(EditorPanelScript.WALL_BRUSH_MODE_RECTANGLE)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_wall_brush_mode() != EditorPanelScript.WALL_BRUSH_MODE_RECTANGLE
+		or _latest_wall_mode != EditorPanelScript.WALL_BRUSH_MODE_RECTANGLE
+		or editor_selection_controller.get_wall_brush_mode() != EditorSelectionControllerScript.WALL_BRUSH_MODE_RECTANGLE
+	):
+		return ctx.fail("Wall Brush rectangle mode did not propagate to editor input.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT
+	):
+		return ctx.fail("Select/Inspect tool did not reactivate after the wall brush tool.")
 
 	var start_panel_position := editor_panel.get_panel_position()
 	var drag_press := InputEventMouseButton.new()
@@ -313,6 +347,114 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if map_loader.map_data.world_objects.size() != object_count_after_valid_brush:
 		return ctx.fail("NPC Brush changed map data after an empty-space click.")
 
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_WALL_BRUSH)
+	await ctx.tree.process_frame
+	var wall_count_before_line := map_loader.map_data.static_walls.size()
+	var line_start_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-4.0, 0.0, -4.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var line_start_click := InputEventMouseButton.new()
+	line_start_click.button_index = MOUSE_BUTTON_LEFT
+	line_start_click.pressed = true
+	line_start_click.position = line_start_screen_position
+	editor_selection_controller._unhandled_input(line_start_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.static_walls.size() != wall_count_before_line:
+		return ctx.fail("Wall Brush line mode should wait for a second click before adding a wall.")
+	if not editor_selection_controller.has_pending_wall_brush_point():
+		return ctx.fail("Wall Brush line mode did not keep the first clicked point pending.")
+	var line_end_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-2.0, 0.0, -4.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var line_end_click := InputEventMouseButton.new()
+	line_end_click.button_index = MOUSE_BUTTON_LEFT
+	line_end_click.pressed = true
+	line_end_click.position = line_end_screen_position
+	editor_selection_controller._unhandled_input(line_end_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.static_walls.size() != wall_count_before_line + 1:
+		return ctx.fail("Wall Brush line mode did not append one wall after the second click.")
+	if editor_selection_controller.has_pending_wall_brush_point():
+		return ctx.fail("Wall Brush line mode kept a pending point after creating the wall.")
+	var line_wall := map_loader.map_data.static_walls[map_loader.map_data.static_walls.size() - 1]
+	if (
+		line_wall.start_position.distance_to(Vector3(-4.0, 0.0, -4.0)) > 0.2
+		or line_wall.end_position.distance_to(Vector3(-2.0, 0.0, -4.0)) > 0.2
+		or not is_equal_approx(line_wall.height_m, 2.2)
+		or not is_equal_approx(line_wall.thickness_m, 0.18)
+	):
+		return ctx.fail("Wall Brush line mode wrote the wrong wall data.")
+	if line_wall.start_position.y != 0.0 or line_wall.end_position.y != 0.0:
+		return ctx.fail("Wall Brush line mode did not flatten wall endpoints to y = 0.")
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if generated_map.get_node_or_null("StaticWalls/Wall_%02d" % wall_count_before_line) == null:
+		return ctx.fail("Wall Brush line mode did not rebuild generated content with the new wall.")
+	if editor_panel.get_inspector_text() != "No selection":
+		return ctx.fail("Inspector should show no selection after Wall Brush line placement.")
+
+	editor_panel.set_wall_brush_mode(EditorPanelScript.WALL_BRUSH_MODE_RECTANGLE)
+	await ctx.tree.process_frame
+	var wall_count_before_rectangle := map_loader.map_data.static_walls.size()
+	var rectangle_start_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(1.0, 0.0, -4.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var rectangle_start_click := InputEventMouseButton.new()
+	rectangle_start_click.button_index = MOUSE_BUTTON_LEFT
+	rectangle_start_click.pressed = true
+	rectangle_start_click.position = rectangle_start_screen_position
+	editor_selection_controller._unhandled_input(rectangle_start_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.static_walls.size() != wall_count_before_rectangle:
+		return ctx.fail("Wall Brush rectangle mode should wait for a second click before adding walls.")
+	if not editor_selection_controller.has_pending_wall_brush_point():
+		return ctx.fail("Wall Brush rectangle mode did not keep the first clicked point pending.")
+	var rectangle_end_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(4.0, 0.0, -1.0))
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var rectangle_end_click := InputEventMouseButton.new()
+	rectangle_end_click.button_index = MOUSE_BUTTON_LEFT
+	rectangle_end_click.pressed = true
+	rectangle_end_click.position = rectangle_end_screen_position
+	editor_selection_controller._unhandled_input(rectangle_end_click)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data.static_walls.size() != wall_count_before_rectangle + 4:
+		return ctx.fail("Wall Brush rectangle mode did not append four walls after the second click.")
+	if editor_selection_controller.has_pending_wall_brush_point():
+		return ctx.fail("Wall Brush rectangle mode kept a pending point after creating the room.")
+	if not _wall_matches(
+		map_loader.map_data.static_walls[wall_count_before_rectangle],
+		Vector3(1.0, 0.0, -4.0),
+		Vector3(4.0, 0.0, -4.0)
+	):
+		return ctx.fail("Wall Brush rectangle mode wrote the first room edge incorrectly.")
+	if not _wall_matches(
+		map_loader.map_data.static_walls[wall_count_before_rectangle + 1],
+		Vector3(4.0, 0.0, -4.0),
+		Vector3(4.0, 0.0, -1.0)
+	):
+		return ctx.fail("Wall Brush rectangle mode wrote the second room edge incorrectly.")
+	if not _wall_matches(
+		map_loader.map_data.static_walls[wall_count_before_rectangle + 2],
+		Vector3(4.0, 0.0, -1.0),
+		Vector3(1.0, 0.0, -1.0)
+	):
+		return ctx.fail("Wall Brush rectangle mode wrote the third room edge incorrectly.")
+	if not _wall_matches(
+		map_loader.map_data.static_walls[wall_count_before_rectangle + 3],
+		Vector3(1.0, 0.0, -1.0),
+		Vector3(1.0, 0.0, -4.0)
+	):
+		return ctx.fail("Wall Brush rectangle mode wrote the fourth room edge incorrectly.")
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	if generated_map.get_node_or_null("StaticWalls/Wall_%02d" % (wall_count_before_rectangle + 3)) == null:
+		return ctx.fail("Wall Brush rectangle mode did not rebuild generated content with all room walls.")
+	if editor_panel.get_inspector_text() != "No selection":
+		return ctx.fail("Inspector should show no selection after Wall Brush rectangle placement.")
+
 	var saved_path := editor_mode_controller.save_current_map("editor_suite_runtime_map")
 	if saved_path.is_empty() or not ResourceLoader.exists(saved_path):
 		return ctx.fail("Editor map save did not write a .tres resource.")
@@ -383,11 +525,24 @@ func _tool_label_has_usable_width(editor_panel: EditorPanelScript, label_path: N
 	var label := editor_panel.get_node_or_null(label_path) as Label
 	return label != null and label.size.x >= 180.0
 
+func _wall_matches(wall: WallDataScript, expected_start: Vector3, expected_end: Vector3) -> bool:
+	return (
+		wall != null
+		and wall.start_position.distance_to(expected_start) <= 0.2
+		and wall.end_position.distance_to(expected_end) <= 0.2
+		and wall.start_position.y == 0.0
+		and wall.end_position.y == 0.0
+		and is_equal_approx(wall.height_m, 2.2)
+		and is_equal_approx(wall.thickness_m, 0.18)
+	)
+
 func _reset_records() -> void:
 	_mode_changed_count = 0
 	_latest_mode = &""
 	_tool_changed_count = 0
 	_latest_tool = &""
+	_wall_mode_changed_count = 0
+	_latest_wall_mode = &""
 	_selection_count = 0
 	_selected_node = null
 	_selected_data = null
@@ -406,6 +561,10 @@ func _record_mode_changed(mode: StringName) -> void:
 func _record_tool_changed(tool_id: StringName) -> void:
 	_tool_changed_count += 1
 	_latest_tool = tool_id
+
+func _record_wall_mode_changed(mode: StringName) -> void:
+	_wall_mode_changed_count += 1
+	_latest_wall_mode = mode
 
 func _record_selection_changed(selected_node: Node, selected_data: Resource, selected_kind: StringName) -> void:
 	_selection_count += 1
@@ -426,6 +585,7 @@ func _record_map_saved(map_data: Resource, path: String) -> void:
 func _disconnect_records(ctx, root_event_bus: Node) -> void:
 	ctx.disconnect_if_connected(root_event_bus, &"editor_mode_changed", Callable(self, "_record_mode_changed"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_tool_changed", Callable(self, "_record_tool_changed"))
+	ctx.disconnect_if_connected(root_event_bus, &"editor_wall_brush_mode_changed", Callable(self, "_record_wall_mode_changed"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_selection_changed", Callable(self, "_record_selection_changed"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_map_loaded", Callable(self, "_record_map_loaded"))
 	ctx.disconnect_if_connected(root_event_bus, &"editor_map_saved", Callable(self, "_record_map_saved"))

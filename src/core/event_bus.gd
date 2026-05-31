@@ -16,6 +16,7 @@ signal movement_failed(actor: Node, destination_data: Resource, reason: StringNa
 signal examined_output(target_domain: StringName, target_data: Resource, output: Dictionary)
 signal editor_mode_changed(mode: StringName)
 signal editor_tool_changed(tool_id: StringName)
+signal editor_wall_brush_mode_changed(mode: StringName)
 signal editor_selection_changed(selected_node: Node, selected_data: Resource, selected_kind: StringName)
 signal editor_map_loaded(map_data: Resource, path: String)
 signal editor_map_saved(map_data: Resource, path: String)

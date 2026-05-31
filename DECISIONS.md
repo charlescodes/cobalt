@@ -69,9 +69,10 @@ Runtime source of truth:
 - Entering editor mode loads an in-memory blank editor map the first time no editor map is active.
 - Editor mode disables gameplay mouse targeting and context-menu input through `InteractionController` while `EditorSelectionController` owns editor tool raycasts.
 - The editor panel is a draggable, collapsed-by-default tool dock. Right mouse drag moves the dock when the pointer is over the dock; right mouse elsewhere remains camera pan.
-- The editor currently exposes `Select/Inspect` and `NPC Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
+- The editor currently exposes `Select/Inspect`, `NPC Brush`, and `Wall Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
 - `Select/Inspect` raycasts generated grounds, walls, and world objects and renders a read-only inspector.
 - `NPC Brush` places `WorldObjectData` entries with `object_kind == &"non_player_character"` on generated ground clicks, rebuilds/rebakes through `MapLoader.replace_map_data()`, and clears selection so repeated painting stays uninterrupted.
+- `Wall Brush` defaults to line mode when selected. Line mode uses two ground-plane clicks to append one `WallData`; rectangle mode uses two opposite corner clicks to append four enclosing `WallData` edges. Wall brush mode changes flow through `EventBus.editor_wall_brush_mode_changed`.
 - The first editor surface should be an in-game development mode reached through an Escape dev menu.
 - This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
 - Game view should keep the current movement, context-menu, hover, and examine behavior.
@@ -99,7 +100,7 @@ These are intentional gaps, not regressions:
 - No `CharacterBody3D` movement, avoidance, acceleration, rotation, footstep animation, or path preview.
 - No zones, camera culling, streaming, multi-region navigation, or large-map loading design.
 - Failed movement reasons are emitted, but there is no player-facing invalid-destination feedback yet.
-- No wall line painting or three-point ground creation yet; environment brush semantics are deferred until static authoring needs are clearer.
+- No three-point ground creation yet; richer environment brush semantics are deferred until static authoring needs are clearer.
 
 ## Watch Items
 
@@ -129,7 +130,7 @@ Known state:
 
 Next likely work:
 
-- Build on the implemented runtime editor V1 with environment brushes, richer placement options, and editing tools after the NPC brush has had use.
+- Build on the implemented runtime editor V1 with richer placement options, environment editing tools, and map-component authoring after the first brush workflows have had use.
 - Define resource schemas for module libraries, placement descriptors, and generator presets.
 - Keep the first editor pass scoped to local map mode switching, save/load, selection, highlighting, and read-only inspection before adding composition, sockets, or generation tools.
 - Introduce richer interactable data once doors, containers, harvestables, or examine profiles need distinct behavior.

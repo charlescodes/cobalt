@@ -14,6 +14,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added a draggable, collapsed-by-default editor tool dock with Select/Inspect and NPC Brush tools.
 - Added NPC Brush placement for non-player-character blockout objects, including rebuild/rebake while keeping selection clear for repeated painting.
 - Added editor test coverage for tool switching, dock dragging, and NPC brush placement.
+- Added a Wall Brush editor tool with line and rectangle modes for two-click static wall placement and map rebuild/rebake.
 
 ### Changed
 

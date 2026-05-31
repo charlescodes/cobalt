@@ -106,7 +106,7 @@ res://src/movement/move_target_resolver.gd            Validates move sources, de
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
 res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
-res://src/editor/editor_selection_controller.gd        Editor-only select/inspect and NPC brush input for generated map content.
+res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, NPC brush, and wall brush input for generated map content.
 res://src/editor/map_file_store.gd                     Sanitized MapData save/load under data/editor_maps.
 ```
 

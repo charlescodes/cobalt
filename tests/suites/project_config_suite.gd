@@ -23,6 +23,7 @@ func run(ctx) -> bool:
 		"examined_output",
 		"editor_mode_changed",
 		"editor_tool_changed",
+		"editor_wall_brush_mode_changed",
 		"editor_selection_changed",
 		"editor_map_loaded",
 		"editor_map_saved",
