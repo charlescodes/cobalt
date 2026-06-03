@@ -1,6 +1,6 @@
 # COBALT Decisions
 
-Last updated: 2026-05-31
+Last updated: 2026-06-01
 
 Purpose: living design ledger and agent handoff file. `ARCHITECTURE.md` is project law, `PROJECT_STRUCTURE.md` is the file index, `ROADMAP.md` is future planning, and `CHANGELOG.md` is the formal history.
 
@@ -12,7 +12,7 @@ Runtime source of truth:
 
 - `res://scenes/main.tscn` is the playable blockout scene.
 - `res://data/maps/main_blockout_map.tres` is the current authored sample map.
-- Runtime local-map editor V1 is available through an Escape dev menu in `main.tscn`.
+- Runtime local-map editor V1 starts active in `main.tscn`; the Escape dev menu switches back to game mode when needed.
 - `EventBus` is the only autoload and is configured in `res://project.godot`.
 - `WorldObjectData.position: Vector3` is the canonical location for current actor/object data.
 - `MoveTargetData.position: Vector3` carries exact clicked movement destinations.
@@ -67,11 +67,13 @@ Runtime source of truth:
 
 - Runtime editor V1 is implemented under `src/editor/` as a development surface inside the playable project, not as a Godot `EditorPlugin`.
 - Escape toggles the centered dev menu. The menu switches between `game` and `editor` modes and saves/loads named maps under `res://data/editor_maps/`.
-- Entering editor mode loads an in-memory blank editor map the first time no editor map is active.
+- Startup editor mode keeps the configured `MapLoader.map_data` as the active editable map, currently `main_blockout_map.tres`.
+- Entering editor mode only creates an in-memory blank editor map if no current map data exists.
 - Editor mode disables gameplay mouse targeting and context-menu input through `InteractionController` while `EditorSelectionController` owns editor tool raycasts.
 - The editor panel is a draggable, collapsed-by-default tool dock. Right mouse drag moves the dock when the pointer is over the dock; right mouse elsewhere remains camera pan.
-- The editor currently exposes `Select/Inspect`, `NPC Brush`, `PC Brush`, `Wall Brush`, `Door Brush`, and `Bldg. Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
+- The editor currently exposes `Select/Inspect`, `Ground`, `NPC Brush`, `PC Brush`, `Wall Brush`, `Door Brush`, and `Bldg. Brush` tools. Active tool changes flow through `EventBus.editor_tool_changed`.
 - `Select/Inspect` raycasts generated grounds, walls, door sockets, and world objects and renders a read-only inspector.
+- `Ground` is not a click brush. Its whole-meter X/Z sliders resize the primary `GroundData` resource, creating a default ground only if the current map has none, then rebuild/rebake through `MapLoader.replace_map_data()`.
 - `NPC Brush` places `WorldObjectData` entries with `object_kind == &"non_player_character"` on generated ground clicks, rebuilds/rebakes through `MapLoader.replace_map_data()`, and clears selection so repeated painting stays uninterrupted.
 - `PC Brush` places `WorldObjectData` entries with `object_kind == &"player_character"` on generated ground clicks. Multiple player-character objects are valid and each can be used as a movement source.
 - `Wall Brush` defaults to line mode when selected. Line mode uses two ground-plane clicks to append one `WallData`; rectangle mode uses two opposite corner clicks to append four enclosing `WallData` edges. Wall brush mode changes flow through `EventBus.editor_wall_brush_mode_changed`.
@@ -105,7 +107,7 @@ These are intentional gaps, not regressions:
 - No `CharacterBody3D` movement, avoidance, acceleration, rotation, footstep animation, or path preview.
 - No zones, camera culling, streaming, multi-region navigation, or large-map loading design.
 - Failed movement reasons are emitted, but there is no player-facing invalid-destination feedback yet.
-- No three-point ground creation yet; richer environment brush semantics are deferred until static authoring needs are clearer.
+- No three-point or multi-ground creation yet; richer environment brush semantics are deferred until static authoring needs are clearer.
 
 ## Watch Items
 

@@ -4,10 +4,12 @@ extends PanelContainer
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
+const MapDataScript := preload("res://src/maps/map_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 const BspBuildingGeneratorScript := preload("res://src/generation/bsp_building_generator.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
+const TOOL_GROUND: StringName = &"ground"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
 const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
@@ -15,7 +17,7 @@ const TOOL_DOOR_BRUSH: StringName = &"door_brush"
 const TOOL_BUILDING_BRUSH: StringName = &"building_brush"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
-const DOCK_WIDTH: float = 376.0
+const DOCK_WIDTH: float = 430.0
 const COLLAPSED_HEIGHT: float = 58.0
 const EXPANDED_HEIGHT: float = 420.0
 const SCREEN_MARGIN: float = 16.0
@@ -23,8 +25,11 @@ const TOOL_CONTENT_MARGIN_LEFT: int = 2
 const TOOL_CONTENT_MARGIN_TOP: int = 2
 const TOOL_CONTENT_MARGIN_RIGHT: int = 8
 const TOOL_CONTENT_MARGIN_BOTTOM: int = 2
+const DEFAULT_GROUND_SIZE_X_M: int = 12
+const DEFAULT_GROUND_SIZE_Z_M: int = 12
 
 var _select_button: Button
+var _ground_button: Button
 var _brush_button: Button
 var _pc_button: Button
 var _wall_button: Button
@@ -34,12 +39,16 @@ var _wall_line_button: Button
 var _wall_rectangle_button: Button
 var _content_root: VBoxContainer
 var _select_content: Control
+var _ground_content: Control
 var _brush_content: Control
 var _pc_content: Control
 var _wall_content: Control
 var _door_content: Control
 var _building_content: Control
 var _inspector_label: Label
+var _ground_label: Label
+var _ground_size_x_slider: HSlider
+var _ground_size_z_slider: HSlider
 var _brush_label: Label
 var _pc_label: Label
 var _wall_label: Label
@@ -57,6 +66,7 @@ var _selected_kind: StringName = &""
 var _active_tool: StringName = TOOL_SELECT_INSPECT
 var _expanded_tool: StringName = &""
 var _wall_brush_mode: StringName = WALL_BRUSH_MODE_LINE
+var _ground_dimensions: Vector2i = Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
 var _building_parameters: Dictionary = BspBuildingGeneratorScript.default_parameters()
 var _panel_position: Vector2 = Vector2.ZERO
 var _is_dragging: bool = false
@@ -77,11 +87,14 @@ func _ready() -> void:
 
 	var mode_callable := Callable(self, "_on_editor_mode_changed")
 	var selection_callable := Callable(self, "_on_editor_selection_changed")
+	var map_loaded_callable := Callable(self, "_on_editor_map_loaded")
 	var building_seed_callable := Callable(self, "_on_editor_building_brush_seed_selected")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
 		event_bus.connect(&"editor_mode_changed", mode_callable)
 	if event_bus.has_signal(&"editor_selection_changed") and not event_bus.is_connected(&"editor_selection_changed", selection_callable):
 		event_bus.connect(&"editor_selection_changed", selection_callable)
+	if event_bus.has_signal(&"editor_map_loaded") and not event_bus.is_connected(&"editor_map_loaded", map_loaded_callable):
+		event_bus.connect(&"editor_map_loaded", map_loaded_callable)
 	if event_bus.has_signal(&"editor_building_brush_seed_selected") and not event_bus.is_connected(&"editor_building_brush_seed_selected", building_seed_callable):
 		event_bus.connect(&"editor_building_brush_seed_selected", building_seed_callable)
 
@@ -96,6 +109,9 @@ func get_expanded_tool() -> StringName:
 
 func get_wall_brush_mode() -> StringName:
 	return _wall_brush_mode
+
+func get_ground_dimensions() -> Vector2i:
+	return _ground_dimensions
 
 func get_building_brush_parameters() -> Dictionary:
 	return _building_parameters.duplicate()
@@ -177,6 +193,9 @@ func _ensure_layout() -> void:
 	_select_button = _new_tool_button("SelectInspectToolButton", "Select", TOOL_SELECT_INSPECT)
 	button_row.add_child(_select_button)
 
+	_ground_button = _new_tool_button("GroundToolButton", "Ground", TOOL_GROUND)
+	button_row.add_child(_ground_button)
+
 	_brush_button = _new_tool_button("NpcBrushToolButton", "NPC", TOOL_NPC_BRUSH)
 	button_row.add_child(_brush_button)
 
@@ -206,6 +225,9 @@ func _ensure_layout() -> void:
 
 	_select_content = _build_select_content()
 	_content_root.add_child(_select_content)
+
+	_ground_content = _build_ground_content()
+	_content_root.add_child(_ground_content)
 
 	_brush_content = _build_brush_content()
 	_content_root.add_child(_brush_content)
@@ -240,6 +262,28 @@ func _build_select_content() -> Control:
 	_inspector_label.name = "InspectorContent"
 	_configure_tool_label(_inspector_label)
 	return _new_tool_content("SelectInspectContent", "SelectInspectContentPadding", _inspector_label)
+
+func _build_ground_content() -> Control:
+	var layout := VBoxContainer.new()
+	layout.name = "GroundProperties"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 8)
+
+	_ground_size_x_slider = _new_ground_slider("GroundSizeXSlider", "size_x_m")
+	layout.add_child(_new_ground_slider_row("x_m", _ground_size_x_slider))
+
+	_ground_size_z_slider = _new_ground_slider("GroundSizeZSlider", "size_z_m")
+	layout.add_child(_new_ground_slider_row("z_m", _ground_size_z_slider))
+
+	_ground_label = Label.new()
+	_ground_label.name = "GroundDetails"
+	_configure_tool_label(_ground_label)
+	layout.add_child(_ground_label)
+
+	_apply_ground_dimensions_to_sliders(false)
+	_update_ground_summary()
+	return _new_tool_content("GroundContent", "GroundContentPadding", layout)
 
 func _build_brush_content() -> Control:
 	_brush_label = Label.new()
@@ -375,6 +419,32 @@ func _build_building_content() -> Control:
 	_update_building_summary()
 	return _new_tool_content("BuildingBrushContent", "BuildingBrushContentPadding", layout)
 
+func _new_ground_slider(slider_name: String, dimension_name: String) -> HSlider:
+	var slider := HSlider.new()
+	slider.name = slider_name
+	slider.min_value = 4.0
+	slider.max_value = 128.0
+	slider.step = 1.0
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.value_changed.connect(_on_ground_slider_changed.bind(dimension_name))
+	slider.gui_input.connect(_on_drag_gui_input)
+	return slider
+
+func _new_ground_slider_row(label_text: String, slider: HSlider) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "%sRow" % slider.name
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+
+	var label := Label.new()
+	label.name = "%sLabel" % slider.name
+	label.text = label_text
+	label.custom_minimum_size = Vector2(92.0, 0.0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+	row.add_child(slider)
+	return row
+
 func _new_building_slider(
 	slider_name: String,
 	min_value: float,
@@ -468,6 +538,11 @@ func _on_editor_selection_changed(
 	_selected_kind = selected_kind
 	_render_inspector()
 
+func _on_editor_map_loaded(map_data: Resource, _path: String) -> void:
+	_sync_ground_dimensions_from_map(map_data)
+	_apply_ground_dimensions_to_sliders(false)
+	_update_ground_summary()
+
 func _on_editor_building_brush_seed_selected(seed: int) -> void:
 	_building_parameters["seed"] = clampi(seed, 1, 9999)
 	_apply_building_parameters_to_sliders(false)
@@ -478,6 +553,16 @@ func _on_tool_button_pressed(tool_id: StringName) -> void:
 
 func _on_wall_mode_button_pressed(mode: StringName) -> void:
 	set_wall_brush_mode(mode)
+
+func _on_ground_slider_changed(value: float, dimension_name: String) -> void:
+	var rounded_value := clampi(int(roundf(value)), 4, 128)
+	if dimension_name == "size_x_m":
+		_ground_dimensions.x = rounded_value
+	else:
+		_ground_dimensions.y = rounded_value
+	_apply_ground_dimensions_to_sliders(false)
+	_update_ground_summary()
+	_emit_ground_dimensions_changed()
 
 func _on_building_slider_changed(value: float, parameter_name: String) -> void:
 	if parameter_name == "target_room_count" or parameter_name == "seed":
@@ -560,6 +645,8 @@ func _set_wall_brush_mode(mode: StringName, should_emit: bool = true, force_emit
 func _update_tool_ui() -> void:
 	if _select_button != null:
 		_select_button.button_pressed = _active_tool == TOOL_SELECT_INSPECT
+	if _ground_button != null:
+		_ground_button.button_pressed = _active_tool == TOOL_GROUND
 	if _brush_button != null:
 		_brush_button.button_pressed = _active_tool == TOOL_NPC_BRUSH
 	if _pc_button != null:
@@ -579,6 +666,8 @@ func _update_tool_ui() -> void:
 		_content_root.visible = _expanded_tool != &""
 	if _select_content != null:
 		_select_content.visible = _expanded_tool == TOOL_SELECT_INSPECT
+	if _ground_content != null:
+		_ground_content.visible = _expanded_tool == TOOL_GROUND
 	if _brush_content != null:
 		_brush_content.visible = _expanded_tool == TOOL_NPC_BRUSH
 	if _pc_content != null:
@@ -599,11 +688,54 @@ func _update_tool_ui() -> void:
 func _is_known_tool(tool_id: StringName) -> bool:
 	return (
 		tool_id == TOOL_SELECT_INSPECT
+		or tool_id == TOOL_GROUND
 		or tool_id == TOOL_NPC_BRUSH
 		or tool_id == TOOL_PC_BRUSH
 		or tool_id == TOOL_WALL_BRUSH
 		or tool_id == TOOL_DOOR_BRUSH
 		or tool_id == TOOL_BUILDING_BRUSH
+	)
+
+func _apply_ground_dimensions_to_sliders(should_emit: bool) -> void:
+	if _ground_size_x_slider != null:
+		_ground_size_x_slider.set_value_no_signal(float(_ground_dimensions.x))
+	if _ground_size_z_slider != null:
+		_ground_size_z_slider.set_value_no_signal(float(_ground_dimensions.y))
+	if should_emit:
+		_emit_ground_dimensions_changed()
+
+func _update_ground_summary() -> void:
+	if _ground_label == null:
+		return
+
+	_ground_label.text = "\n".join(PackedStringArray([
+		"Ground",
+		"size: %dm x %dm" % [_ground_dimensions.x, _ground_dimensions.y],
+	]))
+
+func _emit_ground_dimensions_changed() -> void:
+	var event_bus := _get_event_bus()
+	if event_bus != null and event_bus.has_signal(&"editor_ground_dimensions_changed"):
+		event_bus.emit_signal(
+			&"editor_ground_dimensions_changed",
+			_ground_dimensions.x,
+			_ground_dimensions.y
+		)
+
+func _sync_ground_dimensions_from_map(map_data: Resource) -> void:
+	var typed_map_data := map_data as MapDataScript
+	if typed_map_data == null or typed_map_data.grounds.is_empty():
+		_ground_dimensions = Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
+		return
+
+	var ground := typed_map_data.grounds[0]
+	if ground == null:
+		_ground_dimensions = Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
+		return
+
+	_ground_dimensions = Vector2i(
+		clampi(int(roundf(ground.size_m.x)), 4, 128),
+		clampi(int(roundf(ground.size_m.z)), 4, 128)
 	)
 
 func _apply_building_parameters_to_sliders(should_emit: bool) -> void:

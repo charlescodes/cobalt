@@ -11,9 +11,9 @@ const MODE_EDITOR: StringName = &"editor"
 
 @export var map_loader_path: NodePath = ^"../MapLoader"
 @export var dev_menu_path: NodePath = ^"../InteractionUI/DevMenu"
-@export var start_mode: StringName = MODE_GAME
+@export var start_mode: StringName = MODE_EDITOR
 
-var _mode: StringName = MODE_GAME
+var _mode: StringName = MODE_EDITOR
 var _dev_menu: DevMenuScript
 var _map_file_store := MapFileStoreScript.new()
 var _editor_map_active: bool = false
@@ -26,7 +26,7 @@ func _ready() -> void:
 		_connect_dev_menu()
 		_dev_menu.set_mode(_mode)
 
-	call_deferred("_emit_mode_changed")
+	call_deferred("_finish_startup")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_dev_menu"):
@@ -57,14 +57,12 @@ func set_mode(next_mode: StringName) -> void:
 	if next_mode != MODE_GAME and next_mode != MODE_EDITOR:
 		return
 
-	var changed := _mode != next_mode
 	_mode = next_mode
 	if _dev_menu != null:
 		_dev_menu.set_mode(_mode)
+	if _mode == MODE_EDITOR and not _editor_map_active:
+		_ensure_editor_map_active()
 	_emit_mode_changed()
-
-	if changed and _mode == MODE_EDITOR and not _editor_map_active:
-		_load_blank_editor_map()
 
 func get_mode() -> StringName:
 	return _mode
@@ -106,9 +104,7 @@ func load_map(requested_name: String = "") -> MapDataScript:
 	map_loader.replace_map_data(loaded_map, true)
 	var path := _map_file_store.map_path_for_name(filename)
 	_set_menu_status("Loaded %s" % path)
-	var event_bus := _get_event_bus()
-	if event_bus != null:
-		event_bus.emit_signal(&"editor_map_loaded", loaded_map, path)
+	_emit_editor_map_loaded(loaded_map, path)
 	return loaded_map
 
 func _connect_dev_menu() -> void:
@@ -125,6 +121,25 @@ func _connect_dev_menu() -> void:
 	if not _dev_menu.is_connected(&"load_map_requested", load_callable):
 		_dev_menu.connect(&"load_map_requested", load_callable)
 
+func _finish_startup() -> void:
+	if _mode == MODE_EDITOR:
+		_ensure_editor_map_active()
+	_emit_mode_changed()
+
+func _ensure_editor_map_active() -> void:
+	if _editor_map_active:
+		return
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null:
+		return
+	if map_loader.map_data == null:
+		_load_blank_editor_map()
+		return
+
+	_editor_map_active = true
+	_emit_editor_map_loaded(map_loader.map_data, map_loader.map_data.resource_path)
+
 func _load_blank_editor_map() -> void:
 	var map_loader := _resolve_map_loader()
 	if map_loader == null:
@@ -133,9 +148,12 @@ func _load_blank_editor_map() -> void:
 	var blank_map := _map_file_store.create_blank_editor_map()
 	_editor_map_active = true
 	map_loader.replace_map_data(blank_map, true)
+	_emit_editor_map_loaded(blank_map, "")
+
+func _emit_editor_map_loaded(map_data: MapDataScript, path: String) -> void:
 	var event_bus := _get_event_bus()
 	if event_bus != null:
-		event_bus.emit_signal(&"editor_map_loaded", blank_map, "")
+		event_bus.emit_signal(&"editor_map_loaded", map_data, path)
 
 func _menu_filename_if_empty(requested_name: String) -> String:
 	if not requested_name.strip_edges().is_empty():

@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-05-31
+Last updated: 2026-06-01
 
 Purpose: filesystem index and ownership map. This file tells contributors and agents where code lives and where new files should go. Use `ARCHITECTURE.md` for rules and `DECISIONS.md` for current reasoning and handoff notes.
 
@@ -107,7 +107,7 @@ res://src/movement/move_target_resolver.gd            Validates move sources, de
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
 res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
-res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, NPC brush, PC brush, wall brush, door brush, and building brush input for generated map content.
+res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, ground resizing, NPC brush, PC brush, wall brush, door brush, and building brush input for generated map content.
 res://src/editor/map_file_store.gd                     Sanitized MapData save/load under data/editor_maps.
 res://src/generation/bsp_building_generator.gd         Deterministic BSP building generator that emits WallData and DoorSocketData.
 ```
@@ -124,7 +124,7 @@ res://src/ui/debug_log_panel.gd                F12 debug log panel.
 res://src/ui/navigation_debug_overlay.gd       3D movement/path/failure debug markers.
 res://src/ui/debug_overlay_controller.gd       F12 debug visibility controller.
 res://src/editor/dev_menu.gd                   Centered Escape dev menu UI.
-res://src/editor/editor_panel.gd               Draggable editor tool dock, tool panels, building sliders, and read-only inspector.
+res://src/editor/editor_panel.gd               Draggable editor tool dock, tool panels, ground/building sliders, and read-only inspector.
 res://src/editor/editor_selection_highlighter.gd Editor selection highlight shells.
 ```
 
@@ -135,7 +135,7 @@ res://tests/test_runner.gd                         Headless smoke/integration or
 res://tests/support/test_context.gd                Shared fixtures and helpers.
 res://tests/suites/camera_suite.gd                 Camera behavior coverage.
 res://tests/suites/bsp_building_generator_suite.gd Deterministic BSP building generator coverage.
-res://tests/suites/editor_suite.gd                 Runtime editor mode, tool dock, selection, NPC brush, PC brush, wall brush, door brush, building brush, inspector, and save/load coverage.
+res://tests/suites/editor_suite.gd                 Runtime editor startup, tool dock, selection, ground resizing, NPC brush, PC brush, wall brush, door brush, building brush, inspector, and save/load coverage.
 res://tests/suites/interaction_ui_suite.gd         Interaction UI coverage.
 res://tests/suites/main_scene_raycast_suite.gd     Main-scene raycast and targeting coverage.
 res://tests/suites/main_scene_suite.gd             Main scene composition coverage.

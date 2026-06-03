@@ -95,8 +95,30 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	):
 		return ctx.fail("Editor suite main scene is missing required nodes.")
 
-	if dev_menu.visible or editor_panel.visible:
-		return ctx.fail("Editor UI should start hidden.")
+	if dev_menu.visible:
+		return ctx.fail("DevMenu should start hidden.")
+	if editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_EDITOR:
+		return ctx.fail("EditorModeController should start in editor mode.")
+	if _latest_mode != EditorModeControllerScript.MODE_EDITOR:
+		return ctx.fail("Startup editor mode did not emit editor_mode_changed.")
+	if not editor_panel.visible:
+		return ctx.fail("EditorPanel should start visible in editor mode.")
+	if editor_panel.is_tool_panel_expanded():
+		return ctx.fail("EditorPanel should start collapsed to tool buttons only.")
+	if editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT:
+		return ctx.fail("EditorPanel should default to the select/inspect tool.")
+	if editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT:
+		return ctx.fail("EditorSelectionController should default to the select/inspect tool.")
+	if interaction_controller.is_gameplay_input_enabled():
+		return ctx.fail("InteractionController gameplay input should start disabled in editor mode.")
+	if not editor_mode_controller.has_editor_map_active():
+		return ctx.fail("EditorModeController did not mark the startup map as editor-active.")
+	if map_loader.map_data == null or map_loader.map_data.map_id != "main_blockout":
+		return ctx.fail("Editor startup did not keep the default main blockout map loaded.")
+	if navigation_region.get_node_or_null("GeneratedMap/StaticGrounds/Ground") == null:
+		return ctx.fail("Editor startup did not rebuild the default generated ground.")
+	if _map_loaded_count < 1 or _map_loaded_data != map_loader.map_data:
+		return ctx.fail("Editor startup did not emit editor_map_loaded for the default map.")
 
 	var action_event := InputEventAction.new()
 	action_event.action = &"toggle_dev_menu"
@@ -107,30 +129,6 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_mode_controller._unhandled_input(action_event)
 	if dev_menu.visible:
 		return ctx.fail("toggle_dev_menu did not hide the centered dev menu.")
-
-	editor_mode_controller.enter_editor_mode()
-	await ctx.tree.process_frame
-	await ctx.tree.physics_frame
-	if editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_EDITOR:
-		return ctx.fail("EditorModeController did not enter editor mode.")
-	if _latest_mode != EditorModeControllerScript.MODE_EDITOR:
-		return ctx.fail("Editor mode switch did not emit editor_mode_changed.")
-	if not editor_panel.visible:
-		return ctx.fail("EditorPanel did not appear in editor mode.")
-	if editor_panel.is_tool_panel_expanded():
-		return ctx.fail("EditorPanel should start collapsed to tool buttons only.")
-	if editor_panel.get_active_tool() != EditorPanelScript.TOOL_SELECT_INSPECT:
-		return ctx.fail("EditorPanel should default to the select/inspect tool.")
-	if editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT:
-		return ctx.fail("EditorSelectionController should default to the select/inspect tool.")
-	if interaction_controller.is_gameplay_input_enabled():
-		return ctx.fail("InteractionController gameplay input stayed enabled in editor mode.")
-	if map_loader.map_data == null or map_loader.map_data.map_id != MapFileStoreScript.BLANK_EDITOR_MAP_ID:
-		return ctx.fail("Editor mode did not load the blank editor map.")
-	if navigation_region.get_node_or_null("GeneratedMap/StaticGrounds/editor_ground") == null:
-		return ctx.fail("Blank editor map did not rebuild generated ground.")
-	if _map_loaded_count < 1 or _map_loaded_data != map_loader.map_data:
-		return ctx.fail("Blank editor map load did not emit editor_map_loaded.")
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
 	await ctx.tree.process_frame
@@ -144,6 +142,22 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_SELECT_INSPECT)
 	if editor_panel.is_tool_panel_expanded():
 		return ctx.fail("Clicking the active Select/Inspect tool did not collapse the panel.")
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_GROUND)
+	await ctx.tree.process_frame
+	if (
+		editor_panel.get_active_tool() != EditorPanelScript.TOOL_GROUND
+		or editor_panel.get_expanded_tool() != EditorPanelScript.TOOL_GROUND
+		or _latest_tool != EditorPanelScript.TOOL_GROUND
+		or editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_GROUND
+	):
+		return ctx.fail("Ground tool did not become the active expanded editor tool.")
+	if editor_panel.get_ground_dimensions() != Vector2i(12, 12):
+		return ctx.fail("Ground tool did not initialize to the startup ground dimensions.")
+	if not _tool_label_has_usable_width(
+		editor_panel,
+		^"EditorToolDockLayout/ToolContent/GroundContent/GroundContentPadding/GroundProperties/GroundDetails"
+	):
+		return ctx.fail("Ground tool label did not receive a usable wrapping width.")
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_NPC_BRUSH)
 	await ctx.tree.process_frame
 	if (
@@ -351,6 +365,45 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	var ground_inspector := editor_panel.get_inspector_text()
 	if not ground_inspector.contains("ground") or not ground_inspector.contains("editor_ground_test") or not ground_inspector.contains("size"):
 		return ctx.fail("Inspector did not render selected ground fields.")
+
+	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_GROUND)
+	await ctx.tree.process_frame
+	var ground_x_slider := editor_panel.get_node_or_null(
+		^"EditorToolDockLayout/ToolContent/GroundContent/GroundContentPadding/GroundProperties/GroundSizeXSliderRow/GroundSizeXSlider"
+	) as HSlider
+	var ground_z_slider := editor_panel.get_node_or_null(
+		^"EditorToolDockLayout/ToolContent/GroundContent/GroundContentPadding/GroundProperties/GroundSizeZSliderRow/GroundSizeZSlider"
+	) as HSlider
+	if ground_x_slider == null or ground_z_slider == null:
+		return ctx.fail("Ground tool sliders were not created.")
+	if ground_x_slider.step != 1.0 or ground_z_slider.step != 1.0:
+		return ctx.fail("Ground tool sliders should step in whole meters.")
+	ground_x_slider.value = 16.0
+	ground_z_slider.value = 20.0
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	var resized_ground := map_loader.map_data.grounds[0] as GroundDataScript
+	if (
+		resized_ground == null
+		or not is_equal_approx(resized_ground.size_m.x, 16.0)
+		or not is_equal_approx(resized_ground.size_m.y, 0.1)
+		or not is_equal_approx(resized_ground.size_m.z, 20.0)
+	):
+		return ctx.fail("Ground tool sliders did not resize the ground resource to whole-meter X/Z dimensions.")
+	if editor_panel.get_ground_dimensions() != Vector2i(16, 20):
+		return ctx.fail("Ground tool did not keep its displayed dimensions in sync after resizing.")
+	if editor_panel.get_inspector_text() != "No selection":
+		return ctx.fail("Ground tool resize should clear stale generated-node selection.")
+	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
+	ground_node = generated_map.get_node_or_null("StaticGrounds/editor_ground_test") as StaticBody3D
+	if ground_node == null:
+		return ctx.fail("Ground tool resize did not rebuild the generated ground node.")
+	var resized_ground_mesh := ground_node.get_node_or_null("Mesh") as MeshInstance3D
+	var resized_ground_box: BoxMesh
+	if resized_ground_mesh != null:
+		resized_ground_box = resized_ground_mesh.mesh as BoxMesh
+	if resized_ground_box == null or resized_ground_box.size != Vector3(16.0, 0.1, 20.0):
+		return ctx.fail("Ground tool resize did not rebuild the visible ground mesh.")
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_NPC_BRUSH)
 	await ctx.tree.process_frame

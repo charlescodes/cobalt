@@ -26,6 +26,8 @@ func run(ctx) -> bool:
 		return ctx.fail("Main scene did not load.")
 	var main := main_scene.instantiate()
 	ctx.root().add_child(main)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
 	if main.get_node_or_null("HexGridManager") != null:
 		main.free()
 		return ctx.fail("Main scene still contains HexGridManager.")
@@ -102,9 +104,9 @@ func run(ctx) -> bool:
 	if editor_panel == null:
 		main.free()
 		return ctx.fail("Main scene is missing the editor side panel.")
-	if editor_panel.visible:
+	if not editor_panel.visible:
 		main.free()
-		return ctx.fail("EditorPanel should be hidden while game mode is active.")
+		return ctx.fail("EditorPanel should be visible while editor mode is active.")
 	var navigation_debug_overlay := main.get_node_or_null("NavigationDebugOverlay") as NavigationDebugOverlayScript
 	if navigation_debug_overlay == null:
 		main.free()
@@ -119,9 +121,13 @@ func run(ctx) -> bool:
 	if main.get_node_or_null("EditorSelectionController") as EditorSelectionControllerScript == null:
 		main.free()
 		return ctx.fail("Main scene is missing EditorSelectionController.")
-	if main.get_node_or_null("EditorModeController") as EditorModeControllerScript == null:
+	var editor_mode_controller := main.get_node_or_null("EditorModeController") as EditorModeControllerScript
+	if editor_mode_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing EditorModeController.")
+	if editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_EDITOR:
+		main.free()
+		return ctx.fail("Main scene should start in editor mode.")
 	debug_overlay_controller.set_debug_visible(true)
 	if not debug_log_panel.visible or not navigation_debug_overlay.visible:
 		main.free()

@@ -4,6 +4,7 @@ extends Node
 const EditorSelectionHighlighterScript := preload("res://src/editor/editor_selection_highlighter.gd")
 const BspBuildingGeneratorScript := preload("res://src/generation/bsp_building_generator.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
+const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
@@ -12,6 +13,7 @@ const WallVisualResolverScript := preload("res://src/environment/wall_visual_res
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
+const TOOL_GROUND: StringName = &"ground"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
 const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
@@ -33,6 +35,9 @@ const DOOR_SOCKET_WIDTH_M: float = 1.0
 const DOOR_SOCKET_EDGE_CLEARANCE_M: float = 0.5
 const DOOR_SOCKET_SNAP_DISTANCE_M: float = 0.75
 const DOOR_SOCKET_COLOR: Color = Color(0.82, 0.9, 0.84, 1.0)
+const DEFAULT_GROUND_ID: StringName = &"editor_ground"
+const DEFAULT_GROUND_HEIGHT_M: float = 0.1
+const DEFAULT_GROUND_COLOR: Color = Color(0.18, 0.21, 0.19, 1.0)
 const BUILDING_PREVIEW_ALPHA: float = 0.5
 const BUILDING_PREVIEW_SOCKET_HEIGHT_M: float = 0.03
 const BUILDING_PREVIEW_SOCKET_SEGMENTS: int = 32
@@ -73,6 +78,7 @@ func _ready() -> void:
 	var map_loaded_callable := Callable(self, "_on_editor_map_loaded")
 	var tool_callable := Callable(self, "_on_editor_tool_changed")
 	var wall_mode_callable := Callable(self, "_on_editor_wall_brush_mode_changed")
+	var ground_dimensions_callable := Callable(self, "_on_editor_ground_dimensions_changed")
 	var building_parameters_callable := Callable(self, "_on_editor_building_brush_parameters_changed")
 	var building_commit_callable := Callable(self, "_on_editor_building_brush_commit_requested")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
@@ -83,6 +89,8 @@ func _ready() -> void:
 		event_bus.connect(&"editor_tool_changed", tool_callable)
 	if event_bus.has_signal(&"editor_wall_brush_mode_changed") and not event_bus.is_connected(&"editor_wall_brush_mode_changed", wall_mode_callable):
 		event_bus.connect(&"editor_wall_brush_mode_changed", wall_mode_callable)
+	if event_bus.has_signal(&"editor_ground_dimensions_changed") and not event_bus.is_connected(&"editor_ground_dimensions_changed", ground_dimensions_callable):
+		event_bus.connect(&"editor_ground_dimensions_changed", ground_dimensions_callable)
 	if event_bus.has_signal(&"editor_building_brush_parameters_changed") and not event_bus.is_connected(&"editor_building_brush_parameters_changed", building_parameters_callable):
 		event_bus.connect(&"editor_building_brush_parameters_changed", building_parameters_callable)
 	if event_bus.has_signal(&"editor_building_brush_commit_requested") and not event_bus.is_connected(&"editor_building_brush_commit_requested", building_commit_callable):
@@ -106,6 +114,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			place_door_socket_at_screen(mouse_event.position)
 		elif _active_tool == TOOL_BUILDING_BRUSH:
 			place_building_preview_at_screen(mouse_event.position)
+		elif _active_tool == TOOL_GROUND:
+			pass
 		else:
 			select_at_screen(mouse_event.position)
 		var viewport := get_viewport()
@@ -263,6 +273,28 @@ func place_building_preview_at_screen(screen_position: Vector2) -> Dictionary:
 	_set_building_preview(preview_origin)
 	clear_selection()
 	return _building_preview_result
+
+func resize_ground(size_x_m: int, size_z_m: int) -> GroundDataScript:
+	if not _is_editor_mode:
+		return null
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null:
+		return null
+
+	var ground := _first_ground_or_create(map_loader.map_data)
+	if ground == null:
+		return null
+
+	ground.size_m = Vector3(
+		float(clampi(size_x_m, 4, 128)),
+		_ground_height_or_default(ground),
+		float(clampi(size_z_m, 4, 128))
+	)
+	ground.position.y = -(ground.size_m.y * 0.5)
+	map_loader.replace_map_data(map_loader.map_data, true)
+	clear_selection()
+	return ground
 
 func commit_building_preview() -> Dictionary:
 	if not _is_editor_mode or _building_preview_result.is_empty():
@@ -431,6 +463,7 @@ func _on_editor_map_loaded(_map_data: Resource, _path: String) -> void:
 func _on_editor_tool_changed(tool_id: StringName) -> void:
 	if (
 		tool_id == TOOL_SELECT_INSPECT
+		or tool_id == TOOL_GROUND
 		or tool_id == TOOL_NPC_BRUSH
 		or tool_id == TOOL_PC_BRUSH
 		or tool_id == TOOL_WALL_BRUSH
@@ -449,6 +482,9 @@ func _on_editor_wall_brush_mode_changed(mode: StringName) -> void:
 
 	_wall_brush_mode = mode
 	_clear_wall_brush_points()
+
+func _on_editor_ground_dimensions_changed(size_x_m: int, size_z_m: int) -> void:
+	resize_ground(size_x_m, size_z_m)
 
 func _on_editor_building_brush_parameters_changed(parameters: Dictionary) -> void:
 	_building_parameters = parameters.duplicate()
@@ -513,6 +549,26 @@ func _door_socket_id_exists(map_data: MapDataScript, socket_id: StringName) -> b
 
 func _floor_plane_position(position: Vector3) -> Vector3:
 	return Vector3(position.x, 0.0, position.z)
+
+func _first_ground_or_create(map_data: MapDataScript) -> GroundDataScript:
+	for ground in map_data.grounds:
+		if ground != null:
+			return ground
+
+	var created_ground := GroundDataScript.new(
+		DEFAULT_GROUND_ID,
+		Vector3(0.0, -(DEFAULT_GROUND_HEIGHT_M * 0.5), 0.0),
+		Vector3(12.0, DEFAULT_GROUND_HEIGHT_M, 12.0),
+		DEFAULT_GROUND_COLOR
+	)
+	map_data.grounds.append(created_ground)
+	return created_ground
+
+func _ground_height_or_default(ground: GroundDataScript) -> float:
+	if ground == null or ground.size_m.y <= 0.001:
+		return DEFAULT_GROUND_HEIGHT_M
+
+	return ground.size_m.y
 
 func _wall_from_points(start_position: Vector3, end_position: Vector3) -> WallDataScript:
 	var clean_start := _floor_plane_position(start_position)

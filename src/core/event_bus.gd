@@ -17,6 +17,7 @@ signal examined_output(target_domain: StringName, target_data: Resource, output:
 signal editor_mode_changed(mode: StringName)
 signal editor_tool_changed(tool_id: StringName)
 signal editor_wall_brush_mode_changed(mode: StringName)
+signal editor_ground_dimensions_changed(size_x_m: int, size_z_m: int)
 signal editor_building_brush_parameters_changed(parameters: Dictionary)
 signal editor_building_brush_seed_selected(seed: int)
 signal editor_building_brush_commit_requested()

@@ -8,6 +8,7 @@ const InteractionLogPanelScript := preload("res://src/ui/interaction_log_panel.g
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
+const EditorModeControllerScript := preload("res://src/editor/editor_mode_controller.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -32,6 +33,7 @@ func run(ctx) -> bool:
 
 	var camera := main.get_node_or_null("CameraRig/PitchPivot/Camera3D") as Camera3D
 	var interaction_controller := main.get_node_or_null("InteractionController") as InteractionControllerScript
+	var editor_mode_controller := main.get_node_or_null("EditorModeController") as EditorModeControllerScript
 	var interaction_ui := main.get_node_or_null("InteractionUI") as CanvasLayer
 	var interaction_menu: InteractionMenuScript
 	var interaction_log_panel: InteractionLogPanelScript
@@ -50,6 +52,7 @@ func run(ctx) -> bool:
 	if (
 		camera == null
 		or interaction_controller == null
+		or editor_mode_controller == null
 		or interaction_menu == null
 		or interaction_log_panel == null
 		or main_pc == null
@@ -57,6 +60,10 @@ func run(ctx) -> bool:
 		or navigation_region == null
 	):
 		return _fail_raycast(ctx, root_event_bus, main, original_root_size, navigation_map, navigation_region_rid, signals_connected, "Main scene interaction raycast check is missing required nodes.")
+
+	editor_mode_controller.enter_game_mode()
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
 
 	interaction_controller._ready()
 	interaction_menu._ready()
