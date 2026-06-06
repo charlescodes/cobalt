@@ -9,6 +9,8 @@ const MapDataScript := preload("res://src/maps/map_data.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
+const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
+const WorldGeologyGeneratorScript := preload("res://src/generation/world_geology_generator.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const GENERATED_ROOT_NAME: StringName = &"GeneratedMap"
@@ -16,6 +18,7 @@ const STATIC_GROUNDS_NAME: StringName = &"StaticGrounds"
 const STATIC_WALLS_NAME: StringName = &"StaticWalls"
 const DOOR_SOCKETS_NAME: StringName = &"DoorSockets"
 const WORLD_OBJECTS_NAME: StringName = &"WorldObjects"
+const WORLD_MAP_3D_LAYER_NAME: StringName = &"WorldMap3DLayer"
 const EDITOR_SOURCE_META: StringName = &"editor_source_resource"
 const EDITOR_KIND_META: StringName = &"editor_source_kind"
 const EDITOR_INDEX_META: StringName = &"editor_source_index"
@@ -57,6 +60,8 @@ static func _add_roots(root: Node3D, map_data: MapDataScript) -> void:
 		_add_door_socket(door_sockets_root, map_data.door_sockets[socket_index], socket_index)
 	for object_index in range(map_data.world_objects.size()):
 		_add_world_object(objects_root, map_data.world_objects[object_index], object_index)
+	if map_data.world_geology != null:
+		_add_world_map_3d_layer(root, map_data.world_geology)
 
 static func _add_ground(parent: Node3D, ground: GroundDataScript, ground_index: int) -> void:
 	if ground == null or not _is_positive_size(ground.size_m):
@@ -203,6 +208,38 @@ static func _add_world_object(parent: Node3D, object_data: WorldObjectDataScript
 	var target := object_view.get_node_or_null("InteractionTarget")
 	if target != null:
 		_tag_editor_selectable(target, object_data, EDITOR_KIND_WORLD_OBJECT, object_index, object_view)
+
+static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDataScript) -> void:
+	var generated := WorldGeologyGeneratorScript.generate(geology_data)
+	if generated.is_empty():
+		return
+
+	var vertices: PackedVector3Array = generated.get("vertices", PackedVector3Array())
+	var colors: PackedColorArray = generated.get("colors", PackedColorArray())
+	var indices: PackedInt32Array = generated.get("indices", PackedInt32Array())
+	if vertices.is_empty() or colors.size() != vertices.size() or indices.is_empty():
+		return
+
+	var mesh_arrays := []
+	mesh_arrays.resize(Mesh.ARRAY_MAX)
+	mesh_arrays[Mesh.ARRAY_VERTEX] = vertices
+	mesh_arrays[Mesh.ARRAY_COLOR] = colors
+	mesh_arrays[Mesh.ARRAY_INDEX] = indices
+
+	var array_mesh := ArrayMesh.new()
+	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh_arrays)
+
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.roughness = 0.9
+
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = String(WORLD_MAP_3D_LAYER_NAME)
+	mesh_instance.mesh = array_mesh
+	mesh_instance.material_override = material
+	mesh_instance.position.y = 0.2
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mesh_instance)
 
 static func _new_root(root_name: StringName) -> Node3D:
 	var root := Node3D.new()

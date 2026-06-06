@@ -3,6 +3,7 @@ extends PanelContainer
 
 signal game_mode_requested
 signal editor_mode_requested
+signal world_editor_mode_requested
 signal save_map_requested(filename: String)
 signal load_map_requested(filename: String)
 
@@ -11,6 +12,7 @@ const DEFAULT_FILENAME := "editor_blank"
 var _filename_edit: LineEdit
 var _game_mode_button: Button
 var _editor_mode_button: Button
+var _world_editor_mode_button: Button
 var _status_label: Label
 
 func _ready() -> void:
@@ -41,6 +43,8 @@ func set_mode(mode: StringName) -> void:
 		_game_mode_button.disabled = mode == &"game"
 	if _editor_mode_button != null:
 		_editor_mode_button.disabled = mode == &"editor"
+	if _world_editor_mode_button != null:
+		_world_editor_mode_button.disabled = mode == &"world_editor"
 
 func set_status(text: String) -> void:
 	if _status_label != null:
@@ -51,9 +55,9 @@ func _configure_position() -> void:
 	anchor_top = 0.5
 	anchor_right = 0.5
 	anchor_bottom = 0.5
-	offset_left = -170.0
+	offset_left = -190.0
 	offset_top = -116.0
-	offset_right = 170.0
+	offset_right = 190.0
 	offset_bottom = 116.0
 
 func _configure_style() -> void:
@@ -84,23 +88,30 @@ func _ensure_layout() -> void:
 
 	_game_mode_button = Button.new()
 	_game_mode_button.name = "GameModeButton"
-	_game_mode_button.text = "Game Mode"
-	_game_mode_button.custom_minimum_size = Vector2(150.0, 34.0)
+	_game_mode_button.text = "Game"
+	_game_mode_button.custom_minimum_size = Vector2(112.0, 34.0)
 	_game_mode_button.pressed.connect(_on_game_mode_pressed)
 	mode_row.add_child(_game_mode_button)
 
 	_editor_mode_button = Button.new()
 	_editor_mode_button.name = "EditorModeButton"
-	_editor_mode_button.text = "Editor Mode"
-	_editor_mode_button.custom_minimum_size = Vector2(150.0, 34.0)
+	_editor_mode_button.text = "Editor"
+	_editor_mode_button.custom_minimum_size = Vector2(112.0, 34.0)
 	_editor_mode_button.pressed.connect(_on_editor_mode_pressed)
 	mode_row.add_child(_editor_mode_button)
+
+	_world_editor_mode_button = Button.new()
+	_world_editor_mode_button.name = "WorldEditorModeButton"
+	_world_editor_mode_button.text = "World"
+	_world_editor_mode_button.custom_minimum_size = Vector2(112.0, 34.0)
+	_world_editor_mode_button.pressed.connect(_on_world_editor_mode_pressed)
+	mode_row.add_child(_world_editor_mode_button)
 
 	_filename_edit = LineEdit.new()
 	_filename_edit.name = "Filename"
 	_filename_edit.text = DEFAULT_FILENAME
 	_filename_edit.placeholder_text = "map_name"
-	_filename_edit.custom_minimum_size = Vector2(316.0, 32.0)
+	_filename_edit.custom_minimum_size = Vector2(356.0, 32.0)
 	layout.add_child(_filename_edit)
 
 	var file_row := HBoxContainer.new()
@@ -133,6 +144,9 @@ func _on_game_mode_pressed() -> void:
 
 func _on_editor_mode_pressed() -> void:
 	emit_signal(&"editor_mode_requested")
+
+func _on_world_editor_mode_pressed() -> void:
+	emit_signal(&"world_editor_mode_requested")
 
 func _on_save_map_pressed() -> void:
 	emit_signal(&"save_map_requested", get_filename())

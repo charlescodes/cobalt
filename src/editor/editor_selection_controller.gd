@@ -10,8 +10,11 @@ const MapDataScript := preload("res://src/maps/map_data.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
+const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
+const MODE_EDITOR: StringName = &"editor"
+const MODE_WORLD_EDITOR: StringName = &"world_editor"
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
 const TOOL_GROUND: StringName = &"ground"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
@@ -19,6 +22,7 @@ const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
 const TOOL_DOOR_BRUSH: StringName = &"door_brush"
 const TOOL_BUILDING_BRUSH: StringName = &"building_brush"
+const TOOL_GEOLOGY: StringName = &"geology"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
 const PC_KIND: StringName = &"player_character"
@@ -38,6 +42,9 @@ const DOOR_SOCKET_COLOR: Color = Color(0.82, 0.9, 0.84, 1.0)
 const DEFAULT_GROUND_ID: StringName = &"editor_ground"
 const DEFAULT_GROUND_HEIGHT_M: float = 0.1
 const DEFAULT_GROUND_COLOR: Color = Color(0.18, 0.21, 0.19, 1.0)
+const WORLD_GROUND_MIN_SIZE_M: int = 250000
+const WORLD_GROUND_MAX_SIZE_M: int = 1000000
+const WORLD_RAY_DISTANCE_M: float = 2000000.0
 const BUILDING_PREVIEW_ALPHA: float = 0.5
 const BUILDING_PREVIEW_SOCKET_HEIGHT_M: float = 0.03
 const BUILDING_PREVIEW_SOCKET_SEGMENTS: int = 32
@@ -49,6 +56,7 @@ const BUILDING_PREVIEW_SOCKET_SEGMENTS: int = 32
 
 var _camera: Camera3D
 var _is_editor_mode: bool = false
+var _is_world_editor_mode: bool = false
 var _active_tool: StringName = TOOL_SELECT_INSPECT
 var _wall_brush_mode: StringName = WALL_BRUSH_MODE_LINE
 var _has_wall_brush_start: bool = false
@@ -62,9 +70,11 @@ var _building_preview_origin: Vector3 = Vector3.ZERO
 var _building_preview_result: Dictionary = {}
 var _building_preview_root: Node3D
 var _preview_rng := RandomNumberGenerator.new()
+var _active_max_ray_distance_m: float = 0.0
 
 func _ready() -> void:
 	_camera = _resolve_camera()
+	_active_max_ray_distance_m = max_ray_distance_m
 	_highlighter = EditorSelectionHighlighterScript.new()
 	_highlighter.name = "EditorSelectionHighlighter"
 	add_child(_highlighter)
@@ -81,6 +91,7 @@ func _ready() -> void:
 	var ground_dimensions_callable := Callable(self, "_on_editor_ground_dimensions_changed")
 	var building_parameters_callable := Callable(self, "_on_editor_building_brush_parameters_changed")
 	var building_commit_callable := Callable(self, "_on_editor_building_brush_commit_requested")
+	var world_geology_parameters_callable := Callable(self, "_on_editor_world_geology_parameters_changed")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
 		event_bus.connect(&"editor_mode_changed", mode_callable)
 	if event_bus.has_signal(&"editor_map_loaded") and not event_bus.is_connected(&"editor_map_loaded", map_loaded_callable):
@@ -95,6 +106,8 @@ func _ready() -> void:
 		event_bus.connect(&"editor_building_brush_parameters_changed", building_parameters_callable)
 	if event_bus.has_signal(&"editor_building_brush_commit_requested") and not event_bus.is_connected(&"editor_building_brush_commit_requested", building_commit_callable):
 		event_bus.connect(&"editor_building_brush_commit_requested", building_commit_callable)
+	if event_bus.has_signal(&"editor_world_geology_parameters_changed") and not event_bus.is_connected(&"editor_world_geology_parameters_changed", world_geology_parameters_callable):
+		event_bus.connect(&"editor_world_geology_parameters_changed", world_geology_parameters_callable)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _is_editor_mode:
@@ -114,6 +127,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			place_door_socket_at_screen(mouse_event.position)
 		elif _active_tool == TOOL_BUILDING_BRUSH:
 			place_building_preview_at_screen(mouse_event.position)
+		elif _active_tool == TOOL_GEOLOGY:
+			pass
 		elif _active_tool == TOOL_GROUND:
 			pass
 		else:
@@ -287,12 +302,14 @@ func resize_ground(size_x_m: int, size_z_m: int) -> GroundDataScript:
 		return null
 
 	ground.size_m = Vector3(
-		float(clampi(size_x_m, 4, 128)),
+		float(_clamped_ground_size(size_x_m)),
 		_ground_height_or_default(ground),
-		float(clampi(size_z_m, 4, 128))
+		float(_clamped_ground_size(size_z_m))
 	)
 	ground.position.y = -(ground.size_m.y * 0.5)
-	map_loader.replace_map_data(map_loader.map_data, true)
+	if _is_world_editor_mode and map_loader.map_data.world_geology != null:
+		map_loader.map_data.world_geology.size_m = Vector2(ground.size_m.x, ground.size_m.z)
+	map_loader.replace_map_data(map_loader.map_data, not _is_world_editor_mode)
 	clear_selection()
 	return ground
 
@@ -402,7 +419,7 @@ func _raycast_editor_selectable_matching(screen_position: Vector2, required_kind
 			return {}
 
 	var ray_origin := _camera.project_ray_origin(screen_position)
-	var ray_end := ray_origin + (_camera.project_ray_normal(screen_position) * max_ray_distance_m)
+	var ray_end := ray_origin + (_camera.project_ray_normal(screen_position) * _active_max_ray_distance_m)
 	var excluded: Array[RID] = []
 
 	for _attempt in range(32):
@@ -449,8 +466,15 @@ func _find_editor_selectable(collider: Object) -> Dictionary:
 	return {}
 
 func _on_editor_mode_changed(mode: StringName) -> void:
-	_is_editor_mode = mode == &"editor"
+	_is_world_editor_mode = mode == MODE_WORLD_EDITOR
+	_is_editor_mode = mode == MODE_EDITOR or _is_world_editor_mode
+	_active_max_ray_distance_m = WORLD_RAY_DISTANCE_M if _is_world_editor_mode else max_ray_distance_m
 	if not _is_editor_mode:
+		_clear_wall_brush_points()
+		_clear_building_preview()
+		clear_selection()
+	elif _is_world_editor_mode:
+		_active_tool = TOOL_SELECT_INSPECT
 		_clear_wall_brush_points()
 		_clear_building_preview()
 		clear_selection()
@@ -469,6 +493,7 @@ func _on_editor_tool_changed(tool_id: StringName) -> void:
 		or tool_id == TOOL_WALL_BRUSH
 		or tool_id == TOOL_DOOR_BRUSH
 		or tool_id == TOOL_BUILDING_BRUSH
+		or tool_id == TOOL_GEOLOGY
 	):
 		_active_tool = tool_id
 		if _active_tool != TOOL_WALL_BRUSH:
@@ -493,6 +518,22 @@ func _on_editor_building_brush_parameters_changed(parameters: Dictionary) -> voi
 
 func _on_editor_building_brush_commit_requested() -> void:
 	commit_building_preview()
+
+func _on_editor_world_geology_parameters_changed(parameters: Dictionary) -> void:
+	if not _is_world_editor_mode:
+		return
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null or map_loader.map_data.world_geology == null:
+		return
+
+	var geology_data := map_loader.map_data.world_geology as WorldGeologyDataScript
+	geology_data.apply_parameters(parameters)
+	if not map_loader.map_data.grounds.is_empty() and map_loader.map_data.grounds[0] != null:
+		var ground := map_loader.map_data.grounds[0] as GroundDataScript
+		geology_data.size_m = Vector2(ground.size_m.x, ground.size_m.z)
+	map_loader.replace_map_data(map_loader.map_data, false)
+	clear_selection()
 
 func _resolve_camera() -> Camera3D:
 	var configured_camera := get_node_or_null(camera_path) as Camera3D
@@ -569,6 +610,12 @@ func _ground_height_or_default(ground: GroundDataScript) -> float:
 		return DEFAULT_GROUND_HEIGHT_M
 
 	return ground.size_m.y
+
+func _clamped_ground_size(size_m: int) -> int:
+	if _is_world_editor_mode:
+		return clampi(size_m, WORLD_GROUND_MIN_SIZE_M, WORLD_GROUND_MAX_SIZE_M)
+
+	return clampi(size_m, 4, 128)
 
 func _wall_from_points(start_position: Vector3, end_position: Vector3) -> WallDataScript:
 	var clean_start := _floor_plane_position(start_position)

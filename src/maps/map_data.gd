@@ -4,6 +4,7 @@ extends Resource
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
+const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 @export var map_id: String = ""
@@ -11,16 +12,19 @@ const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 @export var static_walls: Array[WallDataScript] = []
 @export var door_sockets: Array[DoorSocketDataScript] = []
 @export var world_objects: Array[WorldObjectDataScript] = []
+@export var world_geology: WorldGeologyDataScript
 
 func _init(
 	p_map_id: String = "",
 	p_grounds: Array[GroundDataScript] = [],
 	p_static_walls: Array[WallDataScript] = [],
 	p_world_objects: Array[WorldObjectDataScript] = [],
-	p_door_sockets: Array[DoorSocketDataScript] = []
+	p_door_sockets: Array[DoorSocketDataScript] = [],
+	p_world_geology: WorldGeologyDataScript = null
 ) -> void:
 	map_id = p_map_id
 	grounds = p_grounds
 	static_walls = p_static_walls
 	world_objects = p_world_objects
 	door_sockets = p_door_sockets
+	world_geology = p_world_geology

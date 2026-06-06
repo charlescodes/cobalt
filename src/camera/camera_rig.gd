@@ -13,6 +13,11 @@ extends Node3D
 @export_range(-89.0, -5.0, 1.0, "degrees") var max_pitch_degrees: float = -20.0
 @export_range(0.001, 0.1, 0.001) var pan_speed_m_per_pixel: float = 0.015
 @export_range(0.001, 0.02, 0.001) var look_sensitivity: float = 0.005
+@export var world_start_height_m: float = 350000.0
+@export var world_min_height_m: float = 25000.0
+@export var world_max_height_m: float = 850000.0
+@export var world_height_step_m: float = 25000.0
+@export var world_pan_speed_m_per_pixel: float = 750.0
 
 var _height_m: float = 0.0
 var _yaw: float = 0.0
@@ -21,15 +26,24 @@ var _is_panning: bool = false
 var _is_looking: bool = false
 var _pitch_pivot: Node3D
 var _camera: Camera3D
+var _active_min_height_m: float = 0.0
+var _active_max_height_m: float = 0.0
+var _active_height_step_m: float = 0.0
+var _active_pan_speed_m_per_pixel: float = 0.0
 
 func _ready() -> void:
-	_height_m = clampf(start_height_m, min_height_m, max_height_m)
+	_active_min_height_m = min_height_m
+	_active_max_height_m = max_height_m
+	_active_height_step_m = height_step_m
+	_active_pan_speed_m_per_pixel = pan_speed_m_per_pixel
+	_height_m = clampf(start_height_m, _active_min_height_m, _active_max_height_m)
 	_yaw = deg_to_rad(start_yaw_degrees)
 	_pitch = deg_to_rad(clampf(start_pitch_degrees, min_pitch_degrees, max_pitch_degrees))
 	_pitch_pivot = _get_or_create_pitch_pivot()
 	_camera = _get_or_create_camera()
 	_camera.current = true
 	_apply_camera_transform()
+	_connect_event_bus()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -44,7 +58,7 @@ func _notification(what: int) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
 func set_height_m(value: float) -> void:
-	_height_m = clampf(value, min_height_m, max_height_m)
+	_height_m = clampf(value, _active_min_height_m, _active_max_height_m)
 	_apply_camera_transform()
 
 static func camera_distance_for_height(height_m: float, pitch_radians: float) -> float:
@@ -62,11 +76,11 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			get_viewport().set_input_as_handled()
 		MOUSE_BUTTON_WHEEL_UP:
 			if event.pressed:
-				set_height_m(_height_m + height_step_m)
+				set_height_m(_height_m + _active_height_step_m)
 				get_viewport().set_input_as_handled()
 		MOUSE_BUTTON_WHEEL_DOWN:
 			if event.pressed:
-				set_height_m(_height_m - height_step_m)
+				set_height_m(_height_m - _active_height_step_m)
 				get_viewport().set_input_as_handled()
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
@@ -87,7 +101,7 @@ func _pan_ground_focus(mouse_delta: Vector2) -> void:
 	var yaw_basis := Basis(Vector3.UP, _yaw)
 	var right := yaw_basis.x.normalized()
 	var forward := -yaw_basis.z.normalized()
-	position += ((-right * mouse_delta.x) + (forward * mouse_delta.y)) * pan_speed_m_per_pixel
+	position += ((-right * mouse_delta.x) + (forward * mouse_delta.y)) * _active_pan_speed_m_per_pixel
 	position.y = 0.0
 
 func _apply_camera_transform() -> void:
@@ -117,3 +131,34 @@ func _get_or_create_camera() -> Camera3D:
 	found_camera.name = "Camera3D"
 	_pitch_pivot.add_child(found_camera)
 	return found_camera
+
+func _connect_event_bus() -> void:
+	var event_bus := _get_event_bus()
+	if event_bus == null:
+		return
+
+	var mode_callable := Callable(self, "_on_editor_mode_changed")
+	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
+		event_bus.connect(&"editor_mode_changed", mode_callable)
+
+func _on_editor_mode_changed(mode: StringName) -> void:
+	if mode == &"world_editor":
+		_active_min_height_m = world_min_height_m
+		_active_max_height_m = world_max_height_m
+		_active_height_step_m = world_height_step_m
+		_active_pan_speed_m_per_pixel = world_pan_speed_m_per_pixel
+		position = Vector3.ZERO
+		set_height_m(world_start_height_m)
+	else:
+		_active_min_height_m = min_height_m
+		_active_max_height_m = max_height_m
+		_active_height_step_m = height_step_m
+		_active_pan_speed_m_per_pixel = pan_speed_m_per_pixel
+		set_height_m(start_height_m)
+
+func _get_event_bus() -> Node:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return null
+
+	return tree.root.get_node_or_null("EventBus")

@@ -19,9 +19,12 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added a PC Brush editor tool for placing multiple controllable player-character blockout objects.
 - Added a deterministic BSP building generator and `Bldg.` editor brush with seed/size/room sliders, translucent preview, Submit commit flow, partition door sockets, and an exterior door socket.
 - Added a `Ground` editor tool with whole-meter X/Z sliders that resize the primary ground plane and rebuild/rebake the map.
+- Added Escape-driven World editor mode with macro-scale ground sizing, a Geology tool, deterministic terrain/climate generation, rain-shadow moisture, biome coloring, and a non-colliding 3D world map layer.
+- Added world editor regression coverage for mode switching, tool visibility, macro ground ranges, geology controls, camera scale, and deterministic/coastal generation.
 
 ### Changed
 
+- Camera controls now switch to macro-scale pan and zoom settings while World editor mode is active.
 - Runtime startup now enters editor mode by default and keeps the configured main blockout map as the editable map instead of replacing it with a blank editor map.
 - Sharpened `ARCHITECTURE.md`, `DECISIONS.md`, and `PROJECT_STRUCTURE.md` into distinct source-of-truth documents.
 - Expanded `ROADMAP.md` with procedural world generation, editor tooling, faction/population, agent, quest-seed, and world-history milestones.

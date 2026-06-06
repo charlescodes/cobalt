@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-06-01
+Last updated: 2026-06-06
 
 Purpose: filesystem index and ownership map. This file tells contributors and agents where code lives and where new files should go. Use `ARCHITECTURE.md` for rules and `DECISIONS.md` for current reasoning and handoff notes.
 
@@ -79,10 +79,11 @@ Current sample map resource plus runtime editor save targets. Map resources can 
 ## Core Data Resources
 
 ```text
-res://src/maps/map_data.gd                 Map id plus ground, wall, door socket, and world-object arrays.
+res://src/maps/map_data.gd                 Map id plus ground, wall, door socket, world-object arrays, and optional world geology data.
 res://src/environment/ground_data.gd       Static ground id, position, size, and color.
 res://src/environment/wall_data.gd         Static wall line endpoints, height, thickness, and color.
 res://src/environment/door_socket_data.gd  Static door opening socket id, position, width, orientation, and marker color.
+res://src/environment/world_geology_data.gd Macro world-map geology seed, coast, terrain, climate, vegetation, and toxicity parameters.
 res://src/objects/world_object_data.gd     Current actor/object id, kind, position, size, color, and hoverability.
 res://src/movement/move_target_data.gd     Exact Vector3 destination selected by ground raycasts.
 ```
@@ -106,10 +107,11 @@ res://src/interaction/interaction_controller.gd        Camera raycasts, hover st
 res://src/movement/move_target_resolver.gd            Validates move sources, destinations, and native nav paths.
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
-res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
-res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, ground resizing, NPC brush, PC brush, wall brush, door brush, and building brush input for generated map content.
+res://src/editor/editor_mode_controller.gd             Escape dev menu game/local editor/world editor mode and map save/load coordinator.
+res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, ground resizing, NPC brush, PC brush, wall brush, door brush, building brush, and world geology input for generated map content.
 res://src/editor/map_file_store.gd                     Sanitized MapData save/load under data/editor_maps.
 res://src/generation/bsp_building_generator.gd         Deterministic BSP building generator that emits WallData and DoorSocketData.
+res://src/generation/world_geology_generator.gd        Deterministic macro terrain, rain-shadow, temperature, erosion, and biome mesh data generator.
 ```
 
 ## Components and UI
@@ -124,7 +126,7 @@ res://src/ui/debug_log_panel.gd                F12 debug log panel.
 res://src/ui/navigation_debug_overlay.gd       3D movement/path/failure debug markers.
 res://src/ui/debug_overlay_controller.gd       F12 debug visibility controller.
 res://src/editor/dev_menu.gd                   Centered Escape dev menu UI.
-res://src/editor/editor_panel.gd               Draggable editor tool dock, tool panels, ground/building sliders, and read-only inspector.
+res://src/editor/editor_panel.gd               Draggable editor tool dock, local/world tool panels, ground/building/geology controls, and read-only inspector.
 res://src/editor/editor_selection_highlighter.gd Editor selection highlight shells.
 ```
 
@@ -146,6 +148,7 @@ res://tests/suites/navigation_debug_overlay_suite.gd Debug overlay coverage.
 res://tests/suites/object_composition_suite.gd     Blockout object composition coverage.
 res://tests/suites/project_config_suite.gd         Godot config and autoload coverage.
 res://tests/suites/wall_layout_suite.gd            Wall layout coverage.
+res://tests/suites/world_editor_suite.gd           World mode, macro ground range, geology controls, camera scale, and generator coverage.
 ```
 
 ## Scripts

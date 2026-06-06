@@ -1,6 +1,6 @@
 # COBALT Roadmap
 
-Last updated: 2026-05-31
+Last updated: 2026-06-06
 
 Purpose: forward-looking planning for major systems, milestones, and unresolved design questions. Use `DECISIONS.md` for accepted design state and `CHANGELOG.md` for completed work.
 
@@ -35,6 +35,7 @@ COBALT is a procedural 3D isometric RPG where the player moves through local zon
 - [x] Define the mode-switching contract between game view and editor view.
 - [x] Define the V1 editor tool contract for selection, save/load, and map reload.
 - [x] Add a first runtime BSP building brush with preview, sliders, submit, partition doors, and one exterior door.
+- [x] Add a first runtime world-map macro editor mode with geology parameters, rain-shadow terrain generation, and a non-colliding 3D blockout layer.
 - [ ] Add the first static obstacle/environment resource beyond walls and ground.
 - [ ] Keep consolidating map/environment/object language before adding larger systems.
 
@@ -88,18 +89,23 @@ Exit criteria:
 
 ### 2. World Map and Zone Model
 
-Status: Planned
+Status: First macro editor slice implemented; zone model planned
 
 Goal: Represent the larger 2D world as connected zones that can seed local maps.
 
 Scope:
 
+- Runtime World mode reached through the Escape dev menu, separate from local-map editing.
+- Macro ground dimensions from 250km to 1000km.
+- Deterministic geology parameters for seed, coast edge, terrain roughness, sea level, temperature, rainfall, wind direction, erosion, vegetation, tree canopy, ridge alignment, and toxicity.
+- Non-colliding 3D blockout render layer generated from elevation, moisture, temperature, and biome colors.
 - Zone ids, coordinates, neighbors, generation seed, and tags.
 - Zone-level resources, faction influence, population mix, and danger level.
 - Deterministic regeneration from the same seed and inputs.
 
 Exit criteria:
 
+- Implemented first slice: World mode swaps to an unsaved macro `MapData`, shows only Select/Ground/Geology tools, scales camera controls, and restores the local editor map when leaving.
 - A small world map can be generated or authored.
 - Selecting a zone exposes all data needed to generate a local map.
 

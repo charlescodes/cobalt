@@ -5,9 +5,12 @@ const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
+const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 const BspBuildingGeneratorScript := preload("res://src/generation/bsp_building_generator.gd")
 
+const MODE_EDITOR: StringName = &"editor"
+const MODE_WORLD_EDITOR: StringName = &"world_editor"
 const TOOL_SELECT_INSPECT: StringName = &"select_inspect"
 const TOOL_GROUND: StringName = &"ground"
 const TOOL_NPC_BRUSH: StringName = &"npc_brush"
@@ -15,6 +18,7 @@ const TOOL_PC_BRUSH: StringName = &"pc_brush"
 const TOOL_WALL_BRUSH: StringName = &"wall_brush"
 const TOOL_DOOR_BRUSH: StringName = &"door_brush"
 const TOOL_BUILDING_BRUSH: StringName = &"building_brush"
+const TOOL_GEOLOGY: StringName = &"geology"
 const WALL_BRUSH_MODE_LINE: StringName = &"line"
 const WALL_BRUSH_MODE_RECTANGLE: StringName = &"rectangle"
 const DOCK_WIDTH: float = 430.0
@@ -27,9 +31,14 @@ const TOOL_CONTENT_MARGIN_RIGHT: int = 8
 const TOOL_CONTENT_MARGIN_BOTTOM: int = 2
 const DEFAULT_GROUND_SIZE_X_M: int = 12
 const DEFAULT_GROUND_SIZE_Z_M: int = 12
+const DEFAULT_WORLD_GROUND_SIZE_M: int = 500000
+const WORLD_GROUND_MIN_SIZE_M: int = 250000
+const WORLD_GROUND_MAX_SIZE_M: int = 1000000
+const WORLD_GROUND_STEP_M: int = 10000
 
 var _select_button: Button
 var _ground_button: Button
+var _geology_button: Button
 var _brush_button: Button
 var _pc_button: Button
 var _wall_button: Button
@@ -40,6 +49,7 @@ var _wall_rectangle_button: Button
 var _content_root: VBoxContainer
 var _select_content: Control
 var _ground_content: Control
+var _geology_content: Control
 var _brush_content: Control
 var _pc_content: Control
 var _wall_content: Control
@@ -47,8 +57,15 @@ var _door_content: Control
 var _building_content: Control
 var _inspector_label: Label
 var _ground_label: Label
+var _ground_size_x_label: Label
+var _ground_size_z_label: Label
 var _ground_size_x_slider: HSlider
 var _ground_size_z_slider: HSlider
+var _geology_seed_edit: LineEdit
+var _geology_coast_check: CheckBox
+var _geology_coast_buttons: Dictionary = {}
+var _geology_sliders: Dictionary = {}
+var _geology_label: Label
 var _brush_label: Label
 var _pc_label: Label
 var _wall_label: Label
@@ -63,11 +80,13 @@ var _building_submit_button: Button
 var _selected_node: Node
 var _selected_data: Resource
 var _selected_kind: StringName = &""
+var _editor_mode: StringName = MODE_EDITOR
 var _active_tool: StringName = TOOL_SELECT_INSPECT
 var _expanded_tool: StringName = &""
 var _wall_brush_mode: StringName = WALL_BRUSH_MODE_LINE
 var _ground_dimensions: Vector2i = Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
 var _building_parameters: Dictionary = BspBuildingGeneratorScript.default_parameters()
+var _world_geology_parameters: Dictionary = WorldGeologyDataScript.new().to_parameters()
 var _panel_position: Vector2 = Vector2.ZERO
 var _is_dragging: bool = false
 var _drag_start_mouse_position: Vector2 = Vector2.ZERO
@@ -130,7 +149,7 @@ func is_dragging() -> bool:
 	return _is_dragging
 
 func toggle_tool_panel(tool_id: StringName) -> void:
-	if not _is_known_tool(tool_id):
+	if not _is_known_tool(tool_id) or not _is_tool_available(tool_id):
 		return
 
 	if _active_tool == tool_id and _expanded_tool == tool_id:
@@ -196,6 +215,9 @@ func _ensure_layout() -> void:
 	_ground_button = _new_tool_button("GroundToolButton", "Ground", TOOL_GROUND)
 	button_row.add_child(_ground_button)
 
+	_geology_button = _new_tool_button("GeologyToolButton", "Geology", TOOL_GEOLOGY)
+	button_row.add_child(_geology_button)
+
 	_brush_button = _new_tool_button("NpcBrushToolButton", "NPC", TOOL_NPC_BRUSH)
 	button_row.add_child(_brush_button)
 
@@ -228,6 +250,9 @@ func _ensure_layout() -> void:
 
 	_ground_content = _build_ground_content()
 	_content_root.add_child(_ground_content)
+
+	_geology_content = _build_geology_content()
+	_content_root.add_child(_geology_content)
 
 	_brush_content = _build_brush_content()
 	_content_root.add_child(_brush_content)
@@ -271,10 +296,14 @@ func _build_ground_content() -> Control:
 	layout.add_theme_constant_override("separation", 8)
 
 	_ground_size_x_slider = _new_ground_slider("GroundSizeXSlider", "size_x_m")
-	layout.add_child(_new_ground_slider_row("x_m", _ground_size_x_slider))
+	var x_row := _new_ground_slider_row("x_m", _ground_size_x_slider)
+	_ground_size_x_label = x_row.get_node_or_null("GroundSizeXSliderLabel") as Label
+	layout.add_child(x_row)
 
 	_ground_size_z_slider = _new_ground_slider("GroundSizeZSlider", "size_z_m")
-	layout.add_child(_new_ground_slider_row("z_m", _ground_size_z_slider))
+	var z_row := _new_ground_slider_row("z_m", _ground_size_z_slider)
+	_ground_size_z_label = z_row.get_node_or_null("GroundSizeZSliderLabel") as Label
+	layout.add_child(z_row)
 
 	_ground_label = Label.new()
 	_ground_label.name = "GroundDetails"
@@ -284,6 +313,117 @@ func _build_ground_content() -> Control:
 	_apply_ground_dimensions_to_sliders(false)
 	_update_ground_summary()
 	return _new_tool_content("GroundContent", "GroundContentPadding", layout)
+
+func _build_geology_content() -> Control:
+	var layout := VBoxContainer.new()
+	layout.name = "GeologyProperties"
+	layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_theme_constant_override("separation", 8)
+
+	var seed_row := HBoxContainer.new()
+	seed_row.name = "GeologySeedRow"
+	seed_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	seed_row.add_theme_constant_override("separation", 8)
+	layout.add_child(seed_row)
+
+	var seed_label := Label.new()
+	seed_label.name = "GeologySeedLabel"
+	seed_label.text = "seed"
+	seed_label.custom_minimum_size = Vector2(92.0, 0.0)
+	seed_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	seed_row.add_child(seed_label)
+
+	_geology_seed_edit = LineEdit.new()
+	_geology_seed_edit.name = "GeologySeedEdit"
+	_geology_seed_edit.text = str(_world_geology_parameters.get("seed_text", "cobalt"))
+	_geology_seed_edit.placeholder_text = "seed"
+	_geology_seed_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_geology_seed_edit.text_submitted.connect(_on_geology_seed_text_submitted)
+	_geology_seed_edit.focus_exited.connect(_on_geology_seed_focus_exited)
+	_geology_seed_edit.gui_input.connect(_on_drag_gui_input)
+	seed_row.add_child(_geology_seed_edit)
+
+	var coast_row := HBoxContainer.new()
+	coast_row.name = "GeologyCoastRow"
+	coast_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coast_row.add_theme_constant_override("separation", 8)
+	layout.add_child(coast_row)
+
+	_geology_coast_check = CheckBox.new()
+	_geology_coast_check.name = "GeologyCoastCheck"
+	_geology_coast_check.text = "coast"
+	_geology_coast_check.button_pressed = bool(_world_geology_parameters.get("coast_enabled", false))
+	_geology_coast_check.toggled.connect(_on_geology_coast_toggled)
+	_geology_coast_check.gui_input.connect(_on_drag_gui_input)
+	coast_row.add_child(_geology_coast_check)
+
+	var coast_button_group := ButtonGroup.new()
+	for edge in [WorldGeologyDataScript.COAST_NORTH, WorldGeologyDataScript.COAST_SOUTH, WorldGeologyDataScript.COAST_EAST, WorldGeologyDataScript.COAST_WEST]:
+		var edge_button := Button.new()
+		edge_button.name = "GeologyCoast%sButton" % edge.capitalize()
+		edge_button.text = edge.substr(0, 1).to_upper()
+		edge_button.toggle_mode = true
+		edge_button.button_group = coast_button_group
+		edge_button.custom_minimum_size = Vector2(38.0, 32.0)
+		edge_button.pressed.connect(_on_geology_coast_edge_pressed.bind(edge))
+		edge_button.gui_input.connect(_on_drag_gui_input)
+		_geology_coast_buttons[edge] = edge_button
+		coast_row.add_child(edge_button)
+
+	layout.add_child(_new_geology_slider_row(
+		"map_km",
+		_new_geology_slider("GeologyMapScaleSlider", 500.0, 1000.0, 10.0, "map_scale_km")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"rough",
+		_new_geology_slider("GeologyRoughnessSlider", 0.0, 1.0, 0.01, "roughness")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"sea",
+		_new_geology_slider("GeologySeaLevelSlider", 0.0, 1.0, 0.01, "sea_level")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"temp",
+		_new_geology_slider("GeologyTemperatureSlider", 0.0, 1.0, 0.01, "global_temperature")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"rain",
+		_new_geology_slider("GeologyRainfallSlider", 0.0, 1.0, 0.01, "base_rainfall")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"wind",
+		_new_geology_slider("GeologyWindDirectionSlider", 0.0, 360.0, 1.0, "wind_direction_degrees")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"erosion",
+		_new_geology_slider("GeologyErosionSlider", 0.0, 1.0, 0.01, "erosion_strength")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"veg",
+		_new_geology_slider("GeologyVegetationSlider", 0.0, 1.0, 0.01, "vegetation_spread")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"trees",
+		_new_geology_slider("GeologyTreeCanopySlider", 0.0, 1.0, 0.01, "tree_canopy_density")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"ridge",
+		_new_geology_slider("GeologyTectonicAlignmentSlider", 0.0, 360.0, 1.0, "tectonic_alignment_degrees")
+	))
+	layout.add_child(_new_geology_slider_row(
+		"tox",
+		_new_geology_slider("GeologyToxicitySlider", 0.0, 1.0, 0.01, "toxicity")
+	))
+
+	_geology_label = Label.new()
+	_geology_label.name = "GeologyDetails"
+	_configure_tool_label(_geology_label)
+	layout.add_child(_geology_label)
+
+	_apply_world_geology_parameters_to_controls(false)
+	_update_geology_summary()
+	return _new_tool_content("GeologyContent", "GeologyContentPadding", layout)
 
 func _build_brush_content() -> Control:
 	_brush_label = Label.new()
@@ -477,6 +617,39 @@ func _new_building_slider_row(label_text: String, slider: HSlider) -> HBoxContai
 	row.add_child(slider)
 	return row
 
+func _new_geology_slider(
+	slider_name: String,
+	min_value: float,
+	max_value: float,
+	step: float,
+	parameter_name: String
+) -> HSlider:
+	var slider := HSlider.new()
+	slider.name = slider_name
+	slider.min_value = min_value
+	slider.max_value = max_value
+	slider.step = step
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.value_changed.connect(_on_geology_slider_changed.bind(parameter_name))
+	slider.gui_input.connect(_on_drag_gui_input)
+	_geology_sliders[parameter_name] = slider
+	return slider
+
+func _new_geology_slider_row(label_text: String, slider: HSlider) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "%sRow" % slider.name
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+
+	var label := Label.new()
+	label.name = "%sLabel" % slider.name
+	label.text = label_text
+	label.custom_minimum_size = Vector2(92.0, 0.0)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(label)
+	row.add_child(slider)
+	return row
+
 func _new_wall_mode_button(button_name: String, label: String, mode: StringName) -> Button:
 	var button := Button.new()
 	button.name = button_name
@@ -521,9 +694,13 @@ func _input(event: InputEvent) -> void:
 		_handle_drag_input(event)
 
 func _on_editor_mode_changed(mode: StringName) -> void:
-	visible = mode == &"editor"
+	_editor_mode = mode
+	visible = mode == MODE_EDITOR or mode == MODE_WORLD_EDITOR
 	if visible:
+		if not _is_tool_available(_active_tool):
+			_set_active_tool(TOOL_SELECT_INSPECT)
 		_expanded_tool = &""
+		_configure_ground_slider_ranges()
 		_update_tool_ui()
 	else:
 		_is_dragging = false
@@ -539,9 +716,18 @@ func _on_editor_selection_changed(
 	_render_inspector()
 
 func _on_editor_map_loaded(map_data: Resource, _path: String) -> void:
+	var typed_map_data := map_data as MapDataScript
+	if _is_world_map_resource(typed_map_data):
+		_editor_mode = MODE_WORLD_EDITOR
+	elif _editor_mode == MODE_WORLD_EDITOR:
+		_editor_mode = MODE_EDITOR
 	_sync_ground_dimensions_from_map(map_data)
+	_sync_world_geology_parameters_from_map(map_data)
+	_configure_ground_slider_ranges()
 	_apply_ground_dimensions_to_sliders(false)
 	_update_ground_summary()
+	_apply_world_geology_parameters_to_controls(false)
+	_update_geology_summary()
 
 func _on_editor_building_brush_seed_selected(seed: int) -> void:
 	_building_parameters["seed"] = clampi(seed, 1, 9999)
@@ -555,7 +741,7 @@ func _on_wall_mode_button_pressed(mode: StringName) -> void:
 	set_wall_brush_mode(mode)
 
 func _on_ground_slider_changed(value: float, dimension_name: String) -> void:
-	var rounded_value := clampi(int(roundf(value)), 4, 128)
+	var rounded_value := _clamp_ground_slider_value(value)
 	if dimension_name == "size_x_m":
 		_ground_dimensions.x = rounded_value
 	else:
@@ -583,6 +769,35 @@ func _on_building_submit_pressed() -> void:
 	var event_bus := _get_event_bus()
 	if event_bus != null and event_bus.has_signal(&"editor_building_brush_commit_requested"):
 		event_bus.emit_signal(&"editor_building_brush_commit_requested")
+
+func _on_geology_seed_text_submitted(text: String) -> void:
+	_world_geology_parameters["seed_text"] = text.strip_edges()
+	_apply_world_geology_parameters_to_controls(false)
+	_update_geology_summary()
+	_emit_world_geology_parameters_changed()
+
+func _on_geology_seed_focus_exited() -> void:
+	if _geology_seed_edit == null:
+		return
+
+	_on_geology_seed_text_submitted(_geology_seed_edit.text)
+
+func _on_geology_coast_toggled(is_enabled: bool) -> void:
+	_world_geology_parameters["coast_enabled"] = is_enabled
+	_apply_world_geology_parameters_to_controls(false)
+	_update_geology_summary()
+	_emit_world_geology_parameters_changed()
+
+func _on_geology_coast_edge_pressed(edge: String) -> void:
+	_world_geology_parameters["coast_edge"] = edge
+	_apply_world_geology_parameters_to_controls(false)
+	_update_geology_summary()
+	_emit_world_geology_parameters_changed()
+
+func _on_geology_slider_changed(value: float, parameter_name: String) -> void:
+	_world_geology_parameters[parameter_name] = value
+	_update_geology_summary()
+	_emit_world_geology_parameters_changed()
 
 func _on_drag_gui_input(event: InputEvent) -> void:
 	_handle_drag_input(event)
@@ -618,7 +833,7 @@ func _event_screen_position(event: InputEventMouse) -> Vector2:
 	return viewport.get_mouse_position() if viewport != null else global_position
 
 func _set_active_tool(tool_id: StringName) -> void:
-	if not _is_known_tool(tool_id):
+	if not _is_known_tool(tool_id) or not _is_tool_available(tool_id):
 		return
 
 	if _active_tool == tool_id:
@@ -644,18 +859,28 @@ func _set_wall_brush_mode(mode: StringName, should_emit: bool = true, force_emit
 
 func _update_tool_ui() -> void:
 	if _select_button != null:
+		_select_button.visible = _is_tool_available(TOOL_SELECT_INSPECT)
 		_select_button.button_pressed = _active_tool == TOOL_SELECT_INSPECT
 	if _ground_button != null:
+		_ground_button.visible = _is_tool_available(TOOL_GROUND)
 		_ground_button.button_pressed = _active_tool == TOOL_GROUND
+	if _geology_button != null:
+		_geology_button.visible = _is_tool_available(TOOL_GEOLOGY)
+		_geology_button.button_pressed = _active_tool == TOOL_GEOLOGY
 	if _brush_button != null:
+		_brush_button.visible = _is_tool_available(TOOL_NPC_BRUSH)
 		_brush_button.button_pressed = _active_tool == TOOL_NPC_BRUSH
 	if _pc_button != null:
+		_pc_button.visible = _is_tool_available(TOOL_PC_BRUSH)
 		_pc_button.button_pressed = _active_tool == TOOL_PC_BRUSH
 	if _wall_button != null:
+		_wall_button.visible = _is_tool_available(TOOL_WALL_BRUSH)
 		_wall_button.button_pressed = _active_tool == TOOL_WALL_BRUSH
 	if _door_button != null:
+		_door_button.visible = _is_tool_available(TOOL_DOOR_BRUSH)
 		_door_button.button_pressed = _active_tool == TOOL_DOOR_BRUSH
 	if _building_button != null:
+		_building_button.visible = _is_tool_available(TOOL_BUILDING_BRUSH)
 		_building_button.button_pressed = _active_tool == TOOL_BUILDING_BRUSH
 	if _wall_line_button != null:
 		_wall_line_button.button_pressed = _wall_brush_mode == WALL_BRUSH_MODE_LINE
@@ -668,6 +893,8 @@ func _update_tool_ui() -> void:
 		_select_content.visible = _expanded_tool == TOOL_SELECT_INSPECT
 	if _ground_content != null:
 		_ground_content.visible = _expanded_tool == TOOL_GROUND
+	if _geology_content != null:
+		_geology_content.visible = _expanded_tool == TOOL_GEOLOGY
 	if _brush_content != null:
 		_brush_content.visible = _expanded_tool == TOOL_NPC_BRUSH
 	if _pc_content != null:
@@ -694,7 +921,14 @@ func _is_known_tool(tool_id: StringName) -> bool:
 		or tool_id == TOOL_WALL_BRUSH
 		or tool_id == TOOL_DOOR_BRUSH
 		or tool_id == TOOL_BUILDING_BRUSH
+		or tool_id == TOOL_GEOLOGY
 	)
+
+func _is_tool_available(tool_id: StringName) -> bool:
+	if _editor_mode == MODE_WORLD_EDITOR:
+		return tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_GROUND or tool_id == TOOL_GEOLOGY
+
+	return tool_id != TOOL_GEOLOGY
 
 func _apply_ground_dimensions_to_sliders(should_emit: bool) -> void:
 	if _ground_size_x_slider != null:
@@ -708,10 +942,19 @@ func _update_ground_summary() -> void:
 	if _ground_label == null:
 		return
 
-	_ground_label.text = "\n".join(PackedStringArray([
-		"Ground",
-		"size: %dm x %dm" % [_ground_dimensions.x, _ground_dimensions.y],
-	]))
+	if _editor_mode == MODE_WORLD_EDITOR:
+		_ground_label.text = "\n".join(PackedStringArray([
+			"Ground",
+			"size: %.0fkm x %.0fkm" % [
+				float(_ground_dimensions.x) * 0.001,
+				float(_ground_dimensions.y) * 0.001,
+			],
+		]))
+	else:
+		_ground_label.text = "\n".join(PackedStringArray([
+			"Ground",
+			"size: %dm x %dm" % [_ground_dimensions.x, _ground_dimensions.y],
+		]))
 
 func _emit_ground_dimensions_changed() -> void:
 	var event_bus := _get_event_bus()
@@ -725,18 +968,118 @@ func _emit_ground_dimensions_changed() -> void:
 func _sync_ground_dimensions_from_map(map_data: Resource) -> void:
 	var typed_map_data := map_data as MapDataScript
 	if typed_map_data == null or typed_map_data.grounds.is_empty():
-		_ground_dimensions = Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
+		_ground_dimensions = _default_ground_dimensions_for_map(typed_map_data)
 		return
 
 	var ground := typed_map_data.grounds[0]
 	if ground == null:
-		_ground_dimensions = Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
+		_ground_dimensions = _default_ground_dimensions_for_map(typed_map_data)
 		return
 
+	var is_world_map := _is_world_map_resource(typed_map_data)
 	_ground_dimensions = Vector2i(
-		clampi(int(roundf(ground.size_m.x)), 4, 128),
-		clampi(int(roundf(ground.size_m.z)), 4, 128)
+		_clamp_ground_dimension(int(roundf(ground.size_m.x)), is_world_map),
+		_clamp_ground_dimension(int(roundf(ground.size_m.z)), is_world_map)
 	)
+
+func _configure_ground_slider_ranges() -> void:
+	var use_world_range := _editor_mode == MODE_WORLD_EDITOR
+	var min_value := WORLD_GROUND_MIN_SIZE_M if use_world_range else 4
+	var max_value := WORLD_GROUND_MAX_SIZE_M if use_world_range else 128
+	var step_value := WORLD_GROUND_STEP_M if use_world_range else 1
+	for slider in [_ground_size_x_slider, _ground_size_z_slider]:
+		if slider == null:
+			continue
+		var was_blocking_signals: bool = slider.is_blocking_signals()
+		slider.set_block_signals(true)
+		slider.min_value = float(min_value)
+		slider.max_value = float(max_value)
+		slider.step = float(step_value)
+		slider.set_block_signals(was_blocking_signals)
+	if _ground_size_x_label != null:
+		_ground_size_x_label.text = "x_km" if use_world_range else "x_m"
+	if _ground_size_z_label != null:
+		_ground_size_z_label.text = "z_km" if use_world_range else "z_m"
+	_ground_dimensions = Vector2i(
+		_clamp_ground_dimension(_ground_dimensions.x, use_world_range),
+		_clamp_ground_dimension(_ground_dimensions.y, use_world_range)
+	)
+
+func _clamp_ground_slider_value(value: float) -> int:
+	if _editor_mode == MODE_WORLD_EDITOR:
+		return _clamp_ground_dimension(int(roundf(value)), true)
+
+	return _clamp_ground_dimension(int(roundf(value)), false)
+
+func _clamp_ground_dimension(value: int, use_world_range: bool) -> int:
+	if use_world_range:
+		return clampi(value, WORLD_GROUND_MIN_SIZE_M, WORLD_GROUND_MAX_SIZE_M)
+
+	return clampi(value, 4, 128)
+
+func _default_ground_dimensions_for_map(map_data: MapDataScript) -> Vector2i:
+	if _is_world_map_resource(map_data):
+		return Vector2i(DEFAULT_WORLD_GROUND_SIZE_M, DEFAULT_WORLD_GROUND_SIZE_M)
+
+	return Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
+
+func _sync_world_geology_parameters_from_map(map_data: Resource) -> void:
+	var typed_map_data := map_data as MapDataScript
+	if typed_map_data == null or typed_map_data.world_geology == null:
+		return
+
+	_world_geology_parameters = typed_map_data.world_geology.to_parameters()
+
+func _apply_world_geology_parameters_to_controls(should_emit: bool) -> void:
+	if _geology_seed_edit != null:
+		_geology_seed_edit.text = str(_world_geology_parameters.get("seed_text", ""))
+	if _geology_coast_check != null:
+		_geology_coast_check.set_pressed_no_signal(bool(_world_geology_parameters.get("coast_enabled", false)))
+	var selected_edge := str(_world_geology_parameters.get("coast_edge", WorldGeologyDataScript.COAST_WEST))
+	var coast_enabled := bool(_world_geology_parameters.get("coast_enabled", false))
+	for edge in _geology_coast_buttons.keys():
+		var edge_button := _geology_coast_buttons[edge] as Button
+		if edge_button == null:
+			continue
+		edge_button.disabled = not coast_enabled
+		edge_button.set_pressed_no_signal(str(edge) == selected_edge)
+	for parameter_name in _geology_sliders.keys():
+		var slider := _geology_sliders[parameter_name] as HSlider
+		if slider == null:
+			continue
+		slider.set_value_no_signal(float(_world_geology_parameters.get(parameter_name, slider.value)))
+	if should_emit:
+		_emit_world_geology_parameters_changed()
+
+func _update_geology_summary() -> void:
+	if _geology_label == null:
+		return
+
+	var coast_text := "off"
+	if bool(_world_geology_parameters.get("coast_enabled", false)):
+		coast_text = str(_world_geology_parameters.get("coast_edge", WorldGeologyDataScript.COAST_WEST))
+	_geology_label.text = "\n".join(PackedStringArray([
+		"Geology",
+		"seed: %s" % str(_world_geology_parameters.get("seed_text", "")),
+		"coast: %s" % coast_text,
+		"map_scale: %.0fkm" % float(_world_geology_parameters.get("map_scale_km", 500.0)),
+		"wind: %.0fdeg" % float(_world_geology_parameters.get("wind_direction_degrees", 0.0)),
+		"sea: %.2f rough: %.2f" % [
+			float(_world_geology_parameters.get("sea_level", 0.0)),
+			float(_world_geology_parameters.get("roughness", 0.0)),
+		],
+	]))
+
+func _emit_world_geology_parameters_changed() -> void:
+	var event_bus := _get_event_bus()
+	if event_bus != null and event_bus.has_signal(&"editor_world_geology_parameters_changed"):
+		event_bus.emit_signal(
+			&"editor_world_geology_parameters_changed",
+			_world_geology_parameters.duplicate(true)
+		)
+
+func _is_world_map_resource(map_data: MapDataScript) -> bool:
+	return map_data != null and map_data.world_geology != null
 
 func _apply_building_parameters_to_sliders(should_emit: bool) -> void:
 	var slider_values := {
