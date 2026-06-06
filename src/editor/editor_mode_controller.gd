@@ -77,7 +77,7 @@ func set_mode(next_mode: StringName) -> void:
 	if _dev_menu != null:
 		_dev_menu.set_mode(_mode)
 	if _mode == MODE_EDITOR:
-		_ensure_editor_map_active(previous_mode == MODE_WORLD_EDITOR)
+		_ensure_editor_map_active(previous_mode == MODE_WORLD_EDITOR or _current_map_is_world_map())
 	elif _mode == MODE_WORLD_EDITOR:
 		_ensure_world_map_active()
 	_emit_mode_changed()
@@ -118,9 +118,19 @@ func load_map(requested_name: String = "") -> MapDataScript:
 		_set_menu_status("MapLoader missing")
 		return null
 
-	_editor_map_active = true
-	_local_editor_map_data = loaded_map
-	map_loader.replace_map_data(loaded_map, true)
+	var is_world_map := loaded_map.world_geology != null
+	if is_world_map:
+		_world_map_data = loaded_map
+		_mode = MODE_WORLD_EDITOR
+	else:
+		_editor_map_active = true
+		_local_editor_map_data = loaded_map
+		_mode = MODE_EDITOR
+	if _dev_menu != null:
+		_dev_menu.set_mode(_mode)
+	_emit_mode_changed()
+
+	map_loader.replace_map_data(loaded_map, not is_world_map)
 	var path := _map_file_store.map_path_for_name(filename)
 	_set_menu_status("Loaded %s" % path)
 	_emit_editor_map_loaded(loaded_map, path)
@@ -171,6 +181,10 @@ func _ensure_editor_map_active(force_restore_local_map: bool = false) -> void:
 		return
 	if map_loader.map_data == null:
 		_load_blank_editor_map()
+		return
+	if map_loader.map_data.world_geology != null and _local_editor_map_data != null:
+		map_loader.replace_map_data(_local_editor_map_data, true)
+		_emit_editor_map_loaded(_local_editor_map_data, _local_editor_map_data.resource_path)
 		return
 
 	_editor_map_active = true
@@ -250,6 +264,10 @@ func _resolve_map_loader() -> MapLoaderScript:
 
 func _is_known_mode(mode: StringName) -> bool:
 	return mode == MODE_GAME or mode == MODE_EDITOR or mode == MODE_WORLD_EDITOR
+
+func _current_map_is_world_map() -> bool:
+	var map_loader := _resolve_map_loader()
+	return map_loader != null and map_loader.map_data != null and map_loader.map_data.world_geology != null
 
 func _emit_mode_changed() -> void:
 	var event_bus := _get_event_bus()

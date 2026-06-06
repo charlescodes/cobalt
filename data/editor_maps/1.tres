@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="MapData" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://src/environment/door_socket_data.gd" id="1_de5kj"]
+[ext_resource type="Script" path="res://src/environment/ground_data.gd" id="2_v8usr"]
+[ext_resource type="Script" path="res://src/maps/map_data.gd" id="3_4askq"]
+[ext_resource type="Script" path="res://src/environment/wall_data.gd" id="4_1de48"]
+[ext_resource type="Script" path="res://src/objects/world_object_data.gd" id="5_8svir"]
+[ext_resource type="Script" path="res://src/environment/world_geology_data.gd" id="5_v8usr"]
+
+[sub_resource type="Resource" id="Resource_4askq"]
+script = ExtResource("2_v8usr")
+ground_id = &"world_macro_ground"
+position = Vector3(0, -0.05, 0)
+size_m = Vector3(430000, 0.1, 510000)
+color = Color(0.09, 0.11, 0.1, 1)
+
+[sub_resource type="Resource" id="Resource_1de48"]
+script = ExtResource("5_v8usr")
+seed_text = "cobalt_world"
+size_m = Vector2(430000, 510000)
+map_scale_km = 500.0
+coast_enabled = true
+coast_edge = "west"
+roughness = 0.61
+sea_level = 0.43
+global_temperature = 0.61
+base_rainfall = 0.56
+wind_direction_degrees = 270.0
+erosion_strength = 0.27
+vegetation_spread = 0.57
+tree_canopy_density = 0.45
+tectonic_alignment_degrees = 28.0
+toxicity = 0.11
+
+[resource]
+script = ExtResource("3_4askq")
+map_id = "world_macro"
+grounds = Array[ExtResource("2_v8usr")]([SubResource("Resource_4askq")])
+static_walls = Array[ExtResource("4_1de48")]([])
+door_sockets = Array[ExtResource("1_de5kj")]([])
+world_objects = Array[ExtResource("5_8svir")]([])
+world_geology = SubResource("Resource_1de48")

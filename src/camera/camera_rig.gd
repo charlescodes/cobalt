@@ -18,6 +18,8 @@ extends Node3D
 @export var world_max_height_m: float = 850000.0
 @export var world_height_step_m: float = 25000.0
 @export var world_pan_speed_m_per_pixel: float = 750.0
+@export var world_camera_far_m: float = 2500000.0
+@export var world_camera_near_m: float = 10.0
 
 var _height_m: float = 0.0
 var _yaw: float = 0.0
@@ -30,6 +32,8 @@ var _active_min_height_m: float = 0.0
 var _active_max_height_m: float = 0.0
 var _active_height_step_m: float = 0.0
 var _active_pan_speed_m_per_pixel: float = 0.0
+var _local_camera_far_m: float = 0.0
+var _local_camera_near_m: float = 0.0
 
 func _ready() -> void:
 	_active_min_height_m = min_height_m
@@ -41,6 +45,8 @@ func _ready() -> void:
 	_pitch = deg_to_rad(clampf(start_pitch_degrees, min_pitch_degrees, max_pitch_degrees))
 	_pitch_pivot = _get_or_create_pitch_pivot()
 	_camera = _get_or_create_camera()
+	_local_camera_far_m = _camera.far
+	_local_camera_near_m = _camera.near
 	_camera.current = true
 	_apply_camera_transform()
 	_connect_event_bus()
@@ -147,6 +153,9 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 		_active_max_height_m = world_max_height_m
 		_active_height_step_m = world_height_step_m
 		_active_pan_speed_m_per_pixel = world_pan_speed_m_per_pixel
+		if _camera != null:
+			_camera.near = world_camera_near_m
+			_camera.far = world_camera_far_m
 		position = Vector3.ZERO
 		set_height_m(world_start_height_m)
 	else:
@@ -154,6 +163,9 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 		_active_max_height_m = max_height_m
 		_active_height_step_m = height_step_m
 		_active_pan_speed_m_per_pixel = pan_speed_m_per_pixel
+		if _camera != null:
+			_camera.near = _local_camera_near_m
+			_camera.far = _local_camera_far_m
 		set_height_m(start_height_m)
 
 func _get_event_bus() -> Node:

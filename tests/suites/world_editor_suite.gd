@@ -6,10 +6,14 @@ const EditorModeControllerScript := preload("res://src/editor/editor_mode_contro
 const EditorPanelScript := preload("res://src/editor/editor_panel.gd")
 const EditorSelectionControllerScript := preload("res://src/editor/editor_selection_controller.gd")
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
+const InteractionControllerScript := preload("res://src/interaction/interaction_controller.gd")
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
+const MapFileStoreScript := preload("res://src/editor/map_file_store.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
 const WorldGeologyGeneratorScript := preload("res://src/generation/world_geology_generator.gd")
+
+const WORLD_SUITE_FILENAME := "world_editor_suite_runtime_world"
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -32,6 +36,7 @@ func run(ctx) -> bool:
 	if main != null:
 		main.free()
 	ctx.root().size = original_root_size
+	_cleanup_saved_map(WORLD_SUITE_FILENAME)
 	return result
 
 func _generator_is_deterministic_and_coastal(ctx) -> bool:
@@ -68,6 +73,7 @@ func _generator_is_deterministic_and_coastal(ctx) -> bool:
 func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	var navigation_region := main.get_node_or_null("NavigationRegion3D") as NavigationRegion3D
 	var map_loader := main.get_node_or_null("MapLoader") as MapLoaderScript
+	var interaction_controller := main.get_node_or_null("InteractionController") as InteractionControllerScript
 	var editor_mode_controller := main.get_node_or_null("EditorModeController") as EditorModeControllerScript
 	var editor_selection_controller := main.get_node_or_null("EditorSelectionController") as EditorSelectionControllerScript
 	var camera := main.get_node_or_null("CameraRig/PitchPivot/Camera3D") as Camera3D
@@ -81,6 +87,7 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	if (
 		navigation_region == null
 		or map_loader == null
+		or interaction_controller == null
 		or editor_mode_controller == null
 		or editor_selection_controller == null
 		or camera == null
@@ -101,6 +108,8 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 		return ctx.fail("EditorModeController did not enter world editor mode.")
 	if map_loader.map_data == original_map_data or map_loader.map_data.world_geology == null:
 		return ctx.fail("World editor mode did not replace the local map with a world geology map.")
+	if interaction_controller.is_gameplay_input_enabled():
+		return ctx.fail("World editor mode should disable gameplay interaction input.")
 	var world_ground := map_loader.map_data.grounds[0] as GroundDataScript
 	if (
 		world_ground == null
@@ -113,12 +122,43 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	var world_layer := generated_map.get_node_or_null(String(MapBuilderScript.WORLD_MAP_3D_LAYER_NAME)) as MeshInstance3D
 	if world_layer == null or world_layer.mesh == null:
 		return ctx.fail("World editor mode did not create a visible 3D world map layer.")
+	var world_material := world_layer.material_override as StandardMaterial3D
+	if world_material == null or world_material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED:
+		return ctx.fail("World map 3D layer should render biome colors without local lighting washing it grey.")
 	if world_layer.has_meta(MapBuilderScript.EDITOR_KIND_META) or world_layer.get_node_or_null("CollisionShape3D") != null:
 		return ctx.fail("World map 3D layer should render only, without editor selection metadata or collision.")
+	var world_ground_node := generated_map.get_node_or_null("StaticGrounds/world_macro_ground") as StaticBody3D
+	if world_ground_node == null or world_ground_node.get_node_or_null("Mesh") != null:
+		return ctx.fail("World ground should be a hidden pick/collision surface, not a rendered grey box.")
 	if camera.position.z <= 100000.0:
 		return ctx.fail("Camera did not switch to a macro-scale world height.")
+	if camera.far < 2000000.0:
+		return ctx.fail("Camera far clip did not switch to a macro-scale distance.")
 	if editor_selection_controller.get_active_tool() != EditorSelectionControllerScript.TOOL_SELECT_INSPECT:
 		return ctx.fail("World editor input should start on Select/Inspect.")
+
+	var rig_start_position := camera_rig.position
+	var pan_press := InputEventMouseButton.new()
+	pan_press.button_index = MOUSE_BUTTON_RIGHT
+	pan_press.pressed = true
+	camera_rig._unhandled_input(pan_press)
+	var pan_motion := InputEventMouseMotion.new()
+	pan_motion.relative = Vector2(12.0, -6.0)
+	camera_rig._unhandled_input(pan_motion)
+	var pan_release := InputEventMouseButton.new()
+	pan_release.button_index = MOUSE_BUTTON_RIGHT
+	pan_release.pressed = false
+	camera_rig._unhandled_input(pan_release)
+	if camera_rig.position == rig_start_position:
+		return ctx.fail("World camera did not pan with the existing right-mouse binding.")
+
+	var ground_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3.ZERO)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if not editor_selection_controller.select_at_screen(ground_screen_position):
+		return ctx.fail("World editor selection raycast did not select the hidden macro ground pick surface.")
+	if world_layer.get_node_or_null("EditorSelectionShell") == null:
+		return ctx.fail("Selecting world ground did not highlight the visible world map terrain layer.")
 
 	if not _button_visible(editor_panel, ^"EditorToolDockLayout/ToolButtonRow/SelectInspectToolButton"):
 		return ctx.fail("World editor should show Select.")
@@ -209,6 +249,10 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	):
 		return ctx.fail("Geology panel changes did not update WorldGeologyData.")
 
+	var saved_world_path := editor_mode_controller.save_current_map(WORLD_SUITE_FILENAME)
+	if saved_world_path.is_empty() or not ResourceLoader.exists(saved_world_path):
+		return ctx.fail("World editor map save did not write a .tres resource.")
+
 	editor_mode_controller.enter_editor_mode()
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -216,13 +260,43 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 		return ctx.fail("Returning to local Editor mode did not restore the in-memory local map.")
 	if camera.position.z > 100.0:
 		return ctx.fail("Camera did not return to local editor scale.")
+	if camera.far > 100000.0:
+		return ctx.fail("Camera far clip did not return to local editor scale.")
 	if _button_visible(editor_panel, ^"EditorToolDockLayout/ToolButtonRow/GeologyToolButton"):
 		return ctx.fail("Local editor mode should hide the Geology tool.")
 	if not _button_visible(editor_panel, ^"EditorToolDockLayout/ToolButtonRow/NpcBrushToolButton"):
 		return ctx.fail("Local editor mode did not restore local-map tools.")
+
+	var loaded_world_map := editor_mode_controller.load_map(WORLD_SUITE_FILENAME)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if (
+		loaded_world_map == null
+		or editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_WORLD_EDITOR
+		or map_loader.map_data != loaded_world_map
+		or map_loader.map_data.world_geology == null
+	):
+		return ctx.fail("Loading a saved world map did not route into World editor mode.")
+	world_ground = map_loader.map_data.grounds[0] as GroundDataScript
+	if world_ground == null or world_ground.size_m.x < 250000.0 or world_ground.size_m.z < 250000.0:
+		return ctx.fail("Loading a saved world map through the dev menu shrank it to local editor dimensions.")
+
+	editor_mode_controller.enter_game_mode()
+	await ctx.tree.process_frame
+	editor_mode_controller.enter_editor_mode()
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if map_loader.map_data != original_map_data or map_loader.map_data.world_geology != null:
+		return ctx.fail("World -> Game -> Editor did not restore the cached local editor map.")
 
 	return true
 
 func _button_visible(root: Node, button_path: NodePath) -> bool:
 	var button := root.get_node_or_null(button_path) as Button
 	return button != null and button.visible
+
+func _cleanup_saved_map(requested_name: String) -> void:
+	var store := MapFileStoreScript.new()
+	var path := ProjectSettings.globalize_path(store.map_path_for_name(requested_name))
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)

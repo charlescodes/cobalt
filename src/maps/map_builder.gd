@@ -27,6 +27,7 @@ const EDITOR_KIND_GROUND: StringName = &"ground"
 const EDITOR_KIND_WALL: StringName = &"wall"
 const EDITOR_KIND_DOOR_SOCKET: StringName = &"door_socket"
 const EDITOR_KIND_WORLD_OBJECT: StringName = &"world_object"
+const WORLD_GROUND_PICK_META: StringName = &"world_ground_pick_surface"
 const DOOR_SOCKET_MARKER_HEIGHT_M: float = 0.025
 const DOOR_SOCKET_PICK_HEIGHT_M: float = 0.25
 const DOOR_SOCKET_MARKER_SEGMENTS: int = 48
@@ -52,18 +53,26 @@ static func _add_roots(root: Node3D, map_data: MapDataScript) -> void:
 	if map_data == null:
 		return
 
+	var is_world_map := map_data.world_geology != null
 	for ground_index in range(map_data.grounds.size()):
-		_add_ground(grounds_root, map_data.grounds[ground_index], ground_index)
+		_add_ground(grounds_root, map_data.grounds[ground_index], ground_index, not is_world_map)
 	for wall_index in range(map_data.static_walls.size()):
 		_add_wall(walls_root, map_data.static_walls[wall_index], wall_index)
 	for socket_index in range(map_data.door_sockets.size()):
 		_add_door_socket(door_sockets_root, map_data.door_sockets[socket_index], socket_index)
 	for object_index in range(map_data.world_objects.size()):
 		_add_world_object(objects_root, map_data.world_objects[object_index], object_index)
-	if map_data.world_geology != null:
-		_add_world_map_3d_layer(root, map_data.world_geology)
+	if is_world_map:
+		var world_layer := _add_world_map_3d_layer(root, map_data.world_geology)
+		if world_layer != null:
+			_retarget_world_ground_selection_roots(grounds_root, world_layer)
 
-static func _add_ground(parent: Node3D, ground: GroundDataScript, ground_index: int) -> void:
+static func _add_ground(
+	parent: Node3D,
+	ground: GroundDataScript,
+	ground_index: int,
+	should_add_visual: bool = true
+) -> void:
 	if ground == null or not _is_positive_size(ground.size_m):
 		return
 
@@ -75,14 +84,17 @@ static func _add_ground(parent: Node3D, ground: GroundDataScript, ground_index: 
 	_tag_editor_selectable(body, ground, EDITOR_KIND_GROUND, ground_index, body)
 	parent.add_child(body)
 
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = ground.size_m
+	if should_add_visual:
+		var box_mesh := BoxMesh.new()
+		box_mesh.size = ground.size_m
 
-	var mesh := MeshInstance3D.new()
-	mesh.name = "Mesh"
-	mesh.mesh = box_mesh
-	mesh.material_override = _material(ground.color)
-	body.add_child(mesh)
+		var mesh := MeshInstance3D.new()
+		mesh.name = "Mesh"
+		mesh.mesh = box_mesh
+		mesh.material_override = _material(ground.color)
+		body.add_child(mesh)
+	else:
+		body.set_meta(WORLD_GROUND_PICK_META, true)
 
 	var collision := CollisionShape3D.new()
 	collision.name = "CollisionShape3D"
@@ -209,16 +221,16 @@ static func _add_world_object(parent: Node3D, object_data: WorldObjectDataScript
 	if target != null:
 		_tag_editor_selectable(target, object_data, EDITOR_KIND_WORLD_OBJECT, object_index, object_view)
 
-static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDataScript) -> void:
+static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDataScript) -> MeshInstance3D:
 	var generated := WorldGeologyGeneratorScript.generate(geology_data)
 	if generated.is_empty():
-		return
+		return null
 
 	var vertices: PackedVector3Array = generated.get("vertices", PackedVector3Array())
 	var colors: PackedColorArray = generated.get("colors", PackedColorArray())
 	var indices: PackedInt32Array = generated.get("indices", PackedInt32Array())
 	if vertices.is_empty() or colors.size() != vertices.size() or indices.is_empty():
-		return
+		return null
 
 	var mesh_arrays := []
 	mesh_arrays.resize(Mesh.ARRAY_MAX)
@@ -231,6 +243,7 @@ static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDa
 
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.roughness = 0.9
 
 	var mesh_instance := MeshInstance3D.new()
@@ -240,6 +253,17 @@ static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDa
 	mesh_instance.position.y = 0.2
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mesh_instance)
+	return mesh_instance
+
+static func _retarget_world_ground_selection_roots(grounds_root: Node3D, world_layer: MeshInstance3D) -> void:
+	for ground_node in grounds_root.get_children():
+		if ground_node == null:
+			continue
+		if ground_node.has_meta(EDITOR_KIND_META):
+			ground_node.set_meta(EDITOR_ROOT_META, world_layer)
+		var move_target := ground_node.get_node_or_null("GroundMoveTarget")
+		if move_target != null and move_target.has_meta(EDITOR_KIND_META):
+			move_target.set_meta(EDITOR_ROOT_META, world_layer)
 
 static func _new_root(root_name: StringName) -> Node3D:
 	var root := Node3D.new()

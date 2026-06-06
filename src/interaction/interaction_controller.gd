@@ -277,7 +277,7 @@ func _handle_interaction_ui_cancel_requested() -> void:
 		cancel_targeting()
 
 func _handle_editor_mode_changed(mode: StringName) -> void:
-	_is_gameplay_input_enabled = mode != &"editor"
+	_is_gameplay_input_enabled = mode != &"editor" and mode != &"world_editor"
 	if _is_gameplay_input_enabled:
 		return
 
