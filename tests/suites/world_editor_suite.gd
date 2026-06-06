@@ -101,6 +101,7 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	if dev_menu.get_node_or_null("MenuLayout/ModeRow/WorldEditorModeButton") == null:
 		return ctx.fail("DevMenu is missing the World mode button.")
 
+	var local_camera_rig_position := camera_rig.position
 	editor_mode_controller.enter_world_editor_mode()
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -125,11 +126,23 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	var world_material := world_layer.material_override as StandardMaterial3D
 	if world_material == null or world_material.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED:
 		return ctx.fail("World map 3D layer should render biome colors without local lighting washing it grey.")
+	if not world_material.vertex_color_use_as_albedo or world_material.cull_mode != BaseMaterial3D.CULL_DISABLED:
+		return ctx.fail("World map 3D layer should render biome vertex colors as a two-sided surface.")
+	var world_mesh := world_layer.mesh as ArrayMesh
+	if world_mesh == null or world_mesh.get_surface_count() == 0:
+		return ctx.fail("World map 3D layer should expose a renderable ArrayMesh surface.")
+	var world_arrays := world_mesh.surface_get_arrays(0)
+	var world_vertices: PackedVector3Array = world_arrays[Mesh.ARRAY_VERTEX]
+	var world_normals: PackedVector3Array = world_arrays[Mesh.ARRAY_NORMAL]
+	if world_vertices.is_empty() or world_normals.size() != world_vertices.size():
+		return ctx.fail("World map 3D layer should include normals for every render vertex.")
 	if world_layer.has_meta(MapBuilderScript.EDITOR_KIND_META) or world_layer.get_node_or_null("CollisionShape3D") != null:
 		return ctx.fail("World map 3D layer should render only, without editor selection metadata or collision.")
 	var world_ground_node := generated_map.get_node_or_null("StaticGrounds/world_macro_ground") as StaticBody3D
 	if world_ground_node == null or world_ground_node.get_node_or_null("Mesh") != null:
 		return ctx.fail("World ground should be a hidden pick/collision surface, not a rendered grey box.")
+	if world_layer.custom_aabb.size.x < world_ground.size_m.x or world_layer.custom_aabb.size.z < world_ground.size_m.z:
+		return ctx.fail("World map 3D layer should use macro render bounds that cover the world ground.")
 	if camera.position.z <= 100000.0:
 		return ctx.fail("Camera did not switch to a macro-scale world height.")
 	if camera.far < 2000000.0:
@@ -157,8 +170,11 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	await ctx.tree.physics_frame
 	if not editor_selection_controller.select_at_screen(ground_screen_position):
 		return ctx.fail("World editor selection raycast did not select the hidden macro ground pick surface.")
-	if world_layer.get_node_or_null("EditorSelectionShell") == null:
-		return ctx.fail("Selecting world ground did not highlight the visible world map terrain layer.")
+	if (
+		world_layer.get_node_or_null("EditorSelectionShell") != null
+		or world_ground_node.get_node_or_null("EditorSelectionShell") != null
+	):
+		return ctx.fail("World ground selection should stay data-only and not create a macro highlight shell.")
 
 	if not _button_visible(editor_panel, ^"EditorToolDockLayout/ToolButtonRow/SelectInspectToolButton"):
 		return ctx.fail("World editor should show Select.")
@@ -258,6 +274,8 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	await ctx.tree.physics_frame
 	if map_loader.map_data != original_map_data or map_loader.map_data.world_geology != null:
 		return ctx.fail("Returning to local Editor mode did not restore the in-memory local map.")
+	if camera_rig.position.distance_to(local_camera_rig_position) > 0.001:
+		return ctx.fail("Returning to local Editor mode did not restore the local camera rig position.")
 	if camera.position.z > 100.0:
 		return ctx.fail("Camera did not return to local editor scale.")
 	if camera.far > 100000.0:

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="MapData" load_steps=18 format=3]
+[gd_resource type="Resource" script_class="MapData" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://src/environment/door_socket_data.gd" id="1_wsu87"]
 [ext_resource type="Script" path="res://src/environment/ground_data.gd" id="2_4lpaf"]
@@ -11,77 +11,13 @@
 script = ExtResource("2_4lpaf")
 ground_id = &"world_macro_ground"
 position = Vector3(0, -0.05, 0)
-size_m = Vector3(510000, 0.1, 510000)
+size_m = Vector3(500000, 0.1, 500000)
 color = Color(0.09, 0.11, 0.1, 1)
 
 [sub_resource type="Resource" id="Resource_ld7vg"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(5.94116, 0, -30.1432)
-end_position = Vector3(31.9614, 0, -30.1432)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_tjftg"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(31.9614, 0, -30.1432)
-end_position = Vector3(31.9614, 0, -42.9128)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_6umxq"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(31.9614, 0, -42.9128)
-end_position = Vector3(5.94116, 0, -42.9128)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_b2mrs"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(5.94116, 0, -42.9128)
-end_position = Vector3(5.94116, 0, -30.1432)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_dxjw6"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(8.15508, 0, -10.5423)
-end_position = Vector3(-13.254, 0, -10.5423)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_70t0k"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(-13.254, 0, -10.5423)
-end_position = Vector3(-13.254, 0, -12.6388)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_jvmfi"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(-13.254, 0, -12.6388)
-end_position = Vector3(8.15508, 0, -12.6388)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_6bnua"]
-script = ExtResource("4_whtiq")
-start_position = Vector3(8.15508, 0, -12.6388)
-end_position = Vector3(8.15508, 0, -10.5423)
-height_m = 2.2
-thickness_m = 0.18
-color = Color(0.35, 0.34, 0.32, 1)
-
-[sub_resource type="Resource" id="Resource_lx6nf"]
 script = ExtResource("5_mokuo")
 seed_text = "cobalt_world"
-size_m = Vector2(510000, 510000)
+size_m = Vector2(500000, 500000)
 map_scale_km = 500.0
 coast_enabled = false
 coast_edge = "west"
@@ -96,20 +32,11 @@ tree_canopy_density = 0.45
 tectonic_alignment_degrees = 25.0
 toxicity = 0.12
 
-[sub_resource type="Resource" id="Resource_ux4yd"]
-script = ExtResource("6_s2wu6")
-object_id = &"pc_001"
-object_kind = &"player_character"
-position = Vector3(3.7746, 0, 9.37029)
-size_m = Vector3(0.5, 1.83, 0.5)
-color = Color(0.1, 0.25, 1, 1)
-is_hoverable = true
-
 [resource]
 script = ExtResource("3_dd0d8")
 map_id = "world_macro"
 grounds = Array[ExtResource("2_4lpaf")]([SubResource("Resource_ou50l")])
-static_walls = Array[ExtResource("4_whtiq")]([SubResource("Resource_ld7vg"), SubResource("Resource_tjftg"), SubResource("Resource_6umxq"), SubResource("Resource_b2mrs"), SubResource("Resource_dxjw6"), SubResource("Resource_70t0k"), SubResource("Resource_jvmfi"), SubResource("Resource_6bnua")])
+static_walls = Array[ExtResource("4_whtiq")]([])
 door_sockets = Array[ExtResource("1_wsu87")]([])
-world_objects = Array[ExtResource("6_s2wu6")]([SubResource("Resource_ux4yd")])
-world_geology = SubResource("Resource_lx6nf")
+world_objects = Array[ExtResource("6_s2wu6")]([])
+world_geology = SubResource("Resource_ld7vg")

@@ -34,6 +34,15 @@ var _active_height_step_m: float = 0.0
 var _active_pan_speed_m_per_pixel: float = 0.0
 var _local_camera_far_m: float = 0.0
 var _local_camera_near_m: float = 0.0
+var _local_position: Vector3 = Vector3.ZERO
+var _local_height_m: float = 0.0
+var _local_yaw: float = 0.0
+var _local_pitch: float = 0.0
+var _world_position: Vector3 = Vector3.ZERO
+var _world_height_m: float = 0.0
+var _world_yaw: float = 0.0
+var _world_pitch: float = 0.0
+var _is_world_camera_mode: bool = false
 
 func _ready() -> void:
 	_active_min_height_m = min_height_m
@@ -47,6 +56,14 @@ func _ready() -> void:
 	_camera = _get_or_create_camera()
 	_local_camera_far_m = _camera.far
 	_local_camera_near_m = _camera.near
+	_local_position = position
+	_local_height_m = _height_m
+	_local_yaw = _yaw
+	_local_pitch = _pitch
+	_world_position = Vector3.ZERO
+	_world_height_m = world_start_height_m
+	_world_yaw = _yaw
+	_world_pitch = _pitch
 	_camera.current = true
 	_apply_camera_transform()
 	_connect_event_bus()
@@ -149,6 +166,8 @@ func _connect_event_bus() -> void:
 
 func _on_editor_mode_changed(mode: StringName) -> void:
 	if mode == &"world_editor":
+		if not _is_world_camera_mode:
+			_store_local_camera_state()
 		_active_min_height_m = world_min_height_m
 		_active_max_height_m = world_max_height_m
 		_active_height_step_m = world_height_step_m
@@ -156,9 +175,11 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 		if _camera != null:
 			_camera.near = world_camera_near_m
 			_camera.far = world_camera_far_m
-		position = Vector3.ZERO
-		set_height_m(world_start_height_m)
+		_is_world_camera_mode = true
+		_apply_saved_camera_state(_world_position, _world_height_m, _world_yaw, _world_pitch)
 	else:
+		if _is_world_camera_mode:
+			_store_world_camera_state()
 		_active_min_height_m = min_height_m
 		_active_max_height_m = max_height_m
 		_active_height_step_m = height_step_m
@@ -166,7 +187,32 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 		if _camera != null:
 			_camera.near = _local_camera_near_m
 			_camera.far = _local_camera_far_m
-		set_height_m(start_height_m)
+		_is_world_camera_mode = false
+		_apply_saved_camera_state(_local_position, _local_height_m, _local_yaw, _local_pitch)
+
+func _store_local_camera_state() -> void:
+	_local_position = position
+	_local_height_m = _height_m
+	_local_yaw = _yaw
+	_local_pitch = _pitch
+
+func _store_world_camera_state() -> void:
+	_world_position = position
+	_world_height_m = _height_m
+	_world_yaw = _yaw
+	_world_pitch = _pitch
+
+func _apply_saved_camera_state(
+	next_position: Vector3,
+	next_height_m: float,
+	next_yaw: float,
+	next_pitch: float
+) -> void:
+	position = next_position
+	position.y = 0.0
+	_yaw = next_yaw
+	_pitch = clampf(next_pitch, deg_to_rad(min_pitch_degrees), deg_to_rad(max_pitch_degrees))
+	set_height_m(next_height_m)
 
 func _get_event_bus() -> Node:
 	var tree := Engine.get_main_loop() as SceneTree

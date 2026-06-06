@@ -63,9 +63,7 @@ static func _add_roots(root: Node3D, map_data: MapDataScript) -> void:
 	for object_index in range(map_data.world_objects.size()):
 		_add_world_object(objects_root, map_data.world_objects[object_index], object_index)
 	if is_world_map:
-		var world_layer := _add_world_map_3d_layer(root, map_data.world_geology)
-		if world_layer != null:
-			_retarget_world_ground_selection_roots(grounds_root, world_layer)
+		_add_world_map_3d_layer(root, map_data.world_geology)
 
 static func _add_ground(
 	parent: Node3D,
@@ -229,12 +227,18 @@ static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDa
 	var vertices: PackedVector3Array = generated.get("vertices", PackedVector3Array())
 	var colors: PackedColorArray = generated.get("colors", PackedColorArray())
 	var indices: PackedInt32Array = generated.get("indices", PackedInt32Array())
+	var size_m: Vector2 = generated.get("size_m", geology_data.size_m)
 	if vertices.is_empty() or colors.size() != vertices.size() or indices.is_empty():
 		return null
+	var normals := PackedVector3Array()
+	normals.resize(vertices.size())
+	for normal_index in range(normals.size()):
+		normals[normal_index] = Vector3.UP
 
 	var mesh_arrays := []
 	mesh_arrays.resize(Mesh.ARRAY_MAX)
 	mesh_arrays[Mesh.ARRAY_VERTEX] = vertices
+	mesh_arrays[Mesh.ARRAY_NORMAL] = normals
 	mesh_arrays[Mesh.ARRAY_COLOR] = colors
 	mesh_arrays[Mesh.ARRAY_INDEX] = indices
 
@@ -244,6 +248,7 @@ static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDa
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	material.roughness = 0.9
 
 	var mesh_instance := MeshInstance3D.new()
@@ -251,19 +256,13 @@ static func _add_world_map_3d_layer(parent: Node3D, geology_data: WorldGeologyDa
 	mesh_instance.mesh = array_mesh
 	mesh_instance.material_override = material
 	mesh_instance.position.y = 0.2
+	mesh_instance.custom_aabb = AABB(
+		Vector3(-size_m.x * 0.5, -1000.0, -size_m.y * 0.5),
+		Vector3(size_m.x, WorldGeologyGeneratorScript.MAX_ELEVATION_M + 2000.0, size_m.y)
+	)
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mesh_instance)
 	return mesh_instance
-
-static func _retarget_world_ground_selection_roots(grounds_root: Node3D, world_layer: MeshInstance3D) -> void:
-	for ground_node in grounds_root.get_children():
-		if ground_node == null:
-			continue
-		if ground_node.has_meta(EDITOR_KIND_META):
-			ground_node.set_meta(EDITOR_ROOT_META, world_layer)
-		var move_target := ground_node.get_node_or_null("GroundMoveTarget")
-		if move_target != null and move_target.has_meta(EDITOR_KIND_META):
-			move_target.set_meta(EDITOR_ROOT_META, world_layer)
 
 static func _new_root(root_name: StringName) -> Node3D:
 	var root := Node3D.new()

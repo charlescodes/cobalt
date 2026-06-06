@@ -85,8 +85,8 @@ Runtime source of truth:
 - World mode shows only `Select`, `Ground`, and `Geology` tools. World `Ground` sliders use 250km to 1000km X/Z ranges and resize both the macro `GroundData` and `WorldGeologyData.size_m`.
 - The `Geology` tool edits `WorldGeologyData` through a seed text field, optional coast checkbox with north/south/east/west direction buttons, and sliders for map scale, roughness, sea level, temperature, rainfall, wind direction, erosion, vegetation, tree canopy, tectonic ridge alignment, and toxicity. Changes emit `EventBus.editor_world_geology_parameters_changed`.
 - `WorldGeologyGenerator` is a deterministic stateless processor. It combines base Simplex terrain, ridged tectonic noise, coast lowering, erosion smoothing, directional rain-shadow moisture, latitude/altitude temperature, and biome coloring into mesh buffers consumed by `MapBuilder`.
-- In world maps, the macro `GroundData` is a hidden collision/pick surface. The visible non-colliding `WorldMap3DLayer` owns the terrain colors and receives selection highlight shells when that hidden ground is selected.
-- `CameraRig` keeps the same mouse bindings in world mode but switches to macro-scale height, zoom step, pan speed, camera clip distances, and ray distance assumptions.
+- In world maps, the macro `GroundData` is a hidden collision/pick surface. The visible non-colliding `WorldMap3DLayer` owns the terrain colors and renders with unshaded vertex colors, disabled culling, normals, and macro custom bounds. Selection stays data-only and does not create a macro highlight shell.
+- `CameraRig` keeps the same mouse bindings in world mode but switches to macro-scale height, zoom step, pan speed, camera clip distances, and ray distance assumptions. Local and world camera positions are stored separately so returning to local editor mode restores the local view.
 - The first editor surface should be an in-game development mode reached through an Escape dev menu.
 - This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
 - Game view should keep the current movement, context-menu, hover, and examine behavior.
