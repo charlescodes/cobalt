@@ -19,6 +19,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added a PC Brush editor tool for placing multiple controllable player-character blockout objects.
 - Added a deterministic BSP building generator and `Bldg.` editor brush with seed/size/room sliders, translucent preview, Submit commit flow, partition door sockets, and an exterior door socket.
 - Added a `Ground` editor tool with whole-meter X/Z sliders that resize the primary ground plane and rebuild/rebake the map.
+- Added game-mode held-right-mouse direct movement for the main player character, including a visible walk/run radius and faster run acceleration outside that radius.
 
 ### Changed
 

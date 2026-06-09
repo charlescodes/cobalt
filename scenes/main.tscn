@@ -1,10 +1,11 @@
-[gd_scene load_steps=16 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=17 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
 [ext_resource type="Script" uid="uid://bs3mf3ml2nv3c" path="res://src/ui/interaction_menu.gd" id="6_vvgt8"]
 [ext_resource type="Script" uid="uid://nffvpt370fl2" path="res://src/ui/interaction_log_panel.gd" id="7_f8j3g"]
 [ext_resource type="Script" uid="uid://cb7pmkcrcai4t" path="res://src/movement/movement_controller.gd" id="8_0kq8v"]
+[ext_resource type="Script" path="res://src/movement/mpc_direct_control_controller.gd" id="9_d2xup"]
 [ext_resource type="Script" path="res://src/maps/map_loader.gd" id="13_f0a8h"]
 [ext_resource type="Resource" path="res://data/maps/main_blockout_map.tres" id="14_w2y7m"]
 [ext_resource type="Script" path="res://src/ui/debug_log_panel.gd" id="15_f144a"]
@@ -33,6 +34,9 @@ script = ExtResource("3_l45p7")
 
 [node name="MovementController" type="Node" parent="."]
 script = ExtResource("8_0kq8v")
+
+[node name="MpcDirectControlController" type="Node" parent="."]
+script = ExtResource("9_d2xup")
 
 [node name="InteractionUI" type="CanvasLayer" parent="."]
 

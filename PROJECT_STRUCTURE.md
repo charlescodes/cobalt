@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-06-01
+Last updated: 2026-06-08
 
 Purpose: filesystem index and ownership map. This file tells contributors and agents where code lives and where new files should go. Use `ARCHITECTURE.md` for rules and `DECISIONS.md` for current reasoning and handoff notes.
 
@@ -52,6 +52,7 @@ NavigationRegion3D                Native navmesh owner for generated static coll
 MapLoader                         Loads authored MapData and rebakes navigation.
 InteractionController             Camera raycasts, hover, context menus, and movement targeting.
 MovementController                EventBus movement listener and nav-agent movement coordinator.
+MpcDirectControlController        Game-mode held-RMB main player character direct movement.
 InteractionUI                     CanvasLayer containing interaction UI panels.
 InteractionUI/InteractionMenu     Context action menu.
 InteractionUI/InteractionLogPanel Examine output panel.
@@ -105,6 +106,7 @@ res://src/interaction/interaction_action_resolver.gd   Resolves context actions 
 res://src/interaction/interaction_controller.gd        Camera raycasts, hover state, context menus, and targeting flow.
 res://src/movement/move_target_resolver.gd            Validates move sources, destinations, and native nav paths.
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
+res://src/movement/mpc_direct_control_controller.gd   Game-mode held-RMB direct movement for the main player character.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
 res://src/editor/editor_mode_controller.gd             Escape dev menu mode and map save/load coordinator.
 res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, ground resizing, NPC brush, PC brush, wall brush, door brush, and building brush input for generated map content.

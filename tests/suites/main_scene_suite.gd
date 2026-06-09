@@ -10,6 +10,7 @@ const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_ove
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const MovementControllerScript := preload("res://src/movement/movement_controller.gd")
+const MpcDirectControlControllerScript := preload("res://src/movement/mpc_direct_control_controller.gd")
 const BlockoutObjectViewScript := preload("res://src/objects/blockout_object_view.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const DevMenuScript := preload("res://src/editor/dev_menu.gd")
@@ -74,6 +75,10 @@ func run(ctx) -> bool:
 	if movement_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing MovementController.")
+	var mpc_direct_controller := main.get_node_or_null("MpcDirectControlController") as MpcDirectControlControllerScript
+	if mpc_direct_controller == null:
+		main.free()
+		return ctx.fail("Main scene is missing MpcDirectControlController.")
 	var interaction_ui := main.get_node_or_null("InteractionUI") as CanvasLayer
 	if interaction_ui == null:
 		main.free()
@@ -230,6 +235,44 @@ func run(ctx) -> bool:
 		if main_interaction_menu.visible:
 			main.free()
 			return ctx.fail("InteractionMenu did not close from a main scene cancel request.")
+
+	if mpc_direct_controller.is_gameplay_input_enabled():
+		main.free()
+		return ctx.fail("MPC direct control should be disabled while the main scene starts in editor mode.")
+	if mpc_direct_controller.start_direct_control(main_pc):
+		main.free()
+		return ctx.fail("MPC direct control started while editor mode was active.")
+	editor_mode_controller.enter_game_mode()
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if not mpc_direct_controller.is_gameplay_input_enabled():
+		main.free()
+		return ctx.fail("MPC direct control did not enable after entering game mode.")
+	if not mpc_direct_controller.start_direct_control(main_pc):
+		main.free()
+		return ctx.fail("MPC direct control did not start for the main player character in game mode.")
+	if not mpc_direct_controller.is_radius_ring_visible():
+		main.free()
+		return ctx.fail("MPC direct control did not show the walk/run radius ring.")
+	var direct_start_position := main_pc.position
+	if not mpc_direct_controller.drive_active_control_toward(Vector3(-2.0, 0.0, -2.0), 0.25):
+		main.free()
+		return ctx.fail("MPC direct control did not move toward a valid game-mode destination.")
+	if main_pc.position.distance_to(direct_start_position) <= 0.001:
+		main.free()
+		return ctx.fail("MPC direct control did not update the player view position.")
+	if main_pc.object_data.position.distance_to(main_pc.position) > 0.001:
+		main.free()
+		return ctx.fail("MPC direct control did not synchronize WorldObjectData.position.")
+	if mpc_direct_controller.get_current_speed_mps() <= mpc_direct_controller.walk_speed_mps:
+		main.free()
+		return ctx.fail("MPC direct control did not accelerate to run speed outside the radius.")
+	editor_mode_controller.enter_editor_mode()
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if mpc_direct_controller.is_direct_control_active() or mpc_direct_controller.is_radius_ring_visible():
+		main.free()
+		return ctx.fail("MPC direct control did not stop when returning to editor mode.")
 
 	main.free()
 	return true

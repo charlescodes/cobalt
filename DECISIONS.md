@@ -1,6 +1,6 @@
 # COBALT Decisions
 
-Last updated: 2026-06-01
+Last updated: 2026-06-08
 
 Purpose: living design ledger and agent handoff file. `ARCHITECTURE.md` is project law, `PROJECT_STRUCTURE.md` is the file index, `ROADMAP.md` is future planning, and `CHANGELOG.md` is the formal history.
 
@@ -52,6 +52,8 @@ Runtime source of truth:
 - Native path validation uses `NavigationServer3D.map_get_path()`.
 - `MovementController` listens for `EventBus.move_requested`, validates again, and drives movement through the actor `NavigationAgent3D`.
 - During movement, the actor node and `WorldObjectData.position` stay synchronized. Arrival snaps both to the requested `MoveTargetData.position`.
+- `MpcDirectControlController` owns held-right-mouse real-time control in game mode only. It resolves the first generated `player_character` as the main player character, raycasts move-target ground under the cursor, shows a walk/run radius ring while active, walks inside that radius, and accelerates to run speed outside it.
+- Direct MPC control consumes right mouse while active so it does not pan the camera at the same time. It stops when gameplay input is disabled, interaction UI captures the pointer, targeting mode starts, the map reloads, or editor mode is entered.
 
 ### Interaction and Debugging
 
@@ -104,7 +106,7 @@ These are intentional gaps, not regressions:
 - No combat, dialogue, quests, inventory, party management, saves, or AI behavior.
 - No dedicated `ActorData`, `PropData`, door, container, harvestable, or static obstacle resources yet.
 - No complex models or animation pipeline.
-- No `CharacterBody3D` movement, avoidance, acceleration, rotation, footstep animation, or path preview.
+- No `CharacterBody3D` movement, avoidance, rotation, footstep animation, or path preview. Current acceleration is limited to held-right-mouse MPC direct control.
 - No zones, camera culling, streaming, multi-region navigation, or large-map loading design.
 - Failed movement reasons are emitted, but there is no player-facing invalid-destination feedback yet.
 - No three-point or multi-ground creation yet; richer environment brush semantics are deferred until static authoring needs are clearer.
