@@ -105,7 +105,7 @@ Scope:
 
 Exit criteria:
 
-- Implemented first slice: World mode swaps to an unsaved macro `MapData`, shows only Select/Ground/Geology tools, scales camera controls, and restores the local editor map when leaving.
+- Implemented first slice: World mode swaps to an unsaved macro `WorldMapData`, shows only Select/Ground/Geology tools, scales camera controls, and restores the local editor map when leaving.
 - A small world map can be generated or authored.
 - Selecting a zone exposes all data needed to generate a local map.
 

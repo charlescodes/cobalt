@@ -95,6 +95,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	):
 		return ctx.fail("Editor suite main scene is missing required nodes.")
 
+	var active_map := map_loader.get_local_map_data()
+	if active_map == null:
+		return ctx.fail("Editor suite expected startup to use local MapData.")
 	if dev_menu.visible:
 		return ctx.fail("DevMenu should start hidden.")
 	var save_button := dev_menu.get_node_or_null("MenuLayout/FileRow/SaveMapButton") as Button
@@ -119,11 +122,11 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		return ctx.fail("InteractionController gameplay input should start disabled in editor mode.")
 	if not editor_mode_controller.has_editor_map_active():
 		return ctx.fail("EditorModeController did not mark the startup map as editor-active.")
-	if map_loader.map_data == null or map_loader.map_data.map_id != "main_blockout":
+	if active_map == null or active_map.map_id != "main_blockout":
 		return ctx.fail("Editor startup did not keep the default main blockout map loaded.")
 	if navigation_region.get_node_or_null("GeneratedMap/StaticGrounds/Ground") == null:
 		return ctx.fail("Editor startup did not rebuild the default generated ground.")
-	if _map_loaded_count < 1 or _map_loaded_data != map_loader.map_data:
+	if _map_loaded_count < 1 or _map_loaded_data != active_map:
 		return ctx.fail("Editor startup did not emit editor_map_loaded for the default map.")
 
 	var action_event := InputEventAction.new()
@@ -305,6 +308,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	map_loader.replace_map_data(editor_map, true)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
+	active_map = map_loader.get_local_map_data()
+	if active_map == null:
+		return ctx.fail("Editor test map did not stay on local MapData.")
 
 	var generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
 	if generated_map == null:
@@ -388,7 +394,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	ground_z_slider.value = 20.0
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	var resized_ground := map_loader.map_data.grounds[0] as GroundDataScript
+	var resized_ground := active_map.grounds[0] as GroundDataScript
 	if (
 		resized_ground == null
 		or not is_equal_approx(resized_ground.size_m.x, 16.0)
@@ -413,7 +419,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_NPC_BRUSH)
 	await ctx.tree.process_frame
-	var object_count_before_brush := map_loader.map_data.world_objects.size()
+	var object_count_before_brush := active_map.world_objects.size()
 	var brush_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(2.0, 0.0, -2.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -424,9 +430,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(brush_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.world_objects.size() != object_count_before_brush + 1:
+	if active_map.world_objects.size() != object_count_before_brush + 1:
 		return ctx.fail("NPC Brush did not append a world object to the editor map.")
-	var placed_npc := map_loader.map_data.world_objects[map_loader.map_data.world_objects.size() - 1]
+	var placed_npc := active_map.world_objects[active_map.world_objects.size() - 1]
 	if placed_npc.object_kind != &"non_player_character":
 		return ctx.fail("NPC Brush placed a world object with the wrong kind.")
 	if not String(placed_npc.object_id).begins_with("npc_"):
@@ -447,18 +453,18 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if npc_inspector != "No selection":
 		return ctx.fail("Inspector should show no selection after NPC Brush placement.")
 
-	var object_count_after_valid_brush := map_loader.map_data.world_objects.size()
+	var object_count_after_valid_brush := active_map.world_objects.size()
 	var empty_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(20.0, 0.0, 20.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
 	if editor_selection_controller.place_npc_at_screen(empty_screen_position) != null:
 		return ctx.fail("NPC Brush placed an object when clicking empty space.")
-	if map_loader.map_data.world_objects.size() != object_count_after_valid_brush:
+	if active_map.world_objects.size() != object_count_after_valid_brush:
 		return ctx.fail("NPC Brush changed map data after an empty-space click.")
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_PC_BRUSH)
 	await ctx.tree.process_frame
-	var object_count_before_pc_brush := map_loader.map_data.world_objects.size()
+	var object_count_before_pc_brush := active_map.world_objects.size()
 	var pc_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-2.0, 0.0, -2.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -469,9 +475,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(pc_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.world_objects.size() != object_count_before_pc_brush + 1:
+	if active_map.world_objects.size() != object_count_before_pc_brush + 1:
 		return ctx.fail("PC Brush did not append a world object to the editor map.")
-	var placed_pc := map_loader.map_data.world_objects[map_loader.map_data.world_objects.size() - 1]
+	var placed_pc := active_map.world_objects[active_map.world_objects.size() - 1]
 	if placed_pc.object_kind != &"player_character":
 		return ctx.fail("PC Brush placed a world object with the wrong kind.")
 	if placed_pc.object_id != &"pc_001":
@@ -490,9 +496,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(second_pc_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.world_objects.size() != object_count_before_pc_brush + 2:
+	if active_map.world_objects.size() != object_count_before_pc_brush + 2:
 		return ctx.fail("PC Brush did not allow multiple player-character placements.")
-	var second_pc := map_loader.map_data.world_objects[map_loader.map_data.world_objects.size() - 1]
+	var second_pc := active_map.world_objects[active_map.world_objects.size() - 1]
 	if second_pc.object_kind != &"player_character" or second_pc.object_id != &"pc_002":
 		return ctx.fail("PC Brush did not assign a second controllable PC correctly.")
 	generated_map = navigation_region.get_node_or_null("GeneratedMap") as Node3D
@@ -506,7 +512,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_WALL_BRUSH)
 	await ctx.tree.process_frame
-	var wall_count_before_line := map_loader.map_data.static_walls.size()
+	var wall_count_before_line := active_map.static_walls.size()
 	var line_start_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(-4.0, 0.0, -4.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -517,7 +523,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(line_start_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.static_walls.size() != wall_count_before_line:
+	if active_map.static_walls.size() != wall_count_before_line:
 		return ctx.fail("Wall Brush line mode should wait for a second click before adding a wall.")
 	if not editor_selection_controller.has_pending_wall_brush_point():
 		return ctx.fail("Wall Brush line mode did not keep the first clicked point pending.")
@@ -531,11 +537,11 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(line_end_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.static_walls.size() != wall_count_before_line + 1:
+	if active_map.static_walls.size() != wall_count_before_line + 1:
 		return ctx.fail("Wall Brush line mode did not append one wall after the second click.")
 	if editor_selection_controller.has_pending_wall_brush_point():
 		return ctx.fail("Wall Brush line mode kept a pending point after creating the wall.")
-	var line_wall := map_loader.map_data.static_walls[map_loader.map_data.static_walls.size() - 1]
+	var line_wall := active_map.static_walls[active_map.static_walls.size() - 1]
 	if (
 		line_wall.start_position.distance_to(Vector3(-4.0, 0.0, -4.0)) > 0.2
 		or line_wall.end_position.distance_to(Vector3(-2.0, 0.0, -4.0)) > 0.2
@@ -553,7 +559,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	editor_panel.set_wall_brush_mode(EditorPanelScript.WALL_BRUSH_MODE_RECTANGLE)
 	await ctx.tree.process_frame
-	var wall_count_before_rectangle := map_loader.map_data.static_walls.size()
+	var wall_count_before_rectangle := active_map.static_walls.size()
 	var rectangle_start_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(1.0, 0.0, -4.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -564,7 +570,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(rectangle_start_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.static_walls.size() != wall_count_before_rectangle:
+	if active_map.static_walls.size() != wall_count_before_rectangle:
 		return ctx.fail("Wall Brush rectangle mode should wait for a second click before adding walls.")
 	if not editor_selection_controller.has_pending_wall_brush_point():
 		return ctx.fail("Wall Brush rectangle mode did not keep the first clicked point pending.")
@@ -578,30 +584,30 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(rectangle_end_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.static_walls.size() != wall_count_before_rectangle + 4:
+	if active_map.static_walls.size() != wall_count_before_rectangle + 4:
 		return ctx.fail("Wall Brush rectangle mode did not append four walls after the second click.")
 	if editor_selection_controller.has_pending_wall_brush_point():
 		return ctx.fail("Wall Brush rectangle mode kept a pending point after creating the room.")
 	if not _wall_matches(
-		map_loader.map_data.static_walls[wall_count_before_rectangle],
+		active_map.static_walls[wall_count_before_rectangle],
 		Vector3(1.0, 0.0, -4.0),
 		Vector3(4.0, 0.0, -4.0)
 	):
 		return ctx.fail("Wall Brush rectangle mode wrote the first room edge incorrectly.")
 	if not _wall_matches(
-		map_loader.map_data.static_walls[wall_count_before_rectangle + 1],
+		active_map.static_walls[wall_count_before_rectangle + 1],
 		Vector3(4.0, 0.0, -4.0),
 		Vector3(4.0, 0.0, -1.0)
 	):
 		return ctx.fail("Wall Brush rectangle mode wrote the second room edge incorrectly.")
 	if not _wall_matches(
-		map_loader.map_data.static_walls[wall_count_before_rectangle + 2],
+		active_map.static_walls[wall_count_before_rectangle + 2],
 		Vector3(4.0, 0.0, -1.0),
 		Vector3(1.0, 0.0, -1.0)
 	):
 		return ctx.fail("Wall Brush rectangle mode wrote the third room edge incorrectly.")
 	if not _wall_matches(
-		map_loader.map_data.static_walls[wall_count_before_rectangle + 3],
+		active_map.static_walls[wall_count_before_rectangle + 3],
 		Vector3(1.0, 0.0, -1.0),
 		Vector3(1.0, 0.0, -4.0)
 	):
@@ -614,8 +620,8 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_DOOR_BRUSH)
 	await ctx.tree.process_frame
-	var wall_count_before_door := map_loader.map_data.static_walls.size()
-	var socket_count_before_door := map_loader.map_data.door_sockets.size()
+	var wall_count_before_door := active_map.static_walls.size()
+	var socket_count_before_door := active_map.door_sockets.size()
 	var door_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(0.0, 0.0, 2.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -626,11 +632,11 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	editor_selection_controller._unhandled_input(door_click)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if map_loader.map_data.door_sockets.size() != socket_count_before_door + 1:
+	if active_map.door_sockets.size() != socket_count_before_door + 1:
 		return ctx.fail("Door Brush did not append a door socket to the editor map.")
-	if map_loader.map_data.static_walls.size() != wall_count_before_door + 1:
+	if active_map.static_walls.size() != wall_count_before_door + 1:
 		return ctx.fail("Door Brush did not split one wall into two wall segments.")
-	var placed_socket := map_loader.map_data.door_sockets[map_loader.map_data.door_sockets.size() - 1]
+	var placed_socket := active_map.door_sockets[active_map.door_sockets.size() - 1]
 	if placed_socket.socket_id != &"door_socket_001":
 		return ctx.fail("Door Brush did not assign the expected door_socket_* id.")
 	if placed_socket.position.distance_to(Vector3(0.0, 0.0, 2.0)) > 0.2:
@@ -640,7 +646,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if placed_socket.color != Color(0.82, 0.9, 0.84, 1.0):
 		return ctx.fail("Door Brush did not use the expected light grey-green marker color.")
 	if not _wall_matches(
-		map_loader.map_data.static_walls[0],
+		active_map.static_walls[0],
 		Vector3(-1.0, 0.0, 2.0),
 		Vector3(-0.5, 0.0, 2.0),
 		2.0,
@@ -648,7 +654,7 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	):
 		return ctx.fail("Door Brush did not keep the left wall segment up to the 1m gap.")
 	if not _wall_matches(
-		map_loader.map_data.static_walls[1],
+		active_map.static_walls[1],
 		Vector3(0.5, 0.0, 2.0),
 		Vector3(1.0, 0.0, 2.0),
 		2.0,
@@ -677,8 +683,8 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	editor_panel.toggle_tool_panel(EditorPanelScript.TOOL_BUILDING_BRUSH)
 	await ctx.tree.process_frame
-	var wall_count_before_building := map_loader.map_data.static_walls.size()
-	var socket_count_before_building := map_loader.map_data.door_sockets.size()
+	var wall_count_before_building := active_map.static_walls.size()
+	var socket_count_before_building := active_map.door_sockets.size()
 	var building_screen_position: Vector2 = ctx.warp_mouse_to_world(camera, Vector3(3.0, 0.0, 3.0))
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
@@ -693,9 +699,9 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 		return ctx.fail("Building Brush did not create a transient preview after a ground click.")
 	if editor_selection_controller.get_node_or_null("BuildingBrushPreview") == null:
 		return ctx.fail("Building Brush preview did not create visible preview geometry.")
-	if map_loader.map_data.static_walls.size() != wall_count_before_building:
+	if active_map.static_walls.size() != wall_count_before_building:
 		return ctx.fail("Building Brush preview should not append walls before Submit.")
-	if map_loader.map_data.door_sockets.size() != socket_count_before_building:
+	if active_map.door_sockets.size() != socket_count_before_building:
 		return ctx.fail("Building Brush preview should not append door sockets before Submit.")
 	var width_slider := editor_panel.get_node_or_null(
 		^"EditorToolDockLayout/ToolContent/BuildingBrushContent/BuildingBrushContentPadding/BuildingBrushProperties/BuildingWidthSliderRow/BuildingWidthSlider"
@@ -723,11 +729,11 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	await ctx.tree.physics_frame
 	if editor_selection_controller.has_building_preview():
 		return ctx.fail("Building Brush kept the preview after Submit.")
-	if map_loader.map_data.static_walls.size() != wall_count_before_building + preview_walls.size():
+	if active_map.static_walls.size() != wall_count_before_building + preview_walls.size():
 		return ctx.fail("Building Brush Submit did not append the preview walls to the map.")
-	if map_loader.map_data.door_sockets.size() != socket_count_before_building + preview_sockets.size():
+	if active_map.door_sockets.size() != socket_count_before_building + preview_sockets.size():
 		return ctx.fail("Building Brush Submit did not append the preview door sockets to the map.")
-	var building_socket := map_loader.map_data.door_sockets[map_loader.map_data.door_sockets.size() - 1] as DoorSocketDataScript
+	var building_socket := active_map.door_sockets[active_map.door_sockets.size() - 1] as DoorSocketDataScript
 	if building_socket == null or not String(building_socket.socket_id).begins_with("building_door_"):
 		return ctx.fail("Building Brush Submit did not assign building_door_* socket ids.")
 	var building_socket_id := String(building_socket.socket_id)
@@ -737,32 +743,39 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	if editor_panel.get_inspector_text() != "No selection":
 		return ctx.fail("Inspector should show no selection after Building Brush Submit.")
 
-	var saved_door_socket_count := map_loader.map_data.door_sockets.size()
+	var saved_door_socket_count := active_map.door_sockets.size()
 	var saved_path := editor_mode_controller.save_current_map("editor_suite_runtime_map")
 	if saved_path.is_empty() or not ResourceLoader.exists(saved_path):
 		return ctx.fail("Editor map save did not write a .tres resource.")
 	if saved_path != MapFileStoreScript.new().local_map_path_for_name("editor_suite_runtime_map"):
 		return ctx.fail("Editor map save should write only to the local editor map directory.")
-	if _map_saved_count != 1 or _map_saved_data != map_loader.map_data or _map_saved_path != saved_path:
+	var saved_local_resource := ResourceLoader.load(saved_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if not (saved_local_resource is MapDataScript):
+		return ctx.fail("Editor map save should write a MapData resource.")
+	if _map_saved_count != 1 or _map_saved_data != active_map or _map_saved_path != saved_path:
 		return ctx.fail("Editor map save did not emit editor_map_saved.")
 	if not editor_mode_controller.save_world_map("editor_suite_runtime_map").is_empty():
 		return ctx.fail("Local editor maps should not be saveable through the world-map save path.")
 
 	map_loader.replace_map_data(MapFileStoreScript.new().create_blank_editor_map(), true)
 	await ctx.tree.process_frame
-	if map_loader.map_data.map_id == "editor_suite_map":
+	active_map = map_loader.get_local_map_data()
+	if active_map == null:
+		return ctx.fail("Blank editor map did not stay on local MapData.")
+	if active_map.map_id == "editor_suite_map":
 		return ctx.fail("Editor save/load test did not replace the current map before loading.")
 	var loaded_map := editor_mode_controller.load_map("editor_suite_runtime_map")
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
-	if loaded_map == null or map_loader.map_data != loaded_map:
+	active_map = map_loader.get_local_map_data()
+	if loaded_map == null or active_map != loaded_map:
 		return ctx.fail("Editor map load did not replace MapLoader.map_data.")
-	if map_loader.map_data.map_id != "editor_suite_map":
+	if active_map.map_id != "editor_suite_map":
 		return ctx.fail("Editor map load returned the wrong MapData.")
 	if navigation_region.get_node_or_null("GeneratedMap/WorldObjects/editor_object") == null:
 		return ctx.fail("Editor map load did not rebuild generated world objects.")
 	if (
-		map_loader.map_data.door_sockets.size() != saved_door_socket_count
+		active_map.door_sockets.size() != saved_door_socket_count
 		or navigation_region.get_node_or_null("GeneratedMap/DoorSockets/door_socket_001") == null
 		or navigation_region.get_node_or_null("GeneratedMap/DoorSockets/%s" % building_socket_id) == null
 	):

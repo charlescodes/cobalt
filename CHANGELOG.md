@@ -20,13 +20,17 @@ All notable project changes should be recorded here. Keep entries factual and ch
 - Added a deterministic BSP building generator and `Bldg.` editor brush with seed/size/room sliders, translucent preview, Submit commit flow, partition door sockets, and an exterior door socket.
 - Added a `Ground` editor tool with whole-meter X/Z sliders that resize the primary ground plane and rebuild/rebake the map.
 - Added Escape-driven World editor mode with macro-scale ground sizing, a Geology tool, deterministic terrain/climate generation, rain-shadow moisture, biome coloring, and a non-colliding 3D world map layer.
+- Added a world-map generation README covering saved data shape, generator phases, render buffers, and current gaps.
 - Added world editor regression coverage for mode switching, tool visibility, macro ground ranges, geology controls, camera scale, and deterministic/coastal generation.
+- Added `WorldMapData` and `WorldMapBuilder` so durable world maps no longer reuse local `MapData` arrays.
 
 ### Changed
 
 - Camera controls now switch to macro-scale pan and zoom settings while World editor mode is active.
 - World map saving/loading now uses `data/world_maps` while local editor maps stay under `data/editor_maps`; the dev menu labels file actions as Local or World for the active mode.
+- World map saving/loading now persists `WorldMapData` resources, while local editor maps remain `MapData` resources.
 - World maps now hide the macro ground box, render the generated terrain layer as the visible world surface, and keep world selection data-only without macro highlight shells.
+- World maps now derive `GeneratedMap/WorldPickSurface` from `WorldMapData.geology.size_m` at runtime instead of saving a fake `grounds[0]`.
 - Runtime startup now enters editor mode by default and keeps the configured main blockout map as the editable map instead of replacing it with a blank editor map.
 - Sharpened `ARCHITECTURE.md`, `DECISIONS.md`, and `PROJECT_STRUCTURE.md` into distinct source-of-truth documents.
 - Expanded `ROADMAP.md` with procedural world generation, editor tooling, faction/population, agent, quest-seed, and world-history milestones.

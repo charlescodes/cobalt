@@ -1,6 +1,6 @@
 # COBALT Decisions
 
-Last updated: 2026-06-06
+Last updated: 2026-06-09
 
 Purpose: living design ledger and agent handoff file. `ARCHITECTURE.md` is project law, `PROJECT_STRUCTURE.md` is the file index, `ROADMAP.md` is future planning, and `CHANGELOG.md` is the formal history.
 
@@ -13,7 +13,7 @@ Runtime source of truth:
 - `res://scenes/main.tscn` is the playable blockout scene.
 - `res://data/maps/main_blockout_map.tres` is the current authored sample map.
 - Runtime local-map editor V1 starts active in `main.tscn`; the Escape dev menu switches back to game mode when needed.
-- The Escape dev menu can also switch to a runtime world editor mode that replaces the generated local view with an in-memory macro world map.
+- The Escape dev menu can also switch to a runtime world editor mode that replaces the generated local view with an in-memory `WorldMapData` macro world map.
 - `EventBus` is the only autoload and is configured in `res://project.godot`.
 - `WorldObjectData.position: Vector3` is the canonical location for current actor/object data.
 - `MoveTargetData.position: Vector3` carries exact clicked movement destinations.
@@ -31,8 +31,9 @@ Runtime source of truth:
 
 - `main.tscn` contains `NavigationRegion3D`, `MapLoader`, `InteractionController`, `MovementController`, `InteractionUI`, `NavigationDebugOverlay`, `DebugOverlayController`, `CameraRig`, and lighting.
 - `main.tscn` also contains runtime editor nodes: `InteractionUI/DevMenu`, `InteractionUI/EditorPanel`, `EditorSelectionController`, and `EditorModeController`.
-- `MapLoader` builds generated map content under the configured `NavigationRegion3D`.
-- `MapBuilder` creates a stable generated subtree: `GeneratedMap/StaticGrounds`, `GeneratedMap/StaticWalls`, `GeneratedMap/DoorSockets`, `GeneratedMap/WorldObjects`, and an optional non-colliding `GeneratedMap/WorldMap3DLayer`.
+- `MapLoader` builds generated map content under the configured `NavigationRegion3D`, dispatching local `MapData` to `MapBuilder` and world `WorldMapData` to `WorldMapBuilder`.
+- `MapBuilder` builds only local maps and creates a stable generated subtree: `GeneratedMap/StaticGrounds`, `GeneratedMap/StaticWalls`, `GeneratedMap/DoorSockets`, and `GeneratedMap/WorldObjects`.
+- `WorldMapBuilder` builds world maps and creates `GeneratedMap/WorldPickSurface` plus non-colliding `GeneratedMap/WorldMap3DLayer`.
 - `MapBuilder` tags generated grounds, walls, door sockets, and world objects with editor metadata so editor raycasts can map scene nodes back to source resources.
 - `BlockoutObjectView` composes primitive visuals, an `InteractionTarget`, hover highlighting, and a `NavigationAgent3D` from `WorldObjectData`.
 
@@ -80,19 +81,19 @@ Runtime source of truth:
 - `Wall Brush` defaults to line mode when selected. Line mode uses two ground-plane clicks to append one `WallData`; rectangle mode uses two opposite corner clicks to append four enclosing `WallData` edges. Wall brush mode changes flow through `EventBus.editor_wall_brush_mode_changed`.
 - `Door Brush` snaps a click to the nearest wall line, clamps the opening to leave 0.5m edge clearance, replaces the original wall with two shorter wall lines around a 1m gap, appends a `DoorSocketData`, and rebuilds/rebakes the map.
 - `Bldg. Brush` uses a clicked ground point as the building center, picks a seed, and draws a transient 50% opacity preview. Width, depth, minimum room size, target room count, and seed are slider-controlled in the editor panel. Submit flattens the preview into `WallData` and `DoorSocketData`, then rebuilds/rebakes through `MapLoader.replace_map_data()`.
-- `World` mode is a macro-scale editor branch reached through the Escape dev menu. It caches the in-memory local editor map, swaps `MapLoader` to an unsaved `world_macro` `MapData`, skips navigation rebake, and restores the cached local map when returning to local editor mode, including routes through game mode.
-- Local and world map persistence are intentionally separated. Local load/save rejects resources with `world_geology != null`, while world load/save requires `world_geology != null`; the mode-aware dev menu labels the current file action as Local or World.
-- World mode shows only `Select`, `Ground`, and `Geology` tools. World `Ground` sliders use 250km to 1000km X/Z ranges and resize both the macro `GroundData` and `WorldGeologyData.size_m`.
+- `World` mode is a macro-scale editor branch reached through the Escape dev menu. It caches the in-memory local `MapData`, swaps `MapLoader` to an unsaved `world_macro` `WorldMapData`, skips navigation rebake, and restores the cached local map when returning to local editor mode, including routes through game mode.
+- Local and world map persistence are intentionally separated. Local load/save accepts only `MapData`; world load/save accepts only `WorldMapData`; the mode-aware dev menu labels the current file action as Local or World.
+- World mode shows only `Select`, `Ground`, and `Geology` tools. World `Ground` sliders use 250km to 1000km X/Z ranges and resize only `WorldMapData.geology.size_m`.
 - The `Geology` tool edits `WorldGeologyData` through a seed text field, optional coast checkbox with north/south/east/west direction buttons, and sliders for map scale, roughness, sea level, temperature, rainfall, wind direction, erosion, vegetation, tree canopy, tectonic ridge alignment, and toxicity. Changes emit `EventBus.editor_world_geology_parameters_changed`.
-- `WorldGeologyGenerator` is a deterministic stateless processor. It combines base Simplex terrain, ridged tectonic noise, coast lowering, erosion smoothing, directional rain-shadow moisture, latitude/altitude temperature, and biome coloring into mesh buffers consumed by `MapBuilder`.
-- In world maps, the macro `GroundData` is a hidden collision/pick surface. The visible non-colliding `WorldMap3DLayer` owns the terrain colors and renders with unshaded vertex colors, disabled culling, normals, and macro custom bounds. Selection stays data-only and does not create a macro highlight shell.
+- `WorldGeologyGenerator` is a deterministic stateless processor. It combines base Simplex terrain, ridged tectonic noise, coast lowering, erosion smoothing, directional rain-shadow moisture, latitude/altitude temperature, and biome coloring into mesh buffers consumed by `WorldMapBuilder`.
+- In world maps, there is no persisted fake `grounds[0]`. `WorldMapBuilder` derives a hidden collision/pick surface from `WorldMapData.geology.size_m` at runtime. The visible non-colliding `WorldMap3DLayer` owns the terrain colors and renders with unshaded vertex colors, disabled culling, normals, and macro custom bounds. Selection stays data-only and does not create a macro highlight shell.
 - `CameraRig` keeps the same mouse bindings in world mode but switches to macro-scale height, zoom step, pan speed, camera clip distances, and ray distance assumptions. Local and world camera positions are stored separately so returning to local editor mode restores the local view.
 - The first editor surface should be an in-game development mode reached through an Escape dev menu.
 - This is a runtime tool surface inside the playable project, not a Godot `EditorPlugin` yet.
 - Game view should keep the current movement, context-menu, hover, and examine behavior.
 - Editor view should own its own pointer capture, raycasts, tool palette, inspector, and save/load actions.
 - Entering editor view should disable gameplay targeting and context-menu input instead of adding editor behavior to `InteractionController`.
-- Editor tools should mutate resource data and ask `MapLoader` to rebuild and rebake, preserving the current `MapData` -> `MapBuilder` -> generated scene flow.
+- Local editor tools should mutate resource data and ask `MapLoader` to rebuild and rebake, preserving the current `MapData` -> `MapBuilder` -> generated scene flow.
 - Use "editor tool" for pluggable runtime tools. Reserve "plugin" for future Godot editor plugins or external extension points.
 
 ### Module and Generation Planning
@@ -140,7 +141,7 @@ Known state:
 - Static environment scripts live under `src/environment/`.
 - `src/maps/` remains responsible for map data aggregation, generation, loading, and navmesh rebaking.
 - Runtime editor scripts live under `src/editor/`.
-- `MapLoader.replace_map_data()` is the public rebuild/rebake entrypoint for editor map swaps.
+- `MapLoader.replace_map_data()` is the public rebuild/rebake entrypoint for editor map swaps; it accepts local `MapData` or world `WorldMapData` and exposes typed helpers for callers that need one path.
 - Current object/actor data still uses `WorldObjectData`; splitting actors and props is deferred.
 
 Next likely work:

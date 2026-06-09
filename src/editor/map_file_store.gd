@@ -3,6 +3,7 @@ extends RefCounted
 
 const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
+const WorldMapDataScript := preload("res://src/maps/world_map_data.gd")
 
 const LOCAL_MAP_DIRECTORY := "res://data/editor_maps"
 const WORLD_MAP_DIRECTORY := "res://data/world_maps"
@@ -25,19 +26,21 @@ func save_map(map_data: MapDataScript, requested_name: String) -> String:
 	return save_local_map(map_data, requested_name)
 
 func save_local_map(map_data: MapDataScript, requested_name: String) -> String:
-	return _save_typed_map(map_data, requested_name, LOCAL_MAP_DIRECTORY, false)
+	return _save_typed_map(map_data, requested_name, LOCAL_MAP_DIRECTORY)
 
-func save_world_map(map_data: MapDataScript, requested_name: String) -> String:
-	return _save_typed_map(map_data, requested_name, WORLD_MAP_DIRECTORY, true)
+func save_world_map(world_map_data: WorldMapDataScript, requested_name: String) -> String:
+	return _save_typed_map(world_map_data, requested_name, WORLD_MAP_DIRECTORY)
 
 func load_map(requested_name: String) -> MapDataScript:
 	return load_local_map(requested_name)
 
 func load_local_map(requested_name: String) -> MapDataScript:
-	return _load_typed_map(requested_name, LOCAL_MAP_DIRECTORY, false)
+	var map_resource := _load_resource(requested_name, LOCAL_MAP_DIRECTORY)
+	return map_resource as MapDataScript
 
-func load_world_map(requested_name: String) -> MapDataScript:
-	return _load_typed_map(requested_name, WORLD_MAP_DIRECTORY, true)
+func load_world_map(requested_name: String) -> WorldMapDataScript:
+	var map_resource := _load_resource(requested_name, WORLD_MAP_DIRECTORY)
+	return map_resource as WorldMapDataScript
 
 func map_path_for_name(requested_name: String) -> String:
 	return local_map_path_for_name(requested_name)
@@ -65,12 +68,11 @@ func sanitize_filename(requested_name: String) -> String:
 	return DEFAULT_FILENAME if sanitized.is_empty() else sanitized
 
 func _save_typed_map(
-	map_data: MapDataScript,
+	map_data: Resource,
 	requested_name: String,
-	directory: String,
-	should_be_world_map: bool
+	directory: String
 ) -> String:
-	if map_data == null or _is_world_map(map_data) != should_be_world_map:
+	if map_data == null:
 		return ""
 	if _ensure_map_directory(directory) != OK:
 		return ""
@@ -79,26 +81,18 @@ func _save_typed_map(
 	var result := ResourceSaver.save(map_data, path)
 	return path if result == OK else ""
 
-func _load_typed_map(
+func _load_resource(
 	requested_name: String,
-	directory: String,
-	should_be_world_map: bool
-) -> MapDataScript:
+	directory: String
+) -> Resource:
 	var path := _map_path_for_name(requested_name, directory)
 	if not ResourceLoader.exists(path):
 		return null
 
-	var map_data := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as MapDataScript
-	if map_data == null or _is_world_map(map_data) != should_be_world_map:
-		return null
-
-	return map_data
+	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as Resource
 
 func _map_path_for_name(requested_name: String, directory: String) -> String:
 	return "%s/%s.tres" % [directory, sanitize_filename(requested_name)]
-
-func _is_world_map(map_data: MapDataScript) -> bool:
-	return map_data != null and map_data.world_geology != null
 
 func _ensure_map_directory(directory: String) -> Error:
 	return DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))

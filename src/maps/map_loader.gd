@@ -3,10 +3,12 @@ extends Node
 
 const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
+const WorldMapBuilderScript := preload("res://src/maps/world_map_builder.gd")
+const WorldMapDataScript := preload("res://src/maps/world_map_data.gd")
 
 signal navigation_bake_finished(navigation_map: RID)
 
-@export var map_data: MapDataScript
+@export var map_data: Resource
 @export var build_parent_path: NodePath = ^"../NavigationRegion3D"
 @export var navigation_region_path: NodePath = ^"../NavigationRegion3D"
 @export var build_on_ready: bool = true
@@ -28,22 +30,31 @@ func load_map() -> Node3D:
 	var build_parent := get_node_or_null(build_parent_path) as Node3D
 	if build_parent == null:
 		build_parent = get_parent() as Node3D
-	if build_parent == null or map_data == null:
+	if build_parent == null:
 		return null
 
 	_clear_generated_map(build_parent)
-	generated_map = MapBuilderScript.build(map_data, build_parent)
-	if bake_navigation_on_load:
+	generated_map = _build_map_resource(map_data, build_parent)
+	if generated_map != null and bake_navigation_on_load and get_local_map_data() != null:
 		_schedule_navigation_bake()
 	return generated_map
 
-func replace_map_data(next_map_data: MapDataScript, should_rebake_navigation: bool = true) -> Node3D:
+func replace_map_data(next_map_data: Resource, should_rebake_navigation: bool = true) -> Node3D:
 	map_data = next_map_data
 	var previous_bake_setting := bake_navigation_on_load
 	bake_navigation_on_load = should_rebake_navigation
 	var next_generated_map := load_map()
 	bake_navigation_on_load = previous_bake_setting
 	return next_generated_map
+
+func get_local_map_data() -> MapDataScript:
+	return map_data as MapDataScript
+
+func get_world_map_data() -> WorldMapDataScript:
+	return map_data as WorldMapDataScript
+
+func is_world_map_loaded() -> bool:
+	return get_world_map_data() != null
 
 func rebake_navigation() -> void:
 	_navigation_bake_pending = false
@@ -81,6 +92,17 @@ func _clear_generated_map(parent: Node3D) -> void:
 	var existing := parent.get_node_or_null(String(MapBuilderScript.GENERATED_ROOT_NAME))
 	if existing != null:
 		existing.free()
+
+func _build_map_resource(map_resource: Resource, parent: Node3D) -> Node3D:
+	var local_map_data := map_resource as MapDataScript
+	if local_map_data != null:
+		return MapBuilderScript.build(local_map_data, parent)
+
+	var world_map_data := map_resource as WorldMapDataScript
+	if world_map_data != null:
+		return WorldMapBuilderScript.build(world_map_data, parent)
+
+	return null
 
 func _resolve_navigation_region() -> NavigationRegion3D:
 	var configured_region := get_node_or_null(navigation_region_path) as NavigationRegion3D

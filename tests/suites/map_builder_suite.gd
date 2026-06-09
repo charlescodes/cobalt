@@ -8,6 +8,9 @@ const MapBuilderScript := preload("res://src/maps/map_builder.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
+const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
+const WorldMapBuilderScript := preload("res://src/maps/world_map_builder.gd")
+const WorldMapDataScript := preload("res://src/maps/world_map_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 func run(ctx) -> bool:
@@ -147,4 +150,45 @@ func run(ctx) -> bool:
 		return ctx.fail("Generated BlockoutObjectView did not use WorldObjectData.position.")
 
 	parent.free()
+
+	var world_parent := Node3D.new()
+	ctx.root().add_child(world_parent)
+	var world_geology := WorldGeologyDataScript.new("builder_world", Vector2(250000.0, 300000.0))
+	var world_map_data := WorldMapDataScript.new("builder_world", world_geology)
+	var generated_world_map := WorldMapBuilderScript.build(world_map_data, world_parent)
+	if generated_world_map == null or generated_world_map.name != "GeneratedMap":
+		world_parent.free()
+		return ctx.fail("WorldMapBuilder did not return GeneratedMap.")
+	if (
+		generated_world_map.get_node_or_null("StaticGrounds") != null
+		or generated_world_map.get_node_or_null("StaticWalls") != null
+		or generated_world_map.get_node_or_null("DoorSockets") != null
+		or generated_world_map.get_node_or_null("WorldObjects") != null
+	):
+		world_parent.free()
+		return ctx.fail("WorldMapBuilder should not create local map roots.")
+	var pick_surface := generated_world_map.get_node_or_null(String(WorldMapBuilderScript.WORLD_PICK_SURFACE_NAME)) as StaticBody3D
+	if pick_surface == null or pick_surface.get_node_or_null("Mesh") != null:
+		world_parent.free()
+		return ctx.fail("WorldMapBuilder did not create a hidden pick surface.")
+	if pick_surface.get_meta(MapBuilderScript.EDITOR_SOURCE_META, null) != world_map_data:
+		world_parent.free()
+		return ctx.fail("WorldMapBuilder pick surface should select WorldMapData.")
+	var pick_collision := pick_surface.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	var pick_shape: BoxShape3D
+	if pick_collision != null:
+		pick_shape = pick_collision.shape as BoxShape3D
+	if (
+		pick_shape == null
+		or not is_equal_approx(pick_shape.size.x, world_geology.size_m.x)
+		or not is_equal_approx(pick_shape.size.z, world_geology.size_m.y)
+	):
+		world_parent.free()
+		return ctx.fail("WorldMapBuilder pick surface was not sized from geology.size_m.")
+	var world_layer := generated_world_map.get_node_or_null(String(WorldMapBuilderScript.WORLD_MAP_3D_LAYER_NAME)) as MeshInstance3D
+	if world_layer == null or world_layer.mesh == null or world_layer.get_node_or_null("CollisionShape3D") != null:
+		world_parent.free()
+		return ctx.fail("WorldMapBuilder did not create a render-only WorldMap3DLayer.")
+
+	world_parent.free()
 	return true

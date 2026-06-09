@@ -6,6 +6,7 @@ const WallDataScript := preload("res://src/environment/wall_data.gd")
 const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
 const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
+const WorldMapDataScript := preload("res://src/maps/world_map_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 const BspBuildingGeneratorScript := preload("res://src/generation/bsp_building_generator.gd")
 
@@ -962,19 +963,30 @@ func _emit_ground_dimensions_changed() -> void:
 
 func _sync_ground_dimensions_from_map(map_data: Resource) -> void:
 	var typed_map_data := map_data as MapDataScript
-	if typed_map_data == null or typed_map_data.grounds.is_empty():
-		_ground_dimensions = _default_ground_dimensions_for_map(typed_map_data)
+	if typed_map_data != null:
+		if typed_map_data.grounds.is_empty():
+			_ground_dimensions = _default_ground_dimensions_for_map(typed_map_data)
+			return
+
+		var ground := typed_map_data.grounds[0]
+		if ground == null:
+			_ground_dimensions = _default_ground_dimensions_for_map(typed_map_data)
+			return
+
+		_ground_dimensions = Vector2i(
+			_clamp_ground_dimension(int(roundf(ground.size_m.x)), false),
+			_clamp_ground_dimension(int(roundf(ground.size_m.z)), false)
+		)
 		return
 
-	var ground := typed_map_data.grounds[0]
-	if ground == null:
-		_ground_dimensions = _default_ground_dimensions_for_map(typed_map_data)
+	var world_map_data := map_data as WorldMapDataScript
+	if world_map_data == null or world_map_data.geology == null:
+		_ground_dimensions = _default_ground_dimensions_for_map(map_data)
 		return
 
-	var is_world_map := _is_world_map_resource(typed_map_data)
 	_ground_dimensions = Vector2i(
-		_clamp_ground_dimension(int(roundf(ground.size_m.x)), is_world_map),
-		_clamp_ground_dimension(int(roundf(ground.size_m.z)), is_world_map)
+		_clamp_ground_dimension(int(roundf(world_map_data.geology.size_m.x)), true),
+		_clamp_ground_dimension(int(roundf(world_map_data.geology.size_m.y)), true)
 	)
 
 func _configure_ground_slider_ranges() -> void:
@@ -1012,18 +1024,18 @@ func _clamp_ground_dimension(value: int, use_world_range: bool) -> int:
 
 	return clampi(value, 4, 128)
 
-func _default_ground_dimensions_for_map(map_data: MapDataScript) -> Vector2i:
+func _default_ground_dimensions_for_map(map_data: Resource) -> Vector2i:
 	if _is_world_map_resource(map_data):
 		return Vector2i(DEFAULT_WORLD_GROUND_SIZE_M, DEFAULT_WORLD_GROUND_SIZE_M)
 
 	return Vector2i(DEFAULT_GROUND_SIZE_X_M, DEFAULT_GROUND_SIZE_Z_M)
 
 func _sync_world_geology_parameters_from_map(map_data: Resource) -> void:
-	var typed_map_data := map_data as MapDataScript
-	if typed_map_data == null or typed_map_data.world_geology == null:
+	var world_map_data := map_data as WorldMapDataScript
+	if world_map_data == null or world_map_data.geology == null:
 		return
 
-	_world_geology_parameters = typed_map_data.world_geology.to_parameters()
+	_world_geology_parameters = world_map_data.geology.to_parameters()
 
 func _apply_world_geology_parameters_to_controls(should_emit: bool) -> void:
 	if _geology_seed_edit != null:
@@ -1073,8 +1085,8 @@ func _emit_world_geology_parameters_changed() -> void:
 			_world_geology_parameters.duplicate(true)
 		)
 
-func _is_world_map_resource(map_data: MapDataScript) -> bool:
-	return map_data != null and map_data.world_geology != null
+func _is_world_map_resource(map_data: Resource) -> bool:
+	return map_data is WorldMapDataScript
 
 func _apply_building_parameters_to_sliders(should_emit: bool) -> void:
 	var slider_values := {
@@ -1168,6 +1180,15 @@ func _render_inspector() -> void:
 		lines.append("position: %s" % _format_vector3(ground.position))
 		lines.append("size: %s" % _format_vector3(ground.size_m))
 		lines.append("color: %s" % _format_color(ground.color))
+	elif _selected_data is WorldMapDataScript:
+		var world_map := _selected_data as WorldMapDataScript
+		if world_map.geology != null:
+			lines.append("size: %.0fkm x %.0fkm" % [
+				world_map.geology.size_m.x * 0.001,
+				world_map.geology.size_m.y * 0.001,
+			])
+			lines.append("seed: %s" % world_map.geology.seed_text)
+			lines.append("coast: %s" % (world_map.geology.coast_edge if world_map.geology.coast_enabled else "off"))
 	elif _selected_data is WallDataScript:
 		var wall := _selected_data as WallDataScript
 		if _selected_node is Node3D:
@@ -1199,6 +1220,10 @@ func _selected_id_or_name() -> String:
 		var ground := _selected_data as GroundDataScript
 		if ground.ground_id != &"":
 			return String(ground.ground_id)
+	if _selected_data is WorldMapDataScript:
+		var world_map := _selected_data as WorldMapDataScript
+		if not world_map.map_id.is_empty():
+			return world_map.map_id
 	if _selected_data is WorldObjectDataScript:
 		var world_object := _selected_data as WorldObjectDataScript
 		if world_object.object_id != &"":

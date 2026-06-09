@@ -1,6 +1,6 @@
 # COBALT Project Structure
 
-Last updated: 2026-06-06
+Last updated: 2026-06-09
 
 Purpose: filesystem index and ownership map. This file tells contributors and agents where code lives and where new files should go. Use `ARCHITECTURE.md` for rules and `DECISIONS.md` for current reasoning and handoff notes.
 
@@ -21,7 +21,7 @@ res://CHANGELOG.md           Formal running history of notable changes.
 res://src/core/          Global infrastructure, currently EventBus.
 res://src/camera/        Camera rig behavior.
 res://src/environment/   Static map geometry: ground, walls, door sockets, baked obstacles, and future static blocking props.
-res://src/maps/          MapData aggregation, generated map building, map loading, and navmesh rebaking.
+res://src/maps/          Local/world map aggregation, generated map building, map loading, and navmesh rebaking.
 res://src/objects/       Current blockout world-object data and views; future split point for props/actors.
 res://src/interaction/   Interaction targets, hover highlighting, context action resolution, and input targeting.
 res://src/movement/      Move target data, movement validation, and movement execution.
@@ -49,7 +49,7 @@ res://src/core/event_bus.gd  Global event bus autoload.
 ```text
 Main
 NavigationRegion3D                Native navmesh owner for generated static collision.
-MapLoader                         Loads authored MapData and rebakes navigation.
+MapLoader                         Loads authored local/world map resources and rebakes local navigation.
 InteractionController             Camera raycasts, hover, context menus, and movement targeting.
 MovementController                EventBus movement listener and nav-agent movement coordinator.
 InteractionUI                     CanvasLayer containing interaction UI panels.
@@ -75,12 +75,13 @@ res://data/editor_maps/<name>.tres
 res://data/world_maps/<name>.tres
 ```
 
-Current sample map resource plus runtime local/world editor save targets. Local map resources can contain ground data, continuous static walls, door socket data, player-character data, and NPC data. World map resources are `MapData` resources with `world_geology != null` and save separately from local editor maps.
+Current sample map resource plus runtime local/world editor save targets. Local map resources are `MapData` resources and can contain ground data, continuous static walls, door socket data, player-character data, and NPC data. World map resources are `WorldMapData` resources with `map_id` and `geology`; they save separately from local editor maps and do not persist local-map authoring arrays.
 
 ## Core Data Resources
 
 ```text
-res://src/maps/map_data.gd                 Map id plus ground, wall, door socket, world-object arrays, and optional world geology data.
+res://src/maps/map_data.gd                 Local map id plus ground, wall, door socket, and world-object arrays.
+res://src/maps/world_map_data.gd           World map id plus durable WorldGeologyData generator inputs.
 res://src/environment/ground_data.gd       Static ground id, position, size, and color.
 res://src/environment/wall_data.gd         Static wall line endpoints, height, thickness, and color.
 res://src/environment/door_socket_data.gd  Static door opening socket id, position, width, orientation, and marker color.
@@ -100,8 +101,9 @@ res://data/world/              Future world-map, zone, faction, population, and 
 ## Processors, Resolvers, and Coordinators
 
 ```text
-res://src/maps/map_builder.gd                         Builds generated scene nodes from MapData.
-res://src/maps/map_loader.gd                          Scene adapter for MapBuilder and NavigationRegion3D rebaking.
+res://src/maps/map_builder.gd                         Builds generated local scene nodes from MapData.
+res://src/maps/world_map_builder.gd                   Builds generated world pick/render nodes from WorldMapData.
+res://src/maps/map_loader.gd                          Scene adapter that dispatches MapData/WorldMapData builds and rebakes local navigation.
 res://src/environment/wall_visual_resolver.gd          Derives wall visual center, length, and rotation.
 res://src/interaction/interaction_action_resolver.gd   Resolves context actions and examine output.
 res://src/interaction/interaction_controller.gd        Camera raycasts, hover state, context menus, and targeting flow.
@@ -109,8 +111,8 @@ res://src/movement/move_target_resolver.gd            Validates move sources, de
 res://src/movement/movement_controller.gd             EventBus movement handler and active nav-agent movement runner.
 res://src/camera/camera_rig.gd                        Camera pan, orbit, and zoom behavior.
 res://src/editor/editor_mode_controller.gd             Escape dev menu game/local editor/world editor mode and map save/load coordinator.
-res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, ground resizing, NPC brush, PC brush, wall brush, door brush, building brush, and world geology input for generated map content.
-res://src/editor/map_file_store.gd                     Sanitized local/world MapData save/load under data/editor_maps and data/world_maps.
+res://src/editor/editor_selection_controller.gd        Editor-only select/inspect, local ground resizing, NPC brush, PC brush, wall brush, door brush, building brush, and world geology/size input for generated map content.
+res://src/editor/map_file_store.gd                     Sanitized local MapData and world WorldMapData save/load under data/editor_maps and data/world_maps.
 res://src/generation/bsp_building_generator.gd         Deterministic BSP building generator that emits WallData and DoorSocketData.
 res://src/generation/world_geology_generator.gd        Deterministic macro terrain, rain-shadow, temperature, erosion, and biome mesh data generator.
 ```

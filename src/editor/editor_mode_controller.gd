@@ -2,20 +2,16 @@ class_name EditorModeController
 extends Node
 
 const DevMenuScript := preload("res://src/editor/dev_menu.gd")
-const DoorSocketDataScript := preload("res://src/environment/door_socket_data.gd")
-const GroundDataScript := preload("res://src/environment/ground_data.gd")
 const MapFileStoreScript := preload("res://src/editor/map_file_store.gd")
 const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const MapDataScript := preload("res://src/maps/map_data.gd")
-const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
-const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
+const WorldMapDataScript := preload("res://src/maps/world_map_data.gd")
 
 const MODE_GAME: StringName = &"game"
 const MODE_EDITOR: StringName = &"editor"
 const MODE_WORLD_EDITOR: StringName = &"world_editor"
 const DEFAULT_WORLD_SIZE_M: float = 500000.0
-const DEFAULT_WORLD_GROUND_HEIGHT_M: float = 0.1
 
 @export var map_loader_path: NodePath = ^"../MapLoader"
 @export var dev_menu_path: NodePath = ^"../InteractionUI/DevMenu"
@@ -26,7 +22,7 @@ var _dev_menu: DevMenuScript
 var _map_file_store := MapFileStoreScript.new()
 var _editor_map_active: bool = false
 var _local_editor_map_data: MapDataScript
-var _world_map_data: MapDataScript
+var _world_map_data: WorldMapDataScript
 
 func _ready() -> void:
 	_mode = start_mode if _is_known_mode(start_mode) else MODE_EDITOR
@@ -99,18 +95,19 @@ func save_local_map(requested_name: String = "") -> String:
 	if map_loader == null or map_loader.map_data == null:
 		_set_menu_status("No map to save")
 		return ""
-	if map_loader.map_data.world_geology != null:
+	var local_map_data := map_loader.get_local_map_data()
+	if local_map_data == null:
 		_set_menu_status("Cannot save world map as local")
 		return ""
 
 	var filename := _menu_filename_if_empty(requested_name)
-	var path := _map_file_store.save_local_map(map_loader.map_data, filename)
+	var path := _map_file_store.save_local_map(local_map_data, filename)
 	if path.is_empty():
 		_set_menu_status("Save local failed")
 		return ""
 
 	_set_menu_status("Saved %s" % path)
-	_emit_editor_map_saved(map_loader.map_data, path)
+	_emit_editor_map_saved(local_map_data, path)
 	return path
 
 func save_world_map(requested_name: String = "") -> String:
@@ -118,21 +115,22 @@ func save_world_map(requested_name: String = "") -> String:
 	if map_loader == null or map_loader.map_data == null:
 		_set_menu_status("No world map to save")
 		return ""
-	if map_loader.map_data.world_geology == null:
+	var world_map_data := map_loader.get_world_map_data()
+	if world_map_data == null:
 		_set_menu_status("Cannot save local map as world")
 		return ""
 
 	var filename := _menu_filename_if_empty(requested_name)
-	var path := _map_file_store.save_world_map(map_loader.map_data, filename)
+	var path := _map_file_store.save_world_map(world_map_data, filename)
 	if path.is_empty():
 		_set_menu_status("Save world failed")
 		return ""
 
 	_set_menu_status("Saved %s" % path)
-	_emit_editor_map_saved(map_loader.map_data, path)
+	_emit_editor_map_saved(world_map_data, path)
 	return path
 
-func load_map(requested_name: String = "") -> MapDataScript:
+func load_map(requested_name: String = "") -> Resource:
 	if _mode == MODE_WORLD_EDITOR or _current_map_is_world_map():
 		return load_world_map(requested_name)
 
@@ -143,9 +141,6 @@ func load_local_map(requested_name: String = "") -> MapDataScript:
 	var loaded_map := _map_file_store.load_local_map(filename)
 	if loaded_map == null:
 		_set_menu_status("Load local failed")
-		return null
-	if loaded_map.world_geology != null:
-		_set_menu_status("Cannot load world map in local editor")
 		return null
 
 	var map_loader := _resolve_map_loader()
@@ -166,14 +161,11 @@ func load_local_map(requested_name: String = "") -> MapDataScript:
 	_emit_editor_map_loaded(loaded_map, path)
 	return loaded_map
 
-func load_world_map(requested_name: String = "") -> MapDataScript:
+func load_world_map(requested_name: String = "") -> WorldMapDataScript:
 	var filename := _menu_filename_if_empty(requested_name)
 	var loaded_map := _map_file_store.load_world_map(filename)
 	if loaded_map == null:
 		_set_menu_status("Load world failed")
-		return null
-	if loaded_map.world_geology == null:
-		_set_menu_status("Cannot load local map in world editor")
 		return null
 
 	var map_loader := _resolve_map_loader()
@@ -231,7 +223,7 @@ func _ensure_editor_map_active(force_restore_local_map: bool = false) -> void:
 
 	if _editor_map_active:
 		var active_loader := _resolve_map_loader()
-		if active_loader != null and active_loader.map_data != null and active_loader.map_data.world_geology == null:
+		if active_loader != null and active_loader.get_local_map_data() != null:
 			return
 
 	var map_loader := _resolve_map_loader()
@@ -240,14 +232,18 @@ func _ensure_editor_map_active(force_restore_local_map: bool = false) -> void:
 	if map_loader.map_data == null:
 		_load_blank_editor_map()
 		return
-	if map_loader.map_data.world_geology != null and _local_editor_map_data != null:
+	if map_loader.is_world_map_loaded() and _local_editor_map_data != null:
 		map_loader.replace_map_data(_local_editor_map_data, true)
 		_emit_editor_map_loaded(_local_editor_map_data, _local_editor_map_data.resource_path)
 		return
+	var local_map_data := map_loader.get_local_map_data()
+	if local_map_data == null:
+		_load_blank_editor_map()
+		return
 
 	_editor_map_active = true
-	_local_editor_map_data = map_loader.map_data
-	_emit_editor_map_loaded(map_loader.map_data, map_loader.map_data.resource_path)
+	_local_editor_map_data = local_map_data
+	_emit_editor_map_loaded(local_map_data, local_map_data.resource_path)
 
 func _load_blank_editor_map() -> void:
 	var map_loader := _resolve_map_loader()
@@ -272,40 +268,30 @@ func _ensure_world_map_active() -> void:
 	map_loader.replace_map_data(_world_map_data, false)
 	_emit_editor_map_loaded(_world_map_data, "")
 
-func _create_default_world_map() -> MapDataScript:
+func _create_default_world_map() -> WorldMapDataScript:
 	var geology_data := WorldGeologyDataScript.new(
 		"cobalt_world",
 		Vector2(DEFAULT_WORLD_SIZE_M, DEFAULT_WORLD_SIZE_M)
 	)
-	var ground := GroundDataScript.new(
-		&"world_macro_ground",
-		Vector3(0.0, -(DEFAULT_WORLD_GROUND_HEIGHT_M * 0.5), 0.0),
-		Vector3(DEFAULT_WORLD_SIZE_M, DEFAULT_WORLD_GROUND_HEIGHT_M, DEFAULT_WORLD_SIZE_M),
-		Color(0.09, 0.11, 0.1, 1.0)
-	)
-	var grounds: Array[GroundDataScript] = []
-	var walls: Array[WallDataScript] = []
-	var objects: Array[WorldObjectDataScript] = []
-	var door_sockets: Array[DoorSocketDataScript] = []
-	grounds.append(ground)
-	return MapDataScript.new("world_macro", grounds, walls, objects, door_sockets, geology_data)
+	return WorldMapDataScript.new("world_macro", geology_data)
 
 func _cache_local_editor_map() -> void:
 	var map_loader := _resolve_map_loader()
 	if map_loader == null or map_loader.map_data == null:
 		return
-	if map_loader.map_data.world_geology != null:
+	var local_map_data := map_loader.get_local_map_data()
+	if local_map_data == null:
 		return
 
-	_local_editor_map_data = map_loader.map_data
+	_local_editor_map_data = local_map_data
 	_editor_map_active = true
 
-func _emit_editor_map_loaded(map_data: MapDataScript, path: String) -> void:
+func _emit_editor_map_loaded(map_data: Resource, path: String) -> void:
 	var event_bus := _get_event_bus()
 	if event_bus != null:
 		event_bus.emit_signal(&"editor_map_loaded", map_data, path)
 
-func _emit_editor_map_saved(map_data: MapDataScript, path: String) -> void:
+func _emit_editor_map_saved(map_data: Resource, path: String) -> void:
 	var event_bus := _get_event_bus()
 	if event_bus != null:
 		event_bus.emit_signal(&"editor_map_saved", map_data, path)
@@ -330,7 +316,7 @@ func _is_known_mode(mode: StringName) -> bool:
 
 func _current_map_is_world_map() -> bool:
 	var map_loader := _resolve_map_loader()
-	return map_loader != null and map_loader.map_data != null and map_loader.map_data.world_geology != null
+	return map_loader != null and map_loader.is_world_map_loaded()
 
 func _emit_mode_changed() -> void:
 	var event_bus := _get_event_bus()

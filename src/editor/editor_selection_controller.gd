@@ -11,6 +11,7 @@ const MapLoaderScript := preload("res://src/maps/map_loader.gd")
 const WallDataScript := preload("res://src/environment/wall_data.gd")
 const WallVisualResolverScript := preload("res://src/environment/wall_visual_resolver.gd")
 const WorldGeologyDataScript := preload("res://src/environment/world_geology_data.gd")
+const WorldMapDataScript := preload("res://src/maps/world_map_data.gd")
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 
 const MODE_EDITOR: StringName = &"editor"
@@ -172,81 +173,81 @@ func select_at_screen(screen_position: Vector2) -> bool:
 	return true
 
 func place_npc_at_screen(screen_position: Vector2) -> WorldObjectDataScript:
-	if not _is_editor_mode:
+	if not _is_editor_mode or _is_world_editor_mode:
 		return null
 
 	var hit := _raycast_editor_selectable_at(screen_position)
 	if hit.is_empty() or hit.get("kind", &"") != MapBuilderScript.EDITOR_KIND_GROUND:
 		return null
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null:
+	var map_data := _get_local_map_data()
+	if map_data == null:
 		return null
 
 	var placement_position: Vector3 = hit.get("position", Vector3.ZERO)
 	placement_position.y = 0.0
 	var object_data := WorldObjectDataScript.new(
-		_next_npc_id(map_loader.map_data),
+		_next_npc_id(map_data),
 		NPC_KIND,
 		placement_position,
 		NPC_SIZE_M,
 		NPC_COLOR,
 		true
 	)
-	map_loader.map_data.world_objects.append(object_data)
-	map_loader.replace_map_data(map_loader.map_data, true)
+	map_data.world_objects.append(object_data)
+	_replace_map_data(map_data, true)
 	clear_selection()
 	return object_data
 
 func place_pc_at_screen(screen_position: Vector2) -> WorldObjectDataScript:
-	if not _is_editor_mode:
+	if not _is_editor_mode or _is_world_editor_mode:
 		return null
 
 	var hit := _raycast_editor_selectable_at(screen_position)
 	if hit.is_empty() or hit.get("kind", &"") != MapBuilderScript.EDITOR_KIND_GROUND:
 		return null
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null:
+	var map_data := _get_local_map_data()
+	if map_data == null:
 		return null
 
 	var placement_position: Vector3 = hit.get("position", Vector3.ZERO)
 	placement_position.y = 0.0
 	var object_data := WorldObjectDataScript.new(
-		_next_pc_id(map_loader.map_data),
+		_next_pc_id(map_data),
 		PC_KIND,
 		placement_position,
 		PC_SIZE_M,
 		PC_COLOR,
 		true
 	)
-	map_loader.map_data.world_objects.append(object_data)
-	map_loader.replace_map_data(map_loader.map_data, true)
+	map_data.world_objects.append(object_data)
+	_replace_map_data(map_data, true)
 	clear_selection()
 	return object_data
 
 func place_door_socket_at_screen(screen_position: Vector2) -> DoorSocketDataScript:
-	if not _is_editor_mode:
+	if not _is_editor_mode or _is_world_editor_mode:
 		return null
 
 	var hit := _raycast_editor_selectable_at(screen_position)
 	if hit.is_empty():
 		return null
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null:
+	var map_data := _get_local_map_data()
+	if map_data == null:
 		return null
 
 	var click_position := _floor_plane_position(hit.get("position", Vector3.ZERO))
-	var placement := _door_socket_placement_for_position(map_loader.map_data, click_position)
+	var placement := _door_socket_placement_for_position(map_data, click_position)
 	if placement.is_empty():
 		return null
 
 	var wall_index := int(placement.get("wall_index", -1))
-	if wall_index < 0 or wall_index >= map_loader.map_data.static_walls.size():
+	if wall_index < 0 or wall_index >= map_data.static_walls.size():
 		return null
 
-	var wall_data := map_loader.map_data.static_walls[wall_index]
+	var wall_data := map_data.static_walls[wall_index]
 	var socket_position: Vector3 = placement.get("position", Vector3.ZERO)
 	var direction: Vector3 = placement.get("direction", Vector3.FORWARD)
 	var replacement_walls := _wall_segments_after_door_gap(
@@ -259,23 +260,23 @@ func place_door_socket_at_screen(screen_position: Vector2) -> DoorSocketDataScri
 		return null
 
 	var socket_data := DoorSocketDataScript.new(
-		_next_door_socket_id(map_loader.map_data),
+		_next_door_socket_id(map_data),
 		socket_position,
 		DOOR_SOCKET_WIDTH_M,
 		atan2(direction.x, direction.z),
 		DOOR_SOCKET_COLOR
 	)
 
-	map_loader.map_data.static_walls.remove_at(wall_index)
+	map_data.static_walls.remove_at(wall_index)
 	for replacement_index in range(replacement_walls.size()):
-		map_loader.map_data.static_walls.insert(wall_index + replacement_index, replacement_walls[replacement_index])
-	map_loader.map_data.door_sockets.append(socket_data)
-	map_loader.replace_map_data(map_loader.map_data, true)
+		map_data.static_walls.insert(wall_index + replacement_index, replacement_walls[replacement_index])
+	map_data.door_sockets.append(socket_data)
+	_replace_map_data(map_data, true)
 	clear_selection()
 	return socket_data
 
 func place_building_preview_at_screen(screen_position: Vector2) -> Dictionary:
-	if not _is_editor_mode:
+	if not _is_editor_mode or _is_world_editor_mode:
 		return {}
 
 	var hit := _raycast_editor_ground_at(screen_position)
@@ -289,15 +290,28 @@ func place_building_preview_at_screen(screen_position: Vector2) -> Dictionary:
 	clear_selection()
 	return _building_preview_result
 
-func resize_ground(size_x_m: int, size_z_m: int) -> GroundDataScript:
+func resize_ground(size_x_m: int, size_z_m: int) -> Resource:
 	if not _is_editor_mode:
 		return null
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null:
+	if _is_world_editor_mode:
+		var world_map_data := _get_world_map_data()
+		if world_map_data == null or world_map_data.geology == null:
+			return null
+
+		world_map_data.geology.size_m = Vector2(
+			float(_clamped_ground_size(size_x_m)),
+			float(_clamped_ground_size(size_z_m))
+		)
+		_replace_map_data(world_map_data, false)
+		clear_selection()
+		return world_map_data.geology
+
+	var map_data := _get_local_map_data()
+	if map_data == null:
 		return null
 
-	var ground := _first_ground_or_create(map_loader.map_data)
+	var ground := _first_ground_or_create(map_data)
 	if ground == null:
 		return null
 
@@ -307,39 +321,37 @@ func resize_ground(size_x_m: int, size_z_m: int) -> GroundDataScript:
 		float(_clamped_ground_size(size_z_m))
 	)
 	ground.position.y = -(ground.size_m.y * 0.5)
-	if _is_world_editor_mode and map_loader.map_data.world_geology != null:
-		map_loader.map_data.world_geology.size_m = Vector2(ground.size_m.x, ground.size_m.z)
-	map_loader.replace_map_data(map_loader.map_data, not _is_world_editor_mode)
+	_replace_map_data(map_data, true)
 	clear_selection()
 	return ground
 
 func commit_building_preview() -> Dictionary:
-	if not _is_editor_mode or _building_preview_result.is_empty():
+	if not _is_editor_mode or _is_world_editor_mode or _building_preview_result.is_empty():
 		return {}
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null:
+	var map_data := _get_local_map_data()
+	if map_data == null:
 		return {}
 
 	var walls: Array = _building_preview_result.get("walls", [])
 	var sockets: Array = _building_preview_result.get("door_sockets", [])
 	for wall_data in walls:
 		if wall_data is WallDataScript:
-			map_loader.map_data.static_walls.append(wall_data)
+			map_data.static_walls.append(wall_data)
 	for socket_data in sockets:
 		if socket_data is DoorSocketDataScript:
-			(socket_data as DoorSocketDataScript).socket_id = _next_building_door_socket_id(map_loader.map_data)
-			map_loader.map_data.door_sockets.append(socket_data)
+			(socket_data as DoorSocketDataScript).socket_id = _next_building_door_socket_id(map_data)
+			map_data.door_sockets.append(socket_data)
 
 	var committed_result := _building_preview_result
 	_clear_building_preview()
-	map_loader.replace_map_data(map_loader.map_data, true)
+	_replace_map_data(map_data, true)
 	clear_selection()
 	return committed_result
 
 func add_wall_brush_point_at_screen(screen_position: Vector2) -> Array[WallDataScript]:
 	var added_walls: Array[WallDataScript] = []
-	if not _is_editor_mode:
+	if not _is_editor_mode or _is_world_editor_mode:
 		return added_walls
 
 	var hit := _raycast_editor_ground_at(screen_position)
@@ -366,15 +378,15 @@ func add_wall_brush_point_at_screen(screen_position: Vector2) -> Array[WallDataS
 		clear_selection()
 		return added_walls
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null:
+	var map_data := _get_local_map_data()
+	if map_data == null:
 		added_walls.clear()
 		clear_selection()
 		return added_walls
 
 	for wall_data in added_walls:
-		map_loader.map_data.static_walls.append(wall_data)
-	map_loader.replace_map_data(map_loader.map_data, true)
+		map_data.static_walls.append(wall_data)
+	_replace_map_data(map_data, true)
 	clear_selection()
 	return added_walls
 
@@ -485,6 +497,8 @@ func _on_editor_map_loaded(_map_data: Resource, _path: String) -> void:
 	clear_selection()
 
 func _on_editor_tool_changed(tool_id: StringName) -> void:
+	if _is_world_editor_mode and not _is_world_tool(tool_id):
+		return
 	if (
 		tool_id == TOOL_SELECT_INSPECT
 		or tool_id == TOOL_GROUND
@@ -523,16 +537,15 @@ func _on_editor_world_geology_parameters_changed(parameters: Dictionary) -> void
 	if not _is_world_editor_mode:
 		return
 
-	var map_loader := _resolve_map_loader()
-	if map_loader == null or map_loader.map_data == null or map_loader.map_data.world_geology == null:
+	var world_map_data := _get_world_map_data()
+	if world_map_data == null or world_map_data.geology == null:
 		return
 
-	var geology_data := map_loader.map_data.world_geology as WorldGeologyDataScript
+	var geology_data := world_map_data.geology as WorldGeologyDataScript
+	var current_size := geology_data.size_m
 	geology_data.apply_parameters(parameters)
-	if not map_loader.map_data.grounds.is_empty() and map_loader.map_data.grounds[0] != null:
-		var ground := map_loader.map_data.grounds[0] as GroundDataScript
-		geology_data.size_m = Vector2(ground.size_m.x, ground.size_m.z)
-	map_loader.replace_map_data(map_loader.map_data, false)
+	geology_data.size_m = current_size
+	_replace_map_data(world_map_data, false)
 	clear_selection()
 
 func _resolve_camera() -> Camera3D:
@@ -545,6 +558,18 @@ func _resolve_camera() -> Camera3D:
 
 func _resolve_map_loader() -> MapLoaderScript:
 	return get_node_or_null(map_loader_path) as MapLoaderScript
+
+func _get_local_map_data() -> MapDataScript:
+	var map_loader := _resolve_map_loader()
+	return map_loader.get_local_map_data() if map_loader != null else null
+
+func _get_world_map_data() -> WorldMapDataScript:
+	var map_loader := _resolve_map_loader()
+	return map_loader.get_world_map_data() if map_loader != null else null
+
+func _replace_map_data(map_data: Resource, should_rebake_navigation: bool) -> Node3D:
+	var map_loader := _resolve_map_loader()
+	return map_loader.replace_map_data(map_data, should_rebake_navigation) if map_loader != null else null
 
 func _next_npc_id(map_data: MapDataScript) -> StringName:
 	var index := 1
@@ -616,6 +641,9 @@ func _clamped_ground_size(size_m: int) -> int:
 		return clampi(size_m, WORLD_GROUND_MIN_SIZE_M, WORLD_GROUND_MAX_SIZE_M)
 
 	return clampi(size_m, 4, 128)
+
+func _is_world_tool(tool_id: StringName) -> bool:
+	return tool_id == TOOL_SELECT_INSPECT or tool_id == TOOL_GROUND or tool_id == TOOL_GEOLOGY
 
 func _wall_from_points(start_position: Vector3, end_position: Vector3) -> WallDataScript:
 	var clean_start := _floor_plane_position(start_position)

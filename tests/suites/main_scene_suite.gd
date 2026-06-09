@@ -39,9 +39,10 @@ func run(ctx) -> bool:
 		main.free()
 		return ctx.fail("NavigationRegion3D is missing a NavigationMesh.")
 	var map_loader := main.get_node_or_null("MapLoader") as MapLoaderScript
-	if map_loader == null or map_loader.map_data == null:
+	if map_loader == null or map_loader.get_local_map_data() == null:
 		main.free()
 		return ctx.fail("Main scene is missing MapLoader data.")
+	var local_map_data := map_loader.get_local_map_data()
 	var generated_map := navigation_region.get_node_or_null("GeneratedMap") as Node3D
 	if generated_map == null:
 		main.free()
@@ -63,7 +64,7 @@ func run(ctx) -> bool:
 	if static_walls == null or static_walls.get_child_count() != 2:
 		main.free()
 		return ctx.fail("Main scene should generate two static walls.")
-	if map_loader.map_data.static_walls.size() != 2 or not map_loader.map_data.static_walls[0].is_valid_wall():
+	if local_map_data.static_walls.size() != 2 or not local_map_data.static_walls[0].is_valid_wall():
 		main.free()
 		return ctx.fail("Main scene first map wall is invalid.")
 	var wall_body := generated_map.get_node_or_null("StaticWalls/Wall_00/StaticBody3D") as StaticBody3D
