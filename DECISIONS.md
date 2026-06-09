@@ -67,7 +67,7 @@ Runtime source of truth:
 ### Runtime Editor Mode
 
 - Runtime editor V1 is implemented under `src/editor/` as a development surface inside the playable project, not as a Godot `EditorPlugin`.
-- Escape toggles the centered dev menu. The menu switches between `game` and `editor` modes and saves/loads named maps under `res://data/editor_maps/`.
+- Escape toggles the centered dev menu. The menu switches between `game`, local `editor`, and `world_editor` modes. Local editor maps save/load under `res://data/editor_maps/`; world maps save/load under `res://data/world_maps/`.
 - Startup editor mode keeps the configured `MapLoader.map_data` as the active editable map, currently `main_blockout_map.tres`.
 - Entering editor mode only creates an in-memory blank editor map if no current map data exists.
 - Editor mode disables gameplay mouse targeting and context-menu input through `InteractionController` while `EditorSelectionController` owns editor tool raycasts.
@@ -81,7 +81,7 @@ Runtime source of truth:
 - `Door Brush` snaps a click to the nearest wall line, clamps the opening to leave 0.5m edge clearance, replaces the original wall with two shorter wall lines around a 1m gap, appends a `DoorSocketData`, and rebuilds/rebakes the map.
 - `Bldg. Brush` uses a clicked ground point as the building center, picks a seed, and draws a transient 50% opacity preview. Width, depth, minimum room size, target room count, and seed are slider-controlled in the editor panel. Submit flattens the preview into `WallData` and `DoorSocketData`, then rebuilds/rebakes through `MapLoader.replace_map_data()`.
 - `World` mode is a macro-scale editor branch reached through the Escape dev menu. It caches the in-memory local editor map, swaps `MapLoader` to an unsaved `world_macro` `MapData`, skips navigation rebake, and restores the cached local map when returning to local editor mode, including routes through game mode.
-- Loading a saved `MapData` with `world_geology != null` through the dev menu routes into World mode instead of treating it as a local editor map.
+- Local and world map persistence are intentionally separated. Local load/save rejects resources with `world_geology != null`, while world load/save requires `world_geology != null`; the mode-aware dev menu labels the current file action as Local or World.
 - World mode shows only `Select`, `Ground`, and `Geology` tools. World `Ground` sliders use 250km to 1000km X/Z ranges and resize both the macro `GroundData` and `WorldGeologyData.size_m`.
 - The `Geology` tool edits `WorldGeologyData` through a seed text field, optional coast checkbox with north/south/east/west direction buttons, and sliders for map scale, roughness, sea level, temperature, rainfall, wind direction, erosion, vegetation, tree canopy, tectonic ridge alignment, and toxicity. Changes emit `EventBus.editor_world_geology_parameters_changed`.
 - `WorldGeologyGenerator` is a deterministic stateless processor. It combines base Simplex terrain, ridged tectonic noise, coast lowering, erosion smoothing, directional rain-shadow moisture, latitude/altitude temperature, and biome coloring into mesh buffers consumed by `MapBuilder`.

@@ -107,6 +107,12 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	await ctx.tree.physics_frame
 	if editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_WORLD_EDITOR:
 		return ctx.fail("EditorModeController did not enter world editor mode.")
+	var save_button := dev_menu.get_node_or_null("MenuLayout/FileRow/SaveMapButton") as Button
+	var load_button := dev_menu.get_node_or_null("MenuLayout/FileRow/LoadMapButton") as Button
+	if save_button == null or save_button.text != "Save World":
+		return ctx.fail("DevMenu should label save as world while World editor mode is active.")
+	if load_button == null or load_button.text != "Load World":
+		return ctx.fail("DevMenu should label load as world while World editor mode is active.")
 	if map_loader.map_data == original_map_data or map_loader.map_data.world_geology == null:
 		return ctx.fail("World editor mode did not replace the local map with a world geology map.")
 	if interaction_controller.is_gameplay_input_enabled():
@@ -268,6 +274,10 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	var saved_world_path := editor_mode_controller.save_current_map(WORLD_SUITE_FILENAME)
 	if saved_world_path.is_empty() or not ResourceLoader.exists(saved_world_path):
 		return ctx.fail("World editor map save did not write a .tres resource.")
+	if saved_world_path != MapFileStoreScript.new().world_map_path_for_name(WORLD_SUITE_FILENAME):
+		return ctx.fail("World editor map save should write only to the world map directory.")
+	if not editor_mode_controller.save_local_map(WORLD_SUITE_FILENAME).is_empty():
+		return ctx.fail("World editor maps should not be saveable through the local-map save path.")
 
 	editor_mode_controller.enter_editor_mode()
 	await ctx.tree.process_frame
@@ -285,7 +295,17 @@ func _run_world_editor_checks(ctx, main: Node3D) -> bool:
 	if not _button_visible(editor_panel, ^"EditorToolDockLayout/ToolButtonRow/NpcBrushToolButton"):
 		return ctx.fail("Local editor mode did not restore local-map tools.")
 
-	var loaded_world_map := editor_mode_controller.load_map(WORLD_SUITE_FILENAME)
+	var rejected_world_load := editor_mode_controller.load_map(WORLD_SUITE_FILENAME)
+	await ctx.tree.process_frame
+	await ctx.tree.physics_frame
+	if rejected_world_load != null:
+		return ctx.fail("Local editor load should not load a world map by filename.")
+	if editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_EDITOR:
+		return ctx.fail("Rejected world load should keep the controller in local Editor mode.")
+	if map_loader.map_data != original_map_data or map_loader.map_data.world_geology != null:
+		return ctx.fail("Rejected world load should not replace the restored local editor map.")
+
+	var loaded_world_map := editor_mode_controller.load_world_map(WORLD_SUITE_FILENAME)
 	await ctx.tree.process_frame
 	await ctx.tree.physics_frame
 	if (
@@ -315,6 +335,10 @@ func _button_visible(root: Node, button_path: NodePath) -> bool:
 
 func _cleanup_saved_map(requested_name: String) -> void:
 	var store := MapFileStoreScript.new()
-	var path := ProjectSettings.globalize_path(store.map_path_for_name(requested_name))
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+	for res_path in [
+		store.local_map_path_for_name(requested_name),
+		store.world_map_path_for_name(requested_name),
+	]:
+		var path := ProjectSettings.globalize_path(res_path)
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path)

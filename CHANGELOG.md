@@ -25,7 +25,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 ### Changed
 
 - Camera controls now switch to macro-scale pan and zoom settings while World editor mode is active.
-- World map loading now routes saved world resources back into World editor mode instead of reusing local editor state.
+- World map saving/loading now uses `data/world_maps` while local editor maps stay under `data/editor_maps`; the dev menu labels file actions as Local or World for the active mode.
 - World maps now hide the macro ground box, render the generated terrain layer as the visible world surface, and keep world selection data-only without macro highlight shells.
 - Runtime startup now enters editor mode by default and keeps the configured main blockout map as the editable map instead of replacing it with a blank editor map.
 - Sharpened `ARCHITECTURE.md`, `DECISIONS.md`, and `PROJECT_STRUCTURE.md` into distinct source-of-truth documents.
@@ -38,6 +38,7 @@ All notable project changes should be recorded here. Keep entries factual and ch
 
 - Fixed World editor mode rendering as a grey/blank view by using macro camera clip distances, unshaded two-sided biome vertex colors, explicit macro render bounds, and a hidden pick-only ground surface.
 - Fixed returning from World mode leaving the local editor camera at a macro-scale pan position.
+- Fixed local editor load actions being able to cross into saved world maps by filename.
 - Fixed local/world ground state collision that could shrink saved world maps to local editor dimensions after save/load or mode switching.
 - Fixed gameplay interaction input remaining enabled in World editor mode.
 - Fixed the editor inspector label collapsing to a one-character wrapping width inside the scroll panel and normalized tool panel content layout.

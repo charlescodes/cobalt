@@ -13,6 +13,8 @@ var _filename_edit: LineEdit
 var _game_mode_button: Button
 var _editor_mode_button: Button
 var _world_editor_mode_button: Button
+var _save_button: Button
+var _load_button: Button
 var _status_label: Label
 
 func _ready() -> void:
@@ -45,6 +47,10 @@ func set_mode(mode: StringName) -> void:
 		_editor_mode_button.disabled = mode == &"editor"
 	if _world_editor_mode_button != null:
 		_world_editor_mode_button.disabled = mode == &"world_editor"
+	if _save_button != null:
+		_save_button.text = "Save World" if mode == &"world_editor" else "Save Local"
+	if _load_button != null:
+		_load_button.text = "Load World" if mode == &"world_editor" else "Load Local"
 
 func set_status(text: String) -> void:
 	if _status_label != null:
@@ -119,19 +125,19 @@ func _ensure_layout() -> void:
 	file_row.add_theme_constant_override("separation", 8)
 	layout.add_child(file_row)
 
-	var save_button := Button.new()
-	save_button.name = "SaveMapButton"
-	save_button.text = "Save Map"
-	save_button.custom_minimum_size = Vector2(150.0, 34.0)
-	save_button.pressed.connect(_on_save_map_pressed)
-	file_row.add_child(save_button)
+	_save_button = Button.new()
+	_save_button.name = "SaveMapButton"
+	_save_button.text = "Save Local"
+	_save_button.custom_minimum_size = Vector2(150.0, 34.0)
+	_save_button.pressed.connect(_on_save_map_pressed)
+	file_row.add_child(_save_button)
 
-	var load_button := Button.new()
-	load_button.name = "LoadMapButton"
-	load_button.text = "Load Map"
-	load_button.custom_minimum_size = Vector2(150.0, 34.0)
-	load_button.pressed.connect(_on_load_map_pressed)
-	file_row.add_child(load_button)
+	_load_button = Button.new()
+	_load_button.name = "LoadMapButton"
+	_load_button.text = "Load Local"
+	_load_button.custom_minimum_size = Vector2(150.0, 34.0)
+	_load_button.pressed.connect(_on_load_map_pressed)
+	file_row.add_child(_load_button)
 
 	_status_label = Label.new()
 	_status_label.name = "Status"

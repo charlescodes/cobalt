@@ -76,11 +76,11 @@ func set_mode(next_mode: StringName) -> void:
 	_mode = next_mode
 	if _dev_menu != null:
 		_dev_menu.set_mode(_mode)
+	_emit_mode_changed()
 	if _mode == MODE_EDITOR:
 		_ensure_editor_map_active(previous_mode == MODE_WORLD_EDITOR or _current_map_is_world_map())
 	elif _mode == MODE_WORLD_EDITOR:
 		_ensure_world_map_active()
-	_emit_mode_changed()
 
 func get_mode() -> StringName:
 	return _mode
@@ -89,28 +89,63 @@ func has_editor_map_active() -> bool:
 	return _editor_map_active
 
 func save_current_map(requested_name: String = "") -> String:
+	if _mode == MODE_WORLD_EDITOR or _current_map_is_world_map():
+		return save_world_map(requested_name)
+
+	return save_local_map(requested_name)
+
+func save_local_map(requested_name: String = "") -> String:
 	var map_loader := _resolve_map_loader()
 	if map_loader == null or map_loader.map_data == null:
 		_set_menu_status("No map to save")
 		return ""
+	if map_loader.map_data.world_geology != null:
+		_set_menu_status("Cannot save world map as local")
+		return ""
 
 	var filename := _menu_filename_if_empty(requested_name)
-	var path := _map_file_store.save_map(map_loader.map_data, filename)
+	var path := _map_file_store.save_local_map(map_loader.map_data, filename)
 	if path.is_empty():
-		_set_menu_status("Save failed")
+		_set_menu_status("Save local failed")
 		return ""
 
 	_set_menu_status("Saved %s" % path)
-	var event_bus := _get_event_bus()
-	if event_bus != null:
-		event_bus.emit_signal(&"editor_map_saved", map_loader.map_data, path)
+	_emit_editor_map_saved(map_loader.map_data, path)
+	return path
+
+func save_world_map(requested_name: String = "") -> String:
+	var map_loader := _resolve_map_loader()
+	if map_loader == null or map_loader.map_data == null:
+		_set_menu_status("No world map to save")
+		return ""
+	if map_loader.map_data.world_geology == null:
+		_set_menu_status("Cannot save local map as world")
+		return ""
+
+	var filename := _menu_filename_if_empty(requested_name)
+	var path := _map_file_store.save_world_map(map_loader.map_data, filename)
+	if path.is_empty():
+		_set_menu_status("Save world failed")
+		return ""
+
+	_set_menu_status("Saved %s" % path)
+	_emit_editor_map_saved(map_loader.map_data, path)
 	return path
 
 func load_map(requested_name: String = "") -> MapDataScript:
+	if _mode == MODE_WORLD_EDITOR or _current_map_is_world_map():
+		return load_world_map(requested_name)
+
+	return load_local_map(requested_name)
+
+func load_local_map(requested_name: String = "") -> MapDataScript:
 	var filename := _menu_filename_if_empty(requested_name)
-	var loaded_map := _map_file_store.load_map(filename)
+	var loaded_map := _map_file_store.load_local_map(filename)
 	if loaded_map == null:
-		_set_menu_status("Load failed")
+		_set_menu_status("Load local failed")
+		return null
+	if loaded_map.world_geology != null:
+		_set_menu_status("Cannot load world map in local editor")
 		return null
 
 	var map_loader := _resolve_map_loader()
@@ -118,20 +153,43 @@ func load_map(requested_name: String = "") -> MapDataScript:
 		_set_menu_status("MapLoader missing")
 		return null
 
-	var is_world_map := loaded_map.world_geology != null
-	if is_world_map:
-		_world_map_data = loaded_map
-		_mode = MODE_WORLD_EDITOR
-	else:
-		_editor_map_active = true
-		_local_editor_map_data = loaded_map
-		_mode = MODE_EDITOR
+	_editor_map_active = true
+	_local_editor_map_data = loaded_map
+	_mode = MODE_EDITOR
 	if _dev_menu != null:
 		_dev_menu.set_mode(_mode)
 	_emit_mode_changed()
 
-	map_loader.replace_map_data(loaded_map, not is_world_map)
-	var path := _map_file_store.map_path_for_name(filename)
+	map_loader.replace_map_data(loaded_map, true)
+	var path := _map_file_store.local_map_path_for_name(filename)
+	_set_menu_status("Loaded %s" % path)
+	_emit_editor_map_loaded(loaded_map, path)
+	return loaded_map
+
+func load_world_map(requested_name: String = "") -> MapDataScript:
+	var filename := _menu_filename_if_empty(requested_name)
+	var loaded_map := _map_file_store.load_world_map(filename)
+	if loaded_map == null:
+		_set_menu_status("Load world failed")
+		return null
+	if loaded_map.world_geology == null:
+		_set_menu_status("Cannot load local map in world editor")
+		return null
+
+	var map_loader := _resolve_map_loader()
+	if map_loader == null:
+		_set_menu_status("MapLoader missing")
+		return null
+
+	_cache_local_editor_map()
+	_world_map_data = loaded_map
+	_mode = MODE_WORLD_EDITOR
+	if _dev_menu != null:
+		_dev_menu.set_mode(_mode)
+	_emit_mode_changed()
+
+	map_loader.replace_map_data(loaded_map, false)
+	var path := _map_file_store.world_map_path_for_name(filename)
 	_set_menu_status("Loaded %s" % path)
 	_emit_editor_map_loaded(loaded_map, path)
 	return loaded_map
@@ -154,11 +212,11 @@ func _connect_dev_menu() -> void:
 		_dev_menu.connect(&"load_map_requested", load_callable)
 
 func _finish_startup() -> void:
+	_emit_mode_changed()
 	if _mode == MODE_EDITOR:
 		_ensure_editor_map_active()
 	elif _mode == MODE_WORLD_EDITOR:
 		_ensure_world_map_active()
-	_emit_mode_changed()
 
 func _ensure_editor_map_active(force_restore_local_map: bool = false) -> void:
 	if force_restore_local_map and _local_editor_map_data != null:
@@ -246,6 +304,11 @@ func _emit_editor_map_loaded(map_data: MapDataScript, path: String) -> void:
 	var event_bus := _get_event_bus()
 	if event_bus != null:
 		event_bus.emit_signal(&"editor_map_loaded", map_data, path)
+
+func _emit_editor_map_saved(map_data: MapDataScript, path: String) -> void:
+	var event_bus := _get_event_bus()
+	if event_bus != null:
+		event_bus.emit_signal(&"editor_map_saved", map_data, path)
 
 func _menu_filename_if_empty(requested_name: String) -> String:
 	if not requested_name.strip_edges().is_empty():

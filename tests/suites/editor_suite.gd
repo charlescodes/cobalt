@@ -97,6 +97,12 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 
 	if dev_menu.visible:
 		return ctx.fail("DevMenu should start hidden.")
+	var save_button := dev_menu.get_node_or_null("MenuLayout/FileRow/SaveMapButton") as Button
+	var load_button := dev_menu.get_node_or_null("MenuLayout/FileRow/LoadMapButton") as Button
+	if save_button == null or save_button.text != "Save Local":
+		return ctx.fail("DevMenu should label save as local while local Editor mode is active.")
+	if load_button == null or load_button.text != "Load Local":
+		return ctx.fail("DevMenu should label load as local while local Editor mode is active.")
 	if editor_mode_controller.get_mode() != EditorModeControllerScript.MODE_EDITOR:
 		return ctx.fail("EditorModeController should start in editor mode.")
 	if _latest_mode != EditorModeControllerScript.MODE_EDITOR:
@@ -735,8 +741,12 @@ func _run_editor_checks(ctx, _root_event_bus: Node, main: Node3D) -> bool:
 	var saved_path := editor_mode_controller.save_current_map("editor_suite_runtime_map")
 	if saved_path.is_empty() or not ResourceLoader.exists(saved_path):
 		return ctx.fail("Editor map save did not write a .tres resource.")
+	if saved_path != MapFileStoreScript.new().local_map_path_for_name("editor_suite_runtime_map"):
+		return ctx.fail("Editor map save should write only to the local editor map directory.")
 	if _map_saved_count != 1 or _map_saved_data != map_loader.map_data or _map_saved_path != saved_path:
 		return ctx.fail("Editor map save did not emit editor_map_saved.")
+	if not editor_mode_controller.save_world_map("editor_suite_runtime_map").is_empty():
+		return ctx.fail("Local editor maps should not be saveable through the world-map save path.")
 
 	map_loader.replace_map_data(MapFileStoreScript.new().create_blank_editor_map(), true)
 	await ctx.tree.process_frame

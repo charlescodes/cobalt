@@ -716,11 +716,6 @@ func _on_editor_selection_changed(
 	_render_inspector()
 
 func _on_editor_map_loaded(map_data: Resource, _path: String) -> void:
-	var typed_map_data := map_data as MapDataScript
-	if _is_world_map_resource(typed_map_data):
-		_editor_mode = MODE_WORLD_EDITOR
-	elif _editor_mode == MODE_WORLD_EDITOR:
-		_editor_mode = MODE_EDITOR
 	_sync_ground_dimensions_from_map(map_data)
 	_sync_world_geology_parameters_from_map(map_data)
 	_configure_ground_slider_ranges()
