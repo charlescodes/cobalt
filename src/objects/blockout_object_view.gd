@@ -1,5 +1,7 @@
 class_name BlockoutObjectView
-extends Node3D
+extends CharacterBody3D
+
+const ACTOR_COLLISION_DEBUG_GROUP: StringName = &"actor_collision_debug_sources"
 
 const WorldObjectDataScript := preload("res://src/objects/world_object_data.gd")
 const InteractionTargetScript := preload("res://src/interaction/interaction_target.gd")
@@ -11,6 +13,7 @@ const HoverHighlighterScript := preload("res://src/interaction/hover_highlighter
 		apply_data()
 
 func _ready() -> void:
+	add_to_group(ACTOR_COLLISION_DEBUG_GROUP)
 	apply_data()
 
 func apply_data() -> void:
@@ -18,7 +21,12 @@ func apply_data() -> void:
 		return
 
 	position = object_data.position
+	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
+	collision_layer = 2
+	collision_mask = 3
+	input_ray_pickable = false
 	_configure_body()
+	_configure_movement_collision()
 	_configure_interaction_target()
 	_configure_navigation_agent()
 
@@ -46,6 +54,22 @@ func _configure_body() -> void:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = object_data.color
 	body.material_override = material
+
+func _configure_movement_collision() -> void:
+	var collision := get_node_or_null("MovementCollisionShape3D") as CollisionShape3D
+	if collision == null:
+		collision = CollisionShape3D.new()
+		collision.name = "MovementCollisionShape3D"
+		add_child(collision)
+
+	var cylinder_shape := collision.shape as CylinderShape3D
+	if cylinder_shape == null:
+		cylinder_shape = CylinderShape3D.new()
+		collision.shape = cylinder_shape
+
+	cylinder_shape.radius = maxf(object_data.size_m.x, object_data.size_m.z) * 0.5
+	cylinder_shape.height = object_data.size_m.y
+	collision.position = body_center_offset(object_data.size_m)
 
 func _configure_interaction_target() -> void:
 	var target := get_node_or_null("InteractionTarget") as InteractionTargetScript

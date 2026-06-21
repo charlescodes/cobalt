@@ -7,6 +7,7 @@ const InteractionMenuScript := preload("res://src/ui/interaction_menu.gd")
 const DebugLogPanelScript := preload("res://src/ui/debug_log_panel.gd")
 const DebugOverlayControllerScript := preload("res://src/ui/debug_overlay_controller.gd")
 const NavigationDebugOverlayScript := preload("res://src/ui/navigation_debug_overlay.gd")
+const ActorCollisionDebugOverlayScript := preload("res://src/ui/actor_collision_debug_overlay.gd")
 const MoveTargetDataScript := preload("res://src/movement/move_target_data.gd")
 const MoveTargetResolverScript := preload("res://src/movement/move_target_resolver.gd")
 const MovementControllerScript := preload("res://src/movement/movement_controller.gd")
@@ -16,6 +17,8 @@ const DevMenuScript := preload("res://src/editor/dev_menu.gd")
 const EditorPanelScript := preload("res://src/editor/editor_panel.gd")
 const EditorModeControllerScript := preload("res://src/editor/editor_mode_controller.gd")
 const EditorSelectionControllerScript := preload("res://src/editor/editor_selection_controller.gd")
+const GameplayModeControllerScript := preload("res://src/movement/gameplay_mode_controller.gd")
+const RealtimeGameplayControllerScript := preload("res://src/movement/realtime_gameplay_controller.gd")
 
 func run(ctx) -> bool:
 	await ctx.idle_frame()
@@ -75,6 +78,12 @@ func run(ctx) -> bool:
 	if movement_controller == null:
 		main.free()
 		return ctx.fail("Main scene is missing MovementController.")
+	if main.get_node_or_null("GameplayModeController") as GameplayModeControllerScript == null:
+		main.free()
+		return ctx.fail("Main scene is missing GameplayModeController.")
+	if main.get_node_or_null("RealtimeGameplayController") as RealtimeGameplayControllerScript == null:
+		main.free()
+		return ctx.fail("Main scene is missing RealtimeGameplayController.")
 	var interaction_ui := main.get_node_or_null("InteractionUI") as CanvasLayer
 	if interaction_ui == null:
 		main.free()
@@ -115,6 +124,15 @@ func run(ctx) -> bool:
 	if navigation_debug_overlay.visible:
 		main.free()
 		return ctx.fail("NavigationDebugOverlay should be hidden until F12 toggles debug.")
+	var actor_collision_debug_overlay := main.get_node_or_null(
+		"ActorCollisionDebugOverlay"
+	) as ActorCollisionDebugOverlayScript
+	if actor_collision_debug_overlay == null:
+		main.free()
+		return ctx.fail("Main scene is missing ActorCollisionDebugOverlay.")
+	if actor_collision_debug_overlay.visible:
+		main.free()
+		return ctx.fail("ActorCollisionDebugOverlay should be hidden until F12 toggles debug.")
 	var debug_overlay_controller := main.get_node_or_null("DebugOverlayController") as DebugOverlayControllerScript
 	if debug_overlay_controller == null:
 		main.free()
@@ -130,13 +148,21 @@ func run(ctx) -> bool:
 		main.free()
 		return ctx.fail("Main scene should start in editor mode.")
 	debug_overlay_controller.set_debug_visible(true)
-	if not debug_log_panel.visible or not navigation_debug_overlay.visible:
+	actor_collision_debug_overlay.refresh_debug_cylinders()
+	if (
+		not debug_log_panel.visible
+		or not navigation_debug_overlay.visible
+		or not actor_collision_debug_overlay.visible
+	):
 		main.free()
-		return ctx.fail("DebugOverlayController did not show both debug overlays.")
+		return ctx.fail("DebugOverlayController did not show all debug overlays.")
+	if actor_collision_debug_overlay.get_debug_cylinder_count() != 2:
+		main.free()
+		return ctx.fail("F12 debug did not draw collision cylinders for both generated actors.")
 	debug_overlay_controller.set_debug_visible(false)
-	if debug_log_panel.visible or navigation_debug_overlay.visible:
+	if debug_log_panel.visible or navigation_debug_overlay.visible or actor_collision_debug_overlay.visible:
 		main.free()
-		return ctx.fail("DebugOverlayController did not hide both debug overlays.")
+		return ctx.fail("DebugOverlayController did not hide all debug overlays.")
 	if main.get_node_or_null("SunLight") == null:
 		main.free()
 		return ctx.fail("Main scene is missing SunLight.")

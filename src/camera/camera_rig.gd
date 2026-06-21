@@ -1,6 +1,9 @@
 class_name CameraRig
 extends Node3D
 
+const RUNTIME_MODE_GAME: StringName = &"game"
+const CONTROL_MODE_REAL_TIME: StringName = &"real_time"
+
 @export var pitch_pivot_path: NodePath = ^"PitchPivot"
 @export var camera_path: NodePath = ^"PitchPivot/Camera3D"
 @export_range(1.0, 50.0, 0.5) var start_height_m: float = 7.0
@@ -43,6 +46,10 @@ var _world_height_m: float = 0.0
 var _world_yaw: float = 0.0
 var _world_pitch: float = 0.0
 var _is_world_camera_mode: bool = false
+var _runtime_mode: StringName = &"editor"
+var _gameplay_control_mode: StringName = &"none"
+var _follow_target: Node3D
+var _is_temporary_follow_pan: bool = false
 
 func _ready() -> void:
 	_active_min_height_m = min_height_m
@@ -68,17 +75,31 @@ func _ready() -> void:
 	_apply_camera_transform()
 	_connect_event_bus()
 
+func _input(event: InputEvent) -> void:
+	var key_event := event as InputEventKey
+	if key_event == null or key_event.pressed or not _is_temporary_follow_pan:
+		return
+	if key_event.keycode == KEY_CTRL or key_event.physical_keycode == KEY_CTRL:
+		_end_temporary_follow_pan()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion:
 		_handle_mouse_motion(event)
 
+func _process(_delta: float) -> void:
+	if _is_realtime_follow_active() and not _is_temporary_follow_pan:
+		_snap_to_follow_target()
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 		_is_panning = false
 		_is_looking = false
+		_is_temporary_follow_pan = false
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		if _is_realtime_follow_active():
+			_snap_to_follow_target()
 
 func set_height_m(value: float) -> void:
 	_height_m = clampf(value, _active_min_height_m, _active_max_height_m)
@@ -91,6 +112,15 @@ static func camera_distance_for_height(height_m: float, pitch_radians: float) ->
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	match event.button_index:
 		MOUSE_BUTTON_RIGHT:
+			if _is_realtime_gameplay_mode():
+				if event.pressed and event.ctrl_pressed and _follow_target != null:
+					_is_panning = true
+					_is_temporary_follow_pan = true
+					get_viewport().set_input_as_handled()
+				elif not event.pressed and _is_temporary_follow_pan:
+					_end_temporary_follow_pan()
+					get_viewport().set_input_as_handled()
+				return
 			_is_panning = event.pressed
 			get_viewport().set_input_as_handled()
 		MOUSE_BUTTON_MIDDLE:
@@ -163,11 +193,31 @@ func _connect_event_bus() -> void:
 	var mode_callable := Callable(self, "_on_editor_mode_changed")
 	if event_bus.has_signal(&"editor_mode_changed") and not event_bus.is_connected(&"editor_mode_changed", mode_callable):
 		event_bus.connect(&"editor_mode_changed", mode_callable)
+	var gameplay_mode_callable := Callable(self, "_on_gameplay_control_mode_changed")
+	if (
+		event_bus.has_signal(&"gameplay_control_mode_changed")
+		and not event_bus.is_connected(&"gameplay_control_mode_changed", gameplay_mode_callable)
+	):
+		event_bus.connect(&"gameplay_control_mode_changed", gameplay_mode_callable)
+	var active_character_callable := Callable(self, "_on_active_player_character_changed")
+	if (
+		event_bus.has_signal(&"active_player_character_changed")
+		and not event_bus.is_connected(&"active_player_character_changed", active_character_callable)
+	):
+		event_bus.connect(&"active_player_character_changed", active_character_callable)
 
 func _on_editor_mode_changed(mode: StringName) -> void:
+	var previous_runtime_mode := _runtime_mode
+	if mode == RUNTIME_MODE_GAME and previous_runtime_mode != RUNTIME_MODE_GAME:
+		_store_local_camera_state()
+	_runtime_mode = mode
+	if mode != RUNTIME_MODE_GAME:
+		_is_temporary_follow_pan = false
+		_is_panning = false
 	if mode == &"world_editor":
 		if not _is_world_camera_mode:
-			_store_local_camera_state()
+			if previous_runtime_mode != RUNTIME_MODE_GAME:
+				_store_local_camera_state()
 		_active_min_height_m = world_min_height_m
 		_active_max_height_m = world_max_height_m
 		_active_height_step_m = world_height_step_m
@@ -188,7 +238,61 @@ func _on_editor_mode_changed(mode: StringName) -> void:
 			_camera.near = _local_camera_near_m
 			_camera.far = _local_camera_far_m
 		_is_world_camera_mode = false
-		_apply_saved_camera_state(_local_position, _local_height_m, _local_yaw, _local_pitch)
+		if (
+			previous_runtime_mode == &"world_editor"
+			or (previous_runtime_mode == RUNTIME_MODE_GAME and mode != RUNTIME_MODE_GAME)
+		):
+			_apply_saved_camera_state(_local_position, _local_height_m, _local_yaw, _local_pitch)
+	if _is_realtime_follow_active():
+		_snap_to_follow_target()
+
+func _on_gameplay_control_mode_changed(mode: StringName) -> void:
+	_gameplay_control_mode = mode
+	if mode != CONTROL_MODE_REAL_TIME:
+		_is_temporary_follow_pan = false
+		_is_panning = false
+	elif _is_realtime_follow_active():
+		_snap_to_follow_target()
+
+func _on_active_player_character_changed(actor: Node, _actor_data: Resource) -> void:
+	_follow_target = actor as Node3D
+	if _is_realtime_follow_active():
+		_is_temporary_follow_pan = false
+		_is_panning = false
+		_snap_to_follow_target()
+
+func get_follow_target() -> Node3D:
+	return _follow_target
+
+func is_realtime_follow_active() -> bool:
+	return _is_realtime_follow_active()
+
+func is_temporary_follow_pan_active() -> bool:
+	return _is_temporary_follow_pan
+
+func _is_realtime_gameplay_mode() -> bool:
+	return _runtime_mode == RUNTIME_MODE_GAME and _gameplay_control_mode == CONTROL_MODE_REAL_TIME
+
+func _is_realtime_follow_active() -> bool:
+	return (
+		_is_realtime_gameplay_mode()
+		and _follow_target != null
+		and is_instance_valid(_follow_target)
+	)
+
+func _snap_to_follow_target() -> void:
+	if not _is_realtime_follow_active():
+		return
+
+	var target_position := _follow_target.global_position
+	position.x = target_position.x
+	position.y = 0.0
+	position.z = target_position.z
+
+func _end_temporary_follow_pan() -> void:
+	_is_temporary_follow_pan = false
+	_is_panning = false
+	_snap_to_follow_target()
 
 func _store_local_camera_state() -> void:
 	_local_position = position

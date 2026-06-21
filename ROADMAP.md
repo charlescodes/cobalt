@@ -11,6 +11,9 @@ COBALT is a procedural 3D isometric RPG where players explore local zones genera
 ## Working Terms
 
 - **Game mode:** the playable experience: movement, exploration, interaction, quests, and world consequences.
+- **Gameplay control mode:** a control scheme nested inside Game mode rather than a peer of the local or world editors.
+- **Real-time control mode:** the implemented gameplay control scheme with active-character cycling, player-follow camera, and direct held-mouse movement.
+- **Turn-based control mode:** an implemented selectable placeholder that disables real-time controls; explicit actor selection, actions, targeting, and turn progression remain future work.
 - **Local editor mode:** runtime development tooling for authoring playable local maps and reusable content.
 - **World editor mode:** runtime macro tooling for world terrain, zones, routes, settlements, and points of interest.
 - **Editor tool:** a pluggable in-project tool mode. Reserve "plugin" for future Godot `EditorPlugin` or external extension work.
@@ -94,6 +97,7 @@ COBALT is a procedural 3D isometric RPG where players explore local zones genera
 
 ### Broader Gameplay and Production
 
+- Add the turn-based gameplay control mode after the real-time control boundary and combat action model are proven.
 - Split `WorldObjectData` into actor and prop resources when their behavior requires distinct models.
 - Add combat, inventory, dialogue, quests, party management, saves, and AI behavior incrementally.
 - Add richer movement presentation, invalid-destination feedback, art, models, and animation when core gameplay requires them.

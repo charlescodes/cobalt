@@ -81,6 +81,15 @@ func request_move(actor: Node, actor_data: Resource, destination_data: Resource)
 func is_actor_busy(actor: Node) -> bool:
 	return _is_actor_busy(actor)
 
+func cancel_actor_movement(actor: Node) -> bool:
+	if not _is_actor_busy(actor):
+		return false
+
+	_busy_actors.erase(actor.get_instance_id())
+	if _busy_actors.is_empty():
+		set_physics_process(false)
+	return true
+
 func _physics_process(delta: float) -> void:
 	for actor_id in _busy_actors.keys():
 		_process_active_movement(int(actor_id), delta)

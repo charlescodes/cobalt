@@ -3,6 +3,7 @@ extends Node
 
 @export var debug_log_path: NodePath = ^"../InteractionUI/DebugLogPanel"
 @export var navigation_overlay_path: NodePath = ^"../NavigationDebugOverlay"
+@export var actor_collision_overlay_path: NodePath = ^"../ActorCollisionDebugOverlay"
 @export var debug_visible_on_ready: bool = false
 
 var _debug_visible: bool = false
@@ -21,6 +22,7 @@ func set_debug_visible(is_visible: bool) -> void:
 	_debug_visible = is_visible
 	_set_node_visible(get_node_or_null(debug_log_path), is_visible)
 	_set_node_visible(get_node_or_null(navigation_overlay_path), is_visible)
+	_set_node_visible(get_node_or_null(actor_collision_overlay_path), is_visible)
 
 func is_debug_visible() -> bool:
 	return _debug_visible

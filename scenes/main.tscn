@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://62ol1vkaq7c7"]
+[gd_scene load_steps=20 format=3 uid="uid://62ol1vkaq7c7"]
 
 [ext_resource type="Script" uid="uid://3xpq3dco07k0" path="res://src/camera/camera_rig.gd" id="2_6la6x"]
 [ext_resource type="Script" uid="uid://b8hwmk8ewjylb" path="res://src/interaction/interaction_controller.gd" id="3_l45p7"]
@@ -14,6 +14,10 @@
 [ext_resource type="Script" path="res://src/editor/dev_menu.gd" id="19_rkju2"]
 [ext_resource type="Script" path="res://src/editor/editor_selection_controller.gd" id="20_8t7qo"]
 [ext_resource type="Script" path="res://src/editor/editor_panel.gd" id="21_qhw5i"]
+[ext_resource type="Script" path="res://src/movement/gameplay_mode_controller.gd" id="22_gameplay_mode"]
+[ext_resource type="Script" path="res://src/movement/realtime_gameplay_controller.gd" id="23_realtime_gameplay"]
+[ext_resource type="Script" path="res://src/ui/actor_collision_debug_overlay.gd" id="24_actor_collision_debug"]
+[ext_resource type="Script" path="res://src/ui/gameplay_mode_panel.gd" id="25_gameplay_mode_panel"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_main"]
 geometry_parsed_geometry_type = 1
@@ -34,6 +38,12 @@ script = ExtResource("3_l45p7")
 [node name="MovementController" type="Node" parent="."]
 script = ExtResource("8_0kq8v")
 
+[node name="GameplayModeController" type="Node" parent="."]
+script = ExtResource("22_gameplay_mode")
+
+[node name="RealtimeGameplayController" type="Node" parent="."]
+script = ExtResource("23_realtime_gameplay")
+
 [node name="InteractionUI" type="CanvasLayer" parent="."]
 
 [node name="InteractionMenu" type="PanelContainer" parent="InteractionUI"]
@@ -51,8 +61,14 @@ script = ExtResource("19_rkju2")
 [node name="EditorPanel" type="PanelContainer" parent="InteractionUI"]
 script = ExtResource("21_qhw5i")
 
+[node name="GameplayModePanel" type="PanelContainer" parent="InteractionUI"]
+script = ExtResource("25_gameplay_mode_panel")
+
 [node name="NavigationDebugOverlay" type="Node3D" parent="."]
 script = ExtResource("16_t70pm")
+
+[node name="ActorCollisionDebugOverlay" type="Node3D" parent="."]
+script = ExtResource("24_actor_collision_debug")
 
 [node name="SunLight" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.707107, -0.612373, 0.353552, 0, 0.499998, 0.866027, -0.707107, -0.612373, 0.353552, 0, 0, 0)

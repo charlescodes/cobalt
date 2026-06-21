@@ -196,6 +196,20 @@ func run(ctx) -> bool:
 			_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
 			return ctx.fail("MovementController did not emit already_at_destination.")
 
+	var cancellable_destination := MoveTargetDataScript.new(Vector3(1.5, 0.0, 1.5))
+	if not movement_controller.request_move(pc_view, pc_data, cancellable_destination):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController rejected the direct-control cancellation setup.")
+	if not movement_controller.cancel_actor_movement(pc_view):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController did not cancel an active scripted move.")
+	if movement_controller.is_actor_busy(pc_view):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController kept an actor busy after direct-control cancellation.")
+	if movement_controller.cancel_actor_movement(pc_view):
+		_free_movement_fixture(ctx, root_event_bus, movement_controller, pc_view, navigation_map, navigation_region)
+		return ctx.fail("MovementController reported cancelling an idle actor.")
+
 	ctx.movement_failed_count = 0
 	ctx.movement_failed_reason = &""
 	if movement_controller.request_move(

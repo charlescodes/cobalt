@@ -6,6 +6,10 @@ All notable project changes are recorded here as user- or contributor-relevant o
 
 ### Added
 
+- Added a nested real-time gameplay control mode with lowest-id PC selection, Tab cycling, player-follow camera, temporary Ctrl+right-drag camera offset, and held-right-mouse tiptoe/walk/run steering that bypasses navmesh routing.
+- Added 100kg default object mass, acceleration/deceleration inertia, and cylindrical `CharacterBody3D` collision for PCs and NPCs against walls and other actors while retaining rectangular blockout visuals.
+- Added F12 wireframe visualization for every generated actor collision cylinder.
+- Added a compact game-only RT/TB panel; RT remains the default, while TB currently acts as a placeholder that releases real-time movement and camera follow.
 - Added runtime local-map editor V1 behind an Escape dev menu, including game/editor mode switching, a draggable collapsed tool dock, local map save/load, selection and read-only inspection, ground resizing, NPC and PC painting, line/rectangle wall painting, and snapped door openings.
 - Added a deterministic BSP building generator and `Bldg.` brush with configurable seed, dimensions, room targets, translucent preview, explicit Submit, connected partition doors, and an exterior door.
 - Added runtime World editor mode with separate world-map persistence, macro ground sizing, geology controls, deterministic terrain and climate generation, rain-shadow moisture, biome coloring, macro camera behavior, and a non-colliding visible terrain layer over a hidden pick surface.

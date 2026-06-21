@@ -24,6 +24,8 @@ func run(ctx) -> bool:
 		return ctx.fail("WorldObjectData did not preserve the Vector3 position.")
 	if pc_data.size_m != pc_size:
 		return ctx.fail("Player character dimensions are incorrect.")
+	if not is_equal_approx(pc_data.mass_kg, 100.0):
+		return ctx.fail("WorldObjectData should default actor mass to 100kg.")
 
 	var pc_view := BlockoutObjectViewScript.new()
 	pc_view.object_data = pc_data
@@ -58,6 +60,20 @@ func run(ctx) -> bool:
 	if pc_mesh == null or pc_mesh.size != pc_size:
 		pc_view.free()
 		return ctx.fail("Player character mesh dimensions are incorrect.")
+	var movement_collision := pc_view.get_node_or_null("MovementCollisionShape3D") as CollisionShape3D
+	var movement_cylinder := movement_collision.shape as CylinderShape3D if movement_collision != null else null
+	if movement_cylinder == null:
+		pc_view.free()
+		return ctx.fail("BlockoutObjectView did not create a cylindrical movement collider.")
+	if (
+		not is_equal_approx(movement_cylinder.radius, maxf(pc_size.x, pc_size.z) * 0.5)
+		or not is_equal_approx(movement_cylinder.height, pc_size.y)
+	):
+		pc_view.free()
+		return ctx.fail("Actor movement cylinder does not match the blockout footprint and height.")
+	if pc_view.collision_layer != 2 or pc_view.collision_mask != 3:
+		pc_view.free()
+		return ctx.fail("Actor movement collision should collide with environment and other actors.")
 
 	var pc_target := pc_view.get_node_or_null("InteractionTarget") as InteractionTargetScript
 	if pc_target == null:

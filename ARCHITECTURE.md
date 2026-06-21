@@ -53,7 +53,7 @@ Local and world maps use separate typed resources:
 
 ## Runtime Scene and Build Pipeline
 
-`main.tscn` contains the native `NavigationRegion3D`, map loading/building, gameplay interaction and movement controllers, runtime UI and debug overlays, camera rig, editor controllers, and lighting.
+`main.tscn` contains the native `NavigationRegion3D`, map loading/building, gameplay mode, interaction, and movement controllers, runtime UI and debug overlays, camera rig, editor controllers, and lighting.
 
 The build pipeline is:
 
@@ -104,6 +104,14 @@ Static props or obstacles that affect baked navigation belong under `src/environ
 - Valid destinations are enabled move-target nodes backed by `MoveTargetData`.
 - `MovementController` listens for `EventBus.move_requested`, validates again, and drives the actor's `NavigationAgent3D`.
 - Actor nodes and `WorldObjectData.position` remain synchronized during movement; arrival snaps both to the exact requested destination.
+- `GameplayModeController` owns the gameplay control submode. Entering top-level `game` defaults to `real_time`; a compact bottom-right panel switches between `real_time` (`RT`) and the `turn_based` (`TB`) placeholder. Editor modes expose no active gameplay control submode.
+- `RealtimeGameplayController` selects the lowest player-character `object_id` by default and cycles the sorted player-character set with Tab.
+- Held right mouse directly steers the active player character toward the cursor projected onto the actor's horizontal plane. It intentionally bypasses navigation paths and uses cursor distance bands: up to 0.5m tiptoe, up to 2m walk, and beyond 2m run.
+- Real-time direct control stores planar velocity, accelerates toward tier speed, and decelerates after release. The default actor mass is 100kg and scales acceleration relative to that reference mass.
+- PCs and NPCs use `BlockoutObjectView` as a `CharacterBody3D` with a cylinder movement collider derived from the authored X/Z footprint and height. Actor bodies use collision layer `2` and collide with environment layer `1` plus other actors on layer `2`; the rectangular primitive remains visual-only.
+- Direct control uses body collision against walls and other actors without requesting a navmesh path. Existing requested movement remains navigation-driven and direct control cancels any active requested move before taking ownership.
+- In real-time mode, `CameraRig` follows the active player character. Zoom and middle-mouse orbit remain available; ordinary right-drag pan is disabled. Ctrl+right-drag temporarily offsets the camera and releasing Ctrl or RMB snaps it back to the active character. Leaving real-time play restores the pre-game local-editor camera state.
+- Turn-based mode currently defines only the input-mode boundary: it disables real-time steering and camera follow and restores free camera panning. Turn sequencing, actions, targeting, and budgets are not implemented.
 - Gameplay-only input must be gated to game mode so editor pointer ownership, raycasts, context menus, and camera behavior remain isolated.
 
 Movement action points, terrain costs, movement ranges, turn budgets, actor occupancy, and collision-aware endpoint reservations are not implemented.
@@ -115,7 +123,7 @@ Movement action points, terrain costs, movement ranges, turn budgets, actor occu
 - Player-character objects expose `Move`; other current world objects expose `Examine`.
 - Ground movement targets are intentionally non-highlightable to avoid a map-sized hover shell.
 - Interaction remains independent from navigation except when movement validates a clicked destination.
-- `F12` toggles the debug log panel and navigation debug overlay.
+- `F12` toggles the debug log panel, navigation debug overlay, and global wireframe visualization of every generated actor's cylindrical movement collider.
 
 ## Runtime Editor Contract
 

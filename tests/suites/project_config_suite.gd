@@ -22,6 +22,9 @@ func run(ctx) -> bool:
 		"movement_failed",
 		"examined_output",
 		"editor_mode_changed",
+		"gameplay_control_mode_changed",
+		"gameplay_control_mode_requested",
+		"active_player_character_changed",
 		"editor_tool_changed",
 		"editor_wall_brush_mode_changed",
 		"editor_selection_changed",
@@ -45,6 +48,10 @@ func run(ctx) -> bool:
 		return ctx.fail("toggle_dev_menu input action is missing.")
 	if not _action_has_keycode("toggle_dev_menu", KEY_ESCAPE):
 		return ctx.fail("toggle_dev_menu is not bound to Escape.")
+	if not InputMap.has_action("cycle_player_character"):
+		return ctx.fail("cycle_player_character input action is missing.")
+	if not _action_has_keycode("cycle_player_character", KEY_TAB):
+		return ctx.fail("cycle_player_character is not bound to Tab (%d)." % int(KEY_TAB))
 	if ResourceLoader.exists("res://src/movement/hex_pathfinder.gd"):
 		return ctx.fail("HexPathfinder script should be deleted.")
 	if ResourceLoader.exists("res://src/walls/wall_cell_resolver.gd"):
