@@ -1,75 +1,51 @@
 # Changelog
 
-All notable project changes should be recorded here. Keep entries factual and chronological. Use `DECISIONS.md` for rationale and active design notes.
+All notable project changes are recorded here as user- or contributor-relevant outcomes. Current design belongs in `ARCHITECTURE.md`; future intent belongs in `ROADMAP.md`.
 
 ## Unreleased
 
 ### Added
 
-- Added `AGENTS.md` as the short entrypoint to the repository documentation set.
-- Added `ROADMAP.md` as the forward-looking planning template.
-- Added `CHANGELOG.md` as the formal running history.
-- Added runtime local-map editor V1 behind an Escape dev menu, with game/editor mode switching, map save/load, select/inspect tooling, editor selection highlighting, and a read-only inspector.
-- Added editor-focused test coverage for mode switching, generated-node metadata, selection, inspector display, and MapData save/load.
-- Added a draggable, collapsed-by-default editor tool dock with Select/Inspect and NPC Brush tools.
-- Added NPC Brush placement for non-player-character blockout objects, including rebuild/rebake while keeping selection clear for repeated painting.
-- Added editor test coverage for tool switching, dock dragging, and NPC brush placement.
-- Added a Wall Brush editor tool with line and rectangle modes for two-click static wall placement and map rebuild/rebake.
-- Added a Door Brush editor tool that snaps to walls, splits a 1m opening with 0.5m edge clearance, and draws a light grey-green door socket marker.
-- Added a PC Brush editor tool for placing multiple controllable player-character blockout objects.
-- Added a deterministic BSP building generator and `Bldg.` editor brush with seed/size/room sliders, translucent preview, Submit commit flow, partition door sockets, and an exterior door socket.
-- Added a `Ground` editor tool with whole-meter X/Z sliders that resize the primary ground plane and rebuild/rebake the map.
-- Added Escape-driven World editor mode with macro-scale ground sizing, a Geology tool, deterministic terrain/climate generation, rain-shadow moisture, biome coloring, and a non-colliding 3D world map layer.
-- Added a world-map generation README covering saved data shape, generator phases, render buffers, and current gaps.
-- Added world editor regression coverage for mode switching, tool visibility, macro ground ranges, geology controls, camera scale, and deterministic/coastal generation.
-- Added `WorldMapData` and `WorldMapBuilder` so durable world maps no longer reuse local `MapData` arrays.
+- Added runtime local-map editor V1 behind an Escape dev menu, including game/editor mode switching, a draggable collapsed tool dock, local map save/load, selection and read-only inspection, ground resizing, NPC and PC painting, line/rectangle wall painting, and snapped door openings.
+- Added a deterministic BSP building generator and `Bldg.` brush with configurable seed, dimensions, room targets, translucent preview, explicit Submit, connected partition doors, and an exterior door.
+- Added runtime World editor mode with separate world-map persistence, macro ground sizing, geology controls, deterministic terrain and climate generation, rain-shadow moisture, biome coloring, macro camera behavior, and a non-colliding visible terrain layer over a hidden pick surface.
+- Added typed `WorldMapData` and `WorldMapBuilder` paths so durable world maps no longer reuse local `MapData` arrays or persist a fake `grounds[0]`.
+- Added focused regression coverage for runtime editor tools, mode switching, save/load routing, generated metadata, world generation, camera scaling, map building, interaction, movement, and navigation.
 
 ### Changed
 
-- Camera controls now switch to macro-scale pan and zoom settings while World editor mode is active.
-- World map saving/loading now uses `data/world_maps` while local editor maps stay under `data/editor_maps`; the dev menu labels file actions as Local or World for the active mode.
-- World map saving/loading now persists `WorldMapData` resources, while local editor maps remain `MapData` resources.
-- World maps now hide the macro ground box, render the generated terrain layer as the visible world surface, and keep world selection data-only without macro highlight shells.
-- World maps now derive `GeneratedMap/WorldPickSurface` from `WorldMapData.geology.size_m` at runtime instead of saving a fake `grounds[0]`.
-- Runtime startup now enters editor mode by default and keeps the configured main blockout map as the editable map instead of replacing it with a blank editor map.
-- Sharpened `ARCHITECTURE.md`, `DECISIONS.md`, and `PROJECT_STRUCTURE.md` into distinct source-of-truth documents.
-- Expanded `ROADMAP.md` with procedural world generation, editor tooling, faction/population, agent, quest-seed, and world-history milestones.
-- Planned the first editor direction as an Escape-driven runtime editor mode with separate editor tools, module libraries, placement descriptors, and generator presets.
-- Expanded future roadmap coverage for map components, procedural structures, sockets, city-block composition, world-map editor tooling, sparse region-scale generation, points of interest, and spawn placement.
-- Replaced legacy wall resources with continuous `WallData` resources while keeping solid `BoxMesh`/`BoxShape3D` generation per wall.
+- Runtime startup now enters local editor mode while preserving the configured main blockout map; game mode remains available through the Escape dev menu.
+- Local and world maps now use separate typed save/load routes under `data/editor_maps` and `data/world_maps`, with mode-aware file actions and local-state restoration after World mode.
+- Replaced legacy wall resources with continuous `WallData` lines while retaining box-based visual and static-collision generation.
+- Consolidated repository guidance into `AGENTS.md`, `ARCHITECTURE.md`, `ROADMAP.md`, and `CHANGELOG.md`; architecture now owns durable decisions and directory boundaries, while roadmap and changelog exclusively own future and completed work.
 
 ### Fixed
 
-- Fixed World editor mode rendering as a grey/blank view by using macro camera clip distances, unshaded two-sided biome vertex colors, explicit macro render bounds, and a hidden pick-only ground surface.
-- Fixed returning from World mode leaving the local editor camera at a macro-scale pan position.
-- Fixed local editor load actions being able to cross into saved world maps by filename.
-- Fixed local/world ground state collision that could shrink saved world maps to local editor dimensions after save/load or mode switching.
-- Fixed gameplay interaction input remaining enabled in World editor mode.
-- Fixed the editor inspector label collapsing to a one-character wrapping width inside the scroll panel and normalized tool panel content layout.
+- Fixed World mode rendering as a blank or grey view by using macro camera clipping, unshaded two-sided vertex colors, explicit render bounds, normals, and a hidden pick-only surface.
+- Fixed returning from World mode leaving the local editor camera at a macro-scale position.
+- Fixed local editor load actions accepting world maps and fixed local/world ground-state collisions during save, load, and mode switching.
+- Fixed gameplay interaction input remaining active in World editor mode.
+- Fixed the editor inspector collapsing to a one-character wrapping width and normalized tool-panel layout.
 
 ## 2026-05-30
 
 ### Changed
 
-- Consolidated static environment scripts under `src/environment/`.
-- Updated map resources, tests, and structure documentation for the environment directory.
+- Consolidated static environment scripts under `src/environment/` and updated map resources, tests, and ownership documentation.
 
 ## 2026-05-21
 
 ### Added
 
-- Added debug overlay and debug log support for navigation and movement events.
-- Added F12 debug visibility toggling.
+- Added F12-controlled navigation and movement debug overlays and logs.
 
 ### Changed
 
-- Renamed floor concepts to ground.
-- Refreshed documentation after navigation and map updates.
+- Renamed floor concepts to ground and refreshed documentation after navigation and map updates.
 
 ### Fixed
 
-- Fixed debug navigation overlay behavior.
-- Fixed repeated movement behavior.
+- Fixed debug navigation overlay and repeated movement behavior.
 
 ## 2026-05-18
 
@@ -87,6 +63,4 @@ All notable project changes should be recorded here. Keep entries factual and ch
 
 ### Changed
 
-- Refreshed project overview documentation for the COBALT navigation refactor.
-- Renamed the project appropriately through Godot project configuration.
-- Normalized `main.tscn` after Godot editor save/import.
+- Refreshed project documentation for the native-navigation refactor, renamed the project through Godot configuration, and normalized `main.tscn` after an editor save/import.
